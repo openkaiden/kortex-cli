@@ -30,3 +30,5 @@ A standardized protocol for connecting AI agents to external data sources and to
 
 ### Skills
 Pre-configured capabilities or specialized functions that can be enabled for an agent. Skills extend what an agent can do, such as code review, testing, or specific domain knowledge.
+
+
