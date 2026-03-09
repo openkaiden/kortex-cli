@@ -94,7 +94,10 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create manager: %v", err)
 		}
 
-		instance, err := instances.NewInstance(sourcesDir, filepath.Join(sourcesDir, ".kortex"), "")
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+		SourceDir: sourcesDir,
+		ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+	})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
@@ -138,12 +141,18 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create manager: %v", err)
 		}
 
-		instance1, err := instances.NewInstance(sourcesDir1, filepath.Join(sourcesDir1, ".kortex"), "")
+		instance1, err := instances.NewInstance(instances.NewInstanceParams{
+		SourceDir: sourcesDir1,
+		ConfigDir: filepath.Join(sourcesDir1, ".kortex"),
+	})
 		if err != nil {
 			t.Fatalf("Failed to create instance 1: %v", err)
 		}
 
-		instance2, err := instances.NewInstance(sourcesDir2, filepath.Join(sourcesDir2, ".kortex"), "")
+		instance2, err := instances.NewInstance(instances.NewInstanceParams{
+		SourceDir: sourcesDir2,
+		ConfigDir: filepath.Join(sourcesDir2, ".kortex"),
+	})
 		if err != nil {
 			t.Fatalf("Failed to create instance 2: %v", err)
 		}
@@ -197,7 +206,10 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create manager: %v", err)
 		}
 
-		instance, err := instances.NewInstance(sourcesDir, filepath.Join(sourcesDir, ".kortex"), "")
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+		SourceDir: sourcesDir,
+		ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+	})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
 		}

@@ -30,7 +30,10 @@ func TestNewInstance(t *testing.T) {
 		sourceDir := filepath.Join(tmpDir, "test-source")
 		configDir := filepath.Join(tmpDir, "test-config")
 
-		inst, err := NewInstance(sourceDir, configDir, "")
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}
@@ -55,7 +58,10 @@ func TestNewInstance(t *testing.T) {
 	t.Run("converts relative paths to absolute", func(t *testing.T) {
 		t.Parallel()
 
-		inst, err := NewInstance("source", "config", "")
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: "source",
+			ConfigDir: "config",
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}
@@ -91,7 +97,11 @@ func TestNewInstance(t *testing.T) {
 		sourceDir := filepath.Join(tmpDir, "test-source")
 		configDir := filepath.Join(tmpDir, "test-config")
 
-		inst, err := NewInstance(sourceDir, configDir, "my-workspace")
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+			Name:      "my-workspace",
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}
@@ -105,7 +115,10 @@ func TestNewInstance(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		_, err := NewInstance("", filepath.Join(tmpDir, "config"), "")
+		_, err := NewInstance(NewInstanceParams{
+			SourceDir: "",
+			ConfigDir: filepath.Join(tmpDir, "config"),
+		})
 		if err != ErrInvalidPath {
 			t.Errorf("NewInstance() error = %v, want %v", err, ErrInvalidPath)
 		}
@@ -115,7 +128,10 @@ func TestNewInstance(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		_, err := NewInstance(filepath.Join(tmpDir, "source"), "", "")
+		_, err := NewInstance(NewInstanceParams{
+			SourceDir: filepath.Join(tmpDir, "source"),
+			ConfigDir: "",
+		})
 		if err != ErrInvalidPath {
 			t.Errorf("NewInstance() error = %v, want %v", err, ErrInvalidPath)
 		}
@@ -124,7 +140,10 @@ func TestNewInstance(t *testing.T) {
 	t.Run("returns error for both empty", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewInstance("", "", "")
+		_, err := NewInstance(NewInstanceParams{
+			SourceDir: "",
+			ConfigDir: "",
+		})
 		if err != ErrInvalidPath {
 			t.Errorf("NewInstance() error = %v, want %v", err, ErrInvalidPath)
 		}
@@ -148,7 +167,10 @@ func TestInstance_IsAccessible(t *testing.T) {
 			t.Fatalf("Failed to create config dir: %v", err)
 		}
 
-		inst, err := NewInstance(sourceDir, configDir, "")
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}
@@ -168,7 +190,10 @@ func TestInstance_IsAccessible(t *testing.T) {
 			t.Fatalf("Failed to create config dir: %v", err)
 		}
 
-		inst, err := NewInstance(filepath.Join(tmpDir, "nonexistent"), configDir, "")
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: filepath.Join(tmpDir, "nonexistent"),
+			ConfigDir: configDir,
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}
@@ -188,7 +213,10 @@ func TestInstance_IsAccessible(t *testing.T) {
 			t.Fatalf("Failed to create source dir: %v", err)
 		}
 
-		inst, err := NewInstance(sourceDir, filepath.Join(tmpDir, "nonexistent"), "")
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: filepath.Join(tmpDir, "nonexistent"),
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}
@@ -203,11 +231,10 @@ func TestInstance_IsAccessible(t *testing.T) {
 
 		tmpDir := t.TempDir()
 
-		inst, err := NewInstance(
-			filepath.Join(tmpDir, "nonexistent1"),
-			filepath.Join(tmpDir, "nonexistent2"),
-			"",
-		)
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: filepath.Join(tmpDir, "nonexistent1"),
+			ConfigDir: filepath.Join(tmpDir, "nonexistent2"),
+		})
 		if err != nil {
 			t.Fatalf("NewInstance() unexpected error = %v", err)
 		}

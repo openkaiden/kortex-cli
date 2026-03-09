@@ -83,7 +83,11 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 // run executes the init command logic
 func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	// Create a new instance
-	instance, err := instances.NewInstance(i.absSourcesDir, i.absConfigDir, i.name)
+	instance, err := instances.NewInstance(instances.NewInstanceParams{
+		SourceDir: i.absSourcesDir,
+		ConfigDir: i.absConfigDir,
+		Name:      i.name,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create instance: %w", err)
 	}
