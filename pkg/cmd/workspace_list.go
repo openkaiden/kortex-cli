@@ -19,8 +19,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 	"github.com/spf13/cobra"
 )
@@ -69,7 +71,12 @@ func (w *workspaceListCmd) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list instances: %w", err)
 	}
 
-	// Display the instances
+	// Handle JSON output format
+	if w.output == "json" {
+		return w.outputJSON(cmd, instancesList)
+	}
+
+	// Display the instances in text format
 	if len(instancesList) == 0 {
 		cmd.Println("No workspaces registered")
 		return nil
@@ -82,6 +89,38 @@ func (w *workspaceListCmd) run(cmd *cobra.Command, args []string) error {
 		cmd.Println()
 	}
 
+	return nil
+}
+
+// outputJSON converts instances to Workspace format and outputs as JSON
+func (w *workspaceListCmd) outputJSON(cmd *cobra.Command, instancesList []instances.Instance) error {
+	// Convert instances to API Workspace format
+	workspaces := make([]api.Workspace, 0, len(instancesList))
+	for _, instance := range instancesList {
+		workspace := api.Workspace{
+			Id:   instance.GetID(),
+			Name: instance.GetName(),
+			Paths: api.WorkspacePaths{
+				Configuration: instance.GetConfigDir(),
+				Source:        instance.GetSourceDir(),
+			},
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	// Create WorkspacesList wrapper
+	workspacesList := api.WorkspacesList{
+		Items: workspaces,
+	}
+
+	// Marshal to JSON with indentation
+	jsonData, err := json.MarshalIndent(workspacesList, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal workspaces to JSON: %w", err)
+	}
+
+	// Output the JSON to stdout
+	fmt.Fprintln(cmd.OutOrStdout(), string(jsonData))
 	return nil
 }
 

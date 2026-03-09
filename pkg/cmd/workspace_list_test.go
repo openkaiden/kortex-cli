@@ -20,10 +20,12 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 )
 
@@ -309,4 +311,103 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance.GetID(), result)
 		}
 	})
+
+	t.Run("outputs JSON with empty list", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir, "-o", "json"})
+
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		// Parse JSON output
+		var workspacesList api.WorkspacesList
+		err = json.Unmarshal(output.Bytes(), &workspacesList)
+		if err != nil {
+			t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, output.String())
+		}
+
+		// Verify empty items array
+		if workspacesList.Items == nil {
+			t.Error("Expected Items to be non-nil")
+		}
+		if len(workspacesList.Items) != 0 {
+			t.Errorf("Expected 0 items, got %d", len(workspacesList.Items))
+		}
+	})
+
+	t.Run("outputs JSON with single workspace", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		// Create a workspace
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			Name:      "test-workspace",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		addedInstance, err := manager.Add(instance)
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		// List workspaces with JSON output
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir, "-o", "json"})
+
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		// Parse JSON output
+		var workspacesList api.WorkspacesList
+		err = json.Unmarshal(output.Bytes(), &workspacesList)
+		if err != nil {
+			t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, output.String())
+		}
+
+		// Verify structure
+		if len(workspacesList.Items) != 1 {
+			t.Fatalf("Expected 1 item, got %d", len(workspacesList.Items))
+		}
+
+		workspace := workspacesList.Items[0]
+
+		// Verify all fields
+		if workspace.Id != addedInstance.GetID() {
+			t.Errorf("Expected ID %s, got %s", addedInstance.GetID(), workspace.Id)
+		}
+		if workspace.Name != addedInstance.GetName() {
+			t.Errorf("Expected Name %s, got %s", addedInstance.GetName(), workspace.Name)
+		}
+		if workspace.Paths.Source != addedInstance.GetSourceDir() {
+			t.Errorf("Expected Source %s, got %s", addedInstance.GetSourceDir(), workspace.Paths.Source)
+		}
+		if workspace.Paths.Configuration != addedInstance.GetConfigDir() {
+			t.Errorf("Expected Configuration %s, got %s", addedInstance.GetConfigDir(), workspace.Paths.Configuration)
+		}
+	})
+
 }
