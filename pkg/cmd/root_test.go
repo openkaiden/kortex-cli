@@ -159,3 +159,68 @@ func TestRootCmd_StorageFlagMissingValue(t *testing.T) {
 		t.Errorf("Expected error message to contain 'flag' or 'argument', got: %s", errMsg)
 	}
 }
+
+func TestRootCmd_StorageEnvVariable(t *testing.T) {
+	t.Run("env variable sets default", func(t *testing.T) {
+		// Set the environment variable
+		envPath := filepath.Join(t.TempDir(), "from-env")
+		t.Setenv("KORTEX_CLI_STORAGE", envPath)
+
+		rootCmd := NewRootCmd()
+		flag := rootCmd.PersistentFlags().Lookup("storage")
+		if flag == nil {
+			t.Fatal("Expected --storage flag to exist")
+		}
+
+		// Verify the default value is from the environment variable
+		if flag.DefValue != envPath {
+			t.Errorf("Expected default value to be '%s' (from env var), got '%s'", envPath, flag.DefValue)
+		}
+	})
+
+	t.Run("flag overrides env variable", func(t *testing.T) {
+		// Set the environment variable
+		envPath := filepath.Join(t.TempDir(), "from-env")
+		t.Setenv("KORTEX_CLI_STORAGE", envPath)
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+
+		// Set the flag explicitly
+		flagPath := filepath.Join(t.TempDir(), "from-flag")
+		rootCmd.SetArgs([]string{"--storage", flagPath, "version"})
+
+		// Execute the command
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify the flag value overrides the env var
+		storagePath, err := rootCmd.PersistentFlags().GetString("storage")
+		if err != nil {
+			t.Fatalf("Failed to get storage flag: %v", err)
+		}
+
+		if storagePath != flagPath {
+			t.Errorf("Expected storage to be '%s' (from flag), got '%s'", flagPath, storagePath)
+		}
+	})
+
+	t.Run("default used when env var not set", func(t *testing.T) {
+		// Explicitly unset the environment variable (in case it was set in the shell)
+		t.Setenv("KORTEX_CLI_STORAGE", "")
+
+		rootCmd := NewRootCmd()
+		flag := rootCmd.PersistentFlags().Lookup("storage")
+		if flag == nil {
+			t.Fatal("Expected --storage flag to exist")
+		}
+
+		// Verify the default value ends with .kortex-cli
+		if !strings.HasSuffix(flag.DefValue, ".kortex-cli") {
+			t.Errorf("Expected default value to end with '.kortex-cli', got '%s'", flag.DefValue)
+		}
+	})
+}

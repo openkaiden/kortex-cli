@@ -378,6 +378,32 @@ func TestExample(t *testing.T) {
 }
 ```
 
+**Exception: Tests using `t.Setenv()`**
+
+Tests that use `t.Setenv()` to set environment variables **cannot use `t.Parallel()`** on the parent test function. The Go testing framework enforces this restriction because environment variable changes affect the entire process.
+
+```go
+// CORRECT: No t.Parallel() when using t.Setenv()
+func TestWithEnvVariable(t *testing.T) {
+    t.Run("subtest with env var", func(t *testing.T) {
+        t.Setenv("MY_VAR", "value")
+        // Test code here...
+    })
+}
+
+// INCORRECT: Will panic at runtime
+func TestWithEnvVariable(t *testing.T) {
+    t.Parallel() // ❌ WRONG - cannot use with t.Setenv()
+
+    t.Run("subtest with env var", func(t *testing.T) {
+        t.Setenv("MY_VAR", "value")
+        // Test code here...
+    })
+}
+```
+
+**Reference:** See `pkg/cmd/root_test.go:TestRootCmd_StorageEnvVariable()` for an example of testing with environment variables.
+
 ### Testing with Fake Objects
 
 When testing code that uses interfaces (following the Module Design Pattern), **use fake implementations instead of real implementations or mocks**.
