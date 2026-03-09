@@ -84,6 +84,7 @@ func (w *workspaceListCmd) run(cmd *cobra.Command, args []string) error {
 
 	for _, instance := range instancesList {
 		cmd.Printf("ID: %s\n", instance.GetID())
+		cmd.Printf("  Name: %s\n", instance.GetName())
 		cmd.Printf("  Sources: %s\n", instance.GetSourceDir())
 		cmd.Printf("  Configuration: %s\n", instance.GetConfigDir())
 		cmd.Println()

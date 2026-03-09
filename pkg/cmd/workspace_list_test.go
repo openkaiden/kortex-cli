@@ -198,6 +198,9 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		if !strings.Contains(result, addedInstance.GetID()) {
 			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance.GetID(), result)
 		}
+		if !strings.Contains(result, addedInstance.GetName()) {
+			t.Errorf("Expected output to contain name %s, got: %s", addedInstance.GetName(), result)
+		}
 		if !strings.Contains(result, sourcesDir) {
 			t.Errorf("Expected output to contain sources dir %s, got: %s", sourcesDir, result)
 		}
@@ -258,8 +261,14 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		if !strings.Contains(result, addedInstance1.GetID()) {
 			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance1.GetID(), result)
 		}
+		if !strings.Contains(result, addedInstance1.GetName()) {
+			t.Errorf("Expected output to contain name %s, got: %s", addedInstance1.GetName(), result)
+		}
 		if !strings.Contains(result, addedInstance2.GetID()) {
 			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance2.GetID(), result)
+		}
+		if !strings.Contains(result, addedInstance2.GetName()) {
+			t.Errorf("Expected output to contain name %s, got: %s", addedInstance2.GetName(), result)
 		}
 		if !strings.Contains(result, sourcesDir1) {
 			t.Errorf("Expected output to contain sources dir %s, got: %s", sourcesDir1, result)
@@ -309,6 +318,9 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		result := output.String()
 		if !strings.Contains(result, addedInstance.GetID()) {
 			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance.GetID(), result)
+		}
+		if !strings.Contains(result, addedInstance.GetName()) {
+			t.Errorf("Expected output to contain name %s, got: %s", addedInstance.GetName(), result)
 		}
 	})
 
