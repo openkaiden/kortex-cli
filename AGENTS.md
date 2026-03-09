@@ -204,11 +204,21 @@ Skills are reusable capabilities that can be discovered and executed by AI agent
 1. Create `pkg/cmd/<command>.go` with a `New<Command>Cmd()` function that returns `*cobra.Command`
 2. In the `New<Command>Cmd()` function:
    - Create and configure the `cobra.Command`
+   - **IMPORTANT**: Always define the `Args` field to specify argument validation
    - Set up any flags or subcommands
    - Return the configured command
 3. Register the command in `pkg/cmd/root.go` by adding `rootCmd.AddCommand(New<Command>Cmd())` in the `NewRootCmd()` function
 4. Create corresponding test file `pkg/cmd/<command>_test.go`
 5. In tests, create command instances using `NewRootCmd()` or `New<Command>Cmd()` as needed
+
+**Command Argument Validation:**
+
+All commands **MUST** declare the `Args` field to specify argument validation behavior. Common options:
+- `cobra.NoArgs` - Command accepts no arguments (most common for parent commands and no-arg commands)
+- `cobra.ExactArgs(n)` - Command requires exactly n arguments
+- `cobra.MinimumNArgs(n)` - Command requires at least n arguments
+- `cobra.MaximumNArgs(n)` - Command accepts up to n arguments
+- `cobra.RangeArgs(min, max)` - Command accepts between min and max arguments
 
 Example:
 ```go
@@ -217,6 +227,7 @@ func NewExampleCmd() *cobra.Command {
     return &cobra.Command{
         Use:   "example",
         Short: "An example command",
+        Args:  cobra.NoArgs,  // Always declare Args field
         Run: func(cmd *cobra.Command, args []string) {
             // Command logic here
         },

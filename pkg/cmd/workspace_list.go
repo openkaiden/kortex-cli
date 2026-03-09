@@ -132,6 +132,7 @@ func NewWorkspaceListCmd() *cobra.Command {
 		Use:     "list",
 		Short:   "List all registered workspaces",
 		Long:    "List all workspaces registered with kortex-cli init",
+		Args:    cobra.NoArgs,
 		PreRunE: c.preRun,
 		RunE:    c.run,
 	}
