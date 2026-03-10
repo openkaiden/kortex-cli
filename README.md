@@ -1,5 +1,7 @@
 # kortex-cli
 
+[![codecov](https://codecov.io/gh/kortex-hub/kortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/kortex-hub/kortex-cli)
+
 ## Introduction
 
 kortex-cli is a command-line interface for launching and managing AI agents with custom configurations. It provides a unified way to start different agents with specific settings including skills, MCP (Model Context Protocol) server connections, and LLM integrations.
