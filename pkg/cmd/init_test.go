@@ -30,8 +30,6 @@ import (
 )
 
 func TestInitCmd_PreRun(t *testing.T) {
-	t.Parallel()
-
 	t.Run("default arguments", func(t *testing.T) {
 		t.Parallel()
 
