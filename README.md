@@ -85,7 +85,7 @@ kortex-cli init /path/to/myproject --workspace-configuration /path/to/config
 kortex-cli init --verbose
 ```
 Output:
-```
+```text
 Registered workspace:
   ID: a1b2c3d4e5f6...
   Name: myproject
@@ -143,7 +143,7 @@ kortex-cli list [flags]
 kortex-cli workspace list
 ```
 Output:
-```
+```text
 ID: a1b2c3d4e5f6...
   Name: myproject
   Sources: /absolute/path/to/myproject
