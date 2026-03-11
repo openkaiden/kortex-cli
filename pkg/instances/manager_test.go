@@ -751,7 +751,7 @@ func TestManager_Start(t *testing.T) {
 		if err == nil {
 			t.Error("Start() expected error for instance without runtime, got nil")
 		}
-		if !errors.Is(err, errors.New("instance has no runtime configured")) && err.Error() != "instance has no runtime configured" {
+		if err != nil && err.Error() != "instance has no runtime configured" {
 			t.Errorf("Start() error = %v, want 'instance has no runtime configured'", err)
 		}
 	})
@@ -863,7 +863,7 @@ func TestManager_Stop(t *testing.T) {
 		if err == nil {
 			t.Error("Stop() expected error for instance without runtime, got nil")
 		}
-		if !errors.Is(err, errors.New("instance has no runtime configured")) && err.Error() != "instance has no runtime configured" {
+		if err != nil && err.Error() != "instance has no runtime configured" {
 			t.Errorf("Stop() error = %v, want 'instance has no runtime configured'", err)
 		}
 	})
