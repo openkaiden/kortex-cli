@@ -185,7 +185,10 @@ func (m *manager) Add(inst Instance, runtimeType string) (Instance, error) {
 	instances = append(instances, instanceWithID)
 	if err := m.saveInstances(instances); err != nil {
 		// Cleanup: try to remove the runtime instance
-		_ = rt.Remove(ctx, runtimeInfo.ID)
+		removeErr := rt.Remove(ctx, runtimeInfo.ID)
+		if removeErr != nil {
+			return nil, fmt.Errorf("failed to save instance and cleanup runtime: save error: %w, remove error: %v", err, removeErr)
+		}
 		return nil, err
 	}
 
@@ -381,21 +384,34 @@ func (m *manager) Delete(id string) error {
 		return ErrInstanceNotFound
 	}
 
-	// Best-effort runtime cleanup
+	// Runtime cleanup: capture errors to avoid orphaning runtime instances
+	var removeErr error
 	runtimeInfo := instanceToDelete.GetRuntimeData()
 	if runtimeInfo.Type != "" && runtimeInfo.InstanceID != "" {
 		rt, err := m.runtimeRegistry.Get(runtimeInfo.Type)
 		if err == nil {
 			// Runtime is available, try to clean up
 			ctx := context.Background()
-
-			// Try to remove the runtime instance (ignore errors)
-			_ = rt.Remove(ctx, runtimeInfo.InstanceID)
+			removeErr = rt.Remove(ctx, runtimeInfo.InstanceID)
 		}
 		// If runtime is not available, proceed with deletion anyway (best effort)
 	}
 
-	return m.saveInstances(filtered)
+	// Save the updated instances list (remove from manager)
+	saveErr := m.saveInstances(filtered)
+	if saveErr != nil {
+		if removeErr != nil {
+			return fmt.Errorf("failed to remove runtime and save instances: remove error: %v, save error: %w", removeErr, saveErr)
+		}
+		return saveErr
+	}
+
+	// If save succeeded but remove failed, we have an orphaned runtime
+	if removeErr != nil {
+		return fmt.Errorf("instance removed from manager but runtime cleanup failed: %w", removeErr)
+	}
+
+	return nil
 }
 
 // Reconcile removes instances with inaccessible directories
