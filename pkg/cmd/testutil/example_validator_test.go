@@ -467,4 +467,3 @@ kortex-cli init --invalid-flag value`,
 		})
 	}
 }
-
