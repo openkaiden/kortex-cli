@@ -203,7 +203,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		}
 
 		listCmd := &cobra.Command{
-			Use: "list",
+			Use:  "list",
+			Args: cobra.NoArgs,
 		}
 		listCmd.Flags().String("output", "text", "output format")
 		listCmd.Flags().StringP("format", "f", "text", "alias for output")
@@ -343,6 +344,17 @@ func TestValidateExampleCommand(t *testing.T) {
 				FlagValues:  map[string]string{"verbose": ""},
 			},
 			wantErr: false,
+		},
+		{
+			name: "extra positional to leaf command",
+			exampleCmd: ExampleCommand{
+				Raw:         "kortex-cli workspace list extra",
+				Binary:      "kortex-cli",
+				Args:        []string{"workspace", "list", "extra"},
+				FlagPresent: map[string]bool{},
+				FlagValues:  map[string]string{},
+			},
+			wantErr: true,
 		},
 	}
 

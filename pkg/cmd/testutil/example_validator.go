@@ -194,13 +194,16 @@ func ValidateExampleCommand(rootCmd *cobra.Command, exampleCmd ExampleCommand) e
 		return fmt.Errorf("command not found: %s: %w", strings.Join(exampleCmd.Args, " "), err)
 	}
 
-	// Check if there are remaining args that weren't recognized as commands
-	// This catches cases like "workspace nonexistent" where "nonexistent" would be
-	// treated as a positional argument instead of being validated as a subcommand.
-	// However, we should only reject if the command has subcommands (meaning the
-	// remaining args were likely meant to be subcommands, not positional arguments).
-	if len(remainingArgs) > 0 && cmd.HasSubCommands() {
-		return fmt.Errorf("unknown command %q for %q", strings.Join(remainingArgs, " "), cmd.CommandPath())
+	// Validate remaining arguments using the command's Args validator
+	// This respects cobra.NoArgs, cobra.ExactArgs, etc.
+	if cmd.Args != nil {
+		if err := cmd.Args(cmd, remainingArgs); err != nil {
+			// Provide a clearer error message for unknown subcommands
+			if len(remainingArgs) > 0 && cmd.HasSubCommands() {
+				return fmt.Errorf("unknown command %q for %q", strings.Join(remainingArgs, " "), cmd.CommandPath())
+			}
+			return fmt.Errorf("invalid arguments for %q: %w", cmd.CommandPath(), err)
+		}
 	}
 
 	// Validate each flag
