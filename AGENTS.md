@@ -401,6 +401,192 @@ Commands should follow a consistent structure for maintainability and testabilit
 
 **Reference:** See `pkg/cmd/init.go` for a complete implementation of this pattern.
 
+### Flag Binding Best Practices
+
+**IMPORTANT**: Always bind command flags directly to struct fields using the `*Var` variants (e.g., `StringVarP`, `BoolVarP`, `IntVarP`) instead of using the non-binding variants and then calling `GetString()`, `GetBool()`, etc. in `preRun`.
+
+**Benefits:**
+- **Cleaner code**: No need to call `cmd.Flags().GetString()` and handle errors
+- **Simpler testing**: Tests can set struct fields directly instead of creating and setting flags
+- **Earlier binding**: Values are available immediately when preRun is called
+- **Less error-prone**: No risk of typos in flag names when retrieving values
+
+**Pattern:**
+
+```go
+// Command struct with fields for all flags
+type myCmd struct {
+    verbose bool
+    output  string
+    count   int
+    manager instances.Manager
+}
+
+// Bind flags to struct fields in the command factory
+func NewMyCmd() *cobra.Command {
+    c := &myCmd{}
+
+    cmd := &cobra.Command{
+        Use:     "my-command",
+        Short:   "My command description",
+        Args:    cobra.NoArgs,
+        PreRunE: c.preRun,
+        RunE:    c.run,
+    }
+
+    // GOOD: Bind flags directly to struct fields
+    cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")
+    cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
+    cmd.Flags().IntVarP(&c.count, "count", "c", 10, "Number of items to process")
+
+    return cmd
+}
+
+// Use the bound values directly in preRun
+func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
+    // Values are already available from struct fields
+    if m.output != "" && m.output != "json" {
+        return fmt.Errorf("unsupported output format: %s", m.output)
+    }
+
+    // No need to call cmd.Flags().GetString("output")
+    return nil
+}
+```
+
+**Avoid:**
+
+```go
+// BAD: Don't define flags without binding
+cmd.Flags().StringP("output", "o", "", "Output format")
+
+// BAD: Don't retrieve flag values in preRun
+func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
+    output, err := cmd.Flags().GetString("output")  // Avoid this pattern
+    if err != nil {
+        return err
+    }
+    m.output = output
+    // ...
+}
+```
+
+**Testing with Bound Flags:**
+
+```go
+func TestMyCmd_PreRun(t *testing.T) {
+    t.Run("validates output format", func(t *testing.T) {
+        // Set struct fields directly - no need to set up flags
+        c := &myCmd{
+            output: "xml",  // Invalid format
+        }
+        cmd := &cobra.Command{}
+
+        err := c.preRun(cmd, []string{})
+        if err == nil {
+            t.Fatal("Expected error for invalid output format")
+        }
+    })
+}
+```
+
+**Reference:** See `pkg/cmd/init.go`, `pkg/cmd/workspace_remove.go`, and `pkg/cmd/workspace_list.go` for examples of proper flag binding.
+
+### JSON Output Support Pattern
+
+When adding JSON output support to commands, follow this pattern to ensure consistent error handling and output formatting:
+
+**Rules:**
+
+1. **Check output flag FIRST in preRun** - Validate the output format before any other validation
+2. **Set SilenceErrors and SilenceUsage early** - Prevent Cobra's default error output when in JSON mode
+3. **Use outputErrorIfJSON for ALL errors** - In preRun, run, and any helper methods (like outputJSON)
+
+**Pattern:**
+
+```go
+type myCmd struct {
+    output  string  // Bound to --output flag
+    manager instances.Manager
+}
+
+func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
+    // 1. FIRST: Validate output format
+    if m.output != "" && m.output != "json" {
+        return fmt.Errorf("unsupported output format: %s (supported: json)", m.output)
+    }
+
+    // 2. EARLY: Silence Cobra's error output in JSON mode
+    if m.output == "json" {
+        cmd.SilenceErrors = true
+        cmd.SilenceUsage = true
+    }
+
+    // 3. ALL subsequent errors use outputErrorIfJSON
+    storageDir, err := cmd.Flags().GetString("storage")
+    if err != nil {
+        return outputErrorIfJSON(cmd, m.output, fmt.Errorf("failed to read --storage flag: %w", err))
+    }
+
+    manager, err := instances.NewManager(storageDir)
+    if err != nil {
+        return outputErrorIfJSON(cmd, m.output, fmt.Errorf("failed to create manager: %w", err))
+    }
+    m.manager = manager
+
+    return nil
+}
+
+func (m *myCmd) run(cmd *cobra.Command, args []string) error {
+    // ALL errors in run use outputErrorIfJSON
+    data, err := m.manager.GetData()
+    if err != nil {
+        return outputErrorIfJSON(cmd, m.output, fmt.Errorf("failed to get data: %w", err))
+    }
+
+    if m.output == "json" {
+        return m.outputJSON(cmd, data)
+    }
+
+    // Text output
+    cmd.Println(data)
+    return nil
+}
+
+func (m *myCmd) outputJSON(cmd *cobra.Command, data interface{}) error {
+    jsonData, err := json.MarshalIndent(data, "", "  ")
+    if err != nil {
+        // Even unlikely errors in helper methods use outputErrorIfJSON
+        return outputErrorIfJSON(cmd, m.output, fmt.Errorf("failed to marshal to JSON: %w", err))
+    }
+
+    fmt.Fprintln(cmd.OutOrStdout(), string(jsonData))
+    return nil
+}
+```
+
+**Why this pattern:**
+- **Consistent error format**: All errors are JSON when `--output=json` is set
+- **No Cobra pollution**: SilenceErrors prevents "Error: ..." prefix in JSON output
+- **Early detection**: Output flag is validated before expensive operations
+- **Helper methods work**: outputErrorIfJSON works in any method that has access to cmd and output flag
+
+**Helper function:**
+
+The `outputErrorIfJSON` helper in `pkg/cmd/conversion.go` handles the formatting:
+
+```go
+func outputErrorIfJSON(cmd interface{ OutOrStdout() io.Writer }, output string, err error) error {
+    if output == "json" {
+        jsonErr, _ := formatErrorJSON(err)
+        fmt.Fprintln(cmd.OutOrStdout(), jsonErr)  // Errors go to stdout in JSON mode
+    }
+    return err  // Still return the error for proper exit codes
+}
+```
+
+**Reference:** See `pkg/cmd/init.go`, `pkg/cmd/workspace_remove.go`, and `pkg/cmd/workspace_list.go` for complete implementations.
+
 ### Testing Pattern for Commands
 
 Commands should have two types of tests following the pattern in `pkg/cmd/init_test.go`:
@@ -520,16 +706,55 @@ if err != nil {
 
 ### Cross-Platform Path Handling
 
-**IMPORTANT**: All path operations must be cross-platform compatible (Linux, macOS, Windows).
+⚠️ **CRITICAL**: All path operations and tests MUST be cross-platform compatible (Linux, macOS, Windows).
 
 **Rules:**
 - Always use `filepath.Join()` for path construction (never hardcode "/" or "\\")
 - Convert relative paths to absolute with `filepath.Abs()`
 - Never hardcode paths with `~` - use `os.UserHomeDir()` instead
 - In tests, use `filepath.Join()` for all path assertions
-- Use `t.TempDir()` for temporary directories in tests
+- **Use `t.TempDir()` for ALL temporary directories in tests - never hardcode paths**
 
-**Examples:**
+#### Common Test Failures on Windows
+
+Tests often fail on Windows due to hardcoded Unix-style paths. These paths get normalized differently by `filepath.Abs()` on Windows vs Unix systems.
+
+**❌ NEVER do this in tests:**
+```go
+// BAD - Will fail on Windows because filepath.Abs() normalizes differently
+instance, err := instances.NewInstance(instances.NewInstanceParams{
+    SourceDir: "/path/to/source",      // ❌ Hardcoded Unix path
+    ConfigDir: "/path/to/config",      // ❌ Hardcoded Unix path
+})
+
+// BAD - Will fail on Windows
+invalidPath := "/this/path/does/not/exist"  // ❌ Unix-style absolute path
+
+// BAD - Platform-specific separator
+path := dir + "/subdir"  // ❌ Hardcoded forward slash
+```
+
+**✅ ALWAYS do this in tests:**
+```go
+// GOOD - Cross-platform, works everywhere
+sourceDir := t.TempDir()
+configDir := t.TempDir()
+instance, err := instances.NewInstance(instances.NewInstanceParams{
+    SourceDir: sourceDir,  // ✅ Real temp directory
+    ConfigDir: configDir,  // ✅ Real temp directory
+})
+
+// GOOD - Create invalid path cross-platform way
+tempDir := t.TempDir()
+notADir := filepath.Join(tempDir, "file")
+os.WriteFile(notADir, []byte("test"), 0644)
+invalidPath := filepath.Join(notADir, "subdir")  // ✅ Will fail MkdirAll on all platforms
+
+// GOOD - Use filepath.Join()
+path := filepath.Join(dir, "subdir")  // ✅ Cross-platform
+```
+
+#### Examples for Production Code
 
 ```go
 // GOOD: Cross-platform path construction
@@ -556,6 +781,8 @@ if result != expectedPath {
 tempDir := t.TempDir()  // Automatic cleanup
 sourcesDir := t.TempDir()
 ```
+
+**Why this matters:** Tests that pass on Linux/macOS may fail on Windows CI if they use hardcoded Unix paths. Always use `t.TempDir()` and `filepath.Join()` to ensure tests work on all platforms.
 
 ## Documentation Standards
 

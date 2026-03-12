@@ -19,10 +19,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 	"github.com/spf13/cobra"
 )
@@ -31,28 +33,41 @@ import (
 type workspaceRemoveCmd struct {
 	manager instances.Manager
 	id      string
+	output  string
 }
 
 // preRun validates the parameters and flags
 func (w *workspaceRemoveCmd) preRun(cmd *cobra.Command, args []string) error {
+	// Validate output format if specified
+	if w.output != "" && w.output != "json" {
+		return fmt.Errorf("unsupported output format: %s (supported: json)", w.output)
+	}
+
+	// Silence Cobra's error and usage output when JSON mode is enabled
+	// This prevents "Error: ..." and usage info from being printed
+	if w.output == "json" {
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+	}
+
 	w.id = args[0]
 
 	// Get storage directory from global flag
 	storageDir, err := cmd.Flags().GetString("storage")
 	if err != nil {
-		return fmt.Errorf("failed to read --storage flag: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to read --storage flag: %w", err))
 	}
 
 	// Normalize storage path to absolute path
 	absStorageDir, err := filepath.Abs(storageDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path for storage directory: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to resolve absolute path for storage directory: %w", err))
 	}
 
 	// Create manager
 	manager, err := instances.NewManager(absStorageDir)
 	if err != nil {
-		return fmt.Errorf("failed to create manager: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to create manager: %w", err))
 	}
 	w.manager = manager
 
@@ -65,13 +80,37 @@ func (w *workspaceRemoveCmd) run(cmd *cobra.Command, args []string) error {
 	err := w.manager.Delete(w.id)
 	if err != nil {
 		if errors.Is(err, instances.ErrInstanceNotFound) {
+			if w.output == "json" {
+				return outputErrorIfJSON(cmd, w.output, fmt.Errorf("workspace not found: %s", w.id))
+			}
 			return fmt.Errorf("workspace not found: %s\nUse 'workspace list' to see available workspaces", w.id)
 		}
-		return fmt.Errorf("failed to remove workspace: %w", err)
+		return outputErrorIfJSON(cmd, w.output, err)
 	}
 
-	// Output only the ID
+	// Handle JSON output
+	if w.output == "json" {
+		return w.outputJSON(cmd)
+	}
+
+	// Output only the ID (text mode)
 	cmd.Println(w.id)
+	return nil
+}
+
+// outputJSON outputs the workspace ID as JSON
+func (w *workspaceRemoveCmd) outputJSON(cmd *cobra.Command) error {
+	// Return only the ID (per OpenAPI spec)
+	workspaceId := api.WorkspaceId{
+		Id: w.id,
+	}
+
+	jsonData, err := json.MarshalIndent(workspaceId, "", "  ")
+	if err != nil {
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to marshal to JSON: %w", err))
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), string(jsonData))
 	return nil
 }
 
@@ -88,6 +127,8 @@ kortex-cli workspace remove abc123`,
 		PreRunE: c.preRun,
 		RunE:    c.run,
 	}
+
+	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
 
 	return cmd
 }

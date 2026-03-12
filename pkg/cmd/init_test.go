@@ -20,11 +20,13 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/cmd/testutil"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 	"github.com/spf13/cobra"
@@ -307,6 +309,119 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		if !strings.Contains(err.Error(), "sources path is not a directory") {
 			t.Errorf("Expected error to contain 'sources path is not a directory', got: %v", err)
+		}
+	})
+
+	t.Run("accepts empty output flag", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			output: "", // Default empty output
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		if c.output != "" {
+			t.Errorf("Expected output to be empty, got %s", c.output)
+		}
+	})
+
+	t.Run("accepts json output format", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			output: "json",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		if c.output != "json" {
+			t.Errorf("Expected output to be 'json', got %s", c.output)
+		}
+	})
+
+	t.Run("rejects invalid output format", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			output: "xml",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail with invalid output format")
+		}
+
+		if !strings.Contains(err.Error(), "unsupported output format") {
+			t.Errorf("Expected error to contain 'unsupported output format', got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "xml") {
+			t.Errorf("Expected error to mention 'xml', got: %v", err)
+		}
+	})
+
+	t.Run("outputs JSON error when manager creation fails with json output", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		// Create a file and try to use it as a parent directory - will fail cross-platform
+		notADir := filepath.Join(tempDir, "file")
+		if err := os.WriteFile(notADir, []byte("test"), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		invalidStorage := filepath.Join(notADir, "subdir")
+
+		c := &initCmd{
+			output: "json",
+		}
+		cmd := &cobra.Command{}
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", invalidStorage, "test storage flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail with invalid storage path")
+		}
+
+		// Verify JSON error was output
+		var errorResponse api.Error
+		if jsonErr := json.Unmarshal(buf.Bytes(), &errorResponse); jsonErr != nil {
+			t.Fatalf("Failed to unmarshal error JSON: %v\nOutput was: %s", jsonErr, buf.String())
+		}
+
+		if !strings.Contains(errorResponse.Error, "failed to create manager") {
+			t.Errorf("Expected error to contain 'failed to create manager', got: %s", errorResponse.Error)
 		}
 	})
 }
@@ -1001,6 +1116,198 @@ func TestInitCmd_E2E(t *testing.T) {
 
 		if len(instancesList) != 0 {
 			t.Errorf("Expected 0 instances, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("json output returns workspace ID by default", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir, "--output", "json"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Parse JSON output
+		var workspaceId api.WorkspaceId
+		if err := json.Unmarshal(buf.Bytes(), &workspaceId); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		// Verify ID is not empty
+		if workspaceId.Id == "" {
+			t.Error("Expected non-empty ID in JSON output")
+		}
+
+		// Verify only ID field exists
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+			t.Fatalf("Failed to unmarshal to map: %v", err)
+		}
+
+		if len(parsed) != 1 {
+			t.Errorf("Expected only 1 field in JSON, got %d: %v", len(parsed), parsed)
+		}
+
+		if _, exists := parsed["id"]; !exists {
+			t.Error("Expected 'id' field in JSON")
+		}
+
+		// Verify instance was actually created
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := manager.Get(workspaceId.Id)
+		if err != nil {
+			t.Fatalf("Failed to get instance: %v", err)
+		}
+
+		if instance.GetID() != workspaceId.Id {
+			t.Errorf("Expected instance ID %s, got %s", workspaceId.Id, instance.GetID())
+		}
+	})
+
+	t.Run("json output with verbose returns full workspace", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir, "--output", "json", "--verbose"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Parse JSON output
+		var workspace api.Workspace
+		if err := json.Unmarshal(buf.Bytes(), &workspace); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		// Verify all fields are populated
+		if workspace.Id == "" {
+			t.Error("Expected non-empty ID in JSON output")
+		}
+
+		if workspace.Name == "" {
+			t.Error("Expected non-empty Name in JSON output")
+		}
+
+		if workspace.Paths.Source == "" {
+			t.Error("Expected non-empty Source path in JSON output")
+		}
+
+		if workspace.Paths.Configuration == "" {
+			t.Error("Expected non-empty Configuration path in JSON output")
+		}
+
+		// Verify paths are absolute
+		if !filepath.IsAbs(workspace.Paths.Source) {
+			t.Errorf("Expected absolute source path, got %s", workspace.Paths.Source)
+		}
+
+		if !filepath.IsAbs(workspace.Paths.Configuration) {
+			t.Errorf("Expected absolute configuration path, got %s", workspace.Paths.Configuration)
+		}
+
+		// Verify all expected fields exist
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+			t.Fatalf("Failed to unmarshal to map: %v", err)
+		}
+
+		if _, exists := parsed["id"]; !exists {
+			t.Error("Expected 'id' field in JSON")
+		}
+		if _, exists := parsed["name"]; !exists {
+			t.Error("Expected 'name' field in JSON")
+		}
+		if _, exists := parsed["paths"]; !exists {
+			t.Error("Expected 'paths' field in JSON")
+		}
+	})
+
+	t.Run("json output error for non-existent directory", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		nonExistentDir := filepath.Join(storageDir, "does-not-exist")
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", nonExistentDir, "--output", "json"})
+
+		err := rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected Execute() to fail with non-existent directory")
+		}
+
+		// Parse JSON error output
+		var errorResponse api.Error
+		if err := json.Unmarshal(buf.Bytes(), &errorResponse); err != nil {
+			t.Fatalf("Failed to unmarshal error JSON: %v", err)
+		}
+
+		// Verify error message
+		if !strings.Contains(errorResponse.Error, "sources directory does not exist") {
+			t.Errorf("Expected error to contain 'sources directory does not exist', got: %s", errorResponse.Error)
+		}
+
+		// Verify only error field exists
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+			t.Fatalf("Failed to unmarshal to map: %v", err)
+		}
+
+		if len(parsed) != 1 {
+			t.Errorf("Expected only 1 field in error JSON, got %d: %v", len(parsed), parsed)
+		}
+
+		if _, exists := parsed["error"]; !exists {
+			t.Error("Expected 'error' field in JSON")
+		}
+	})
+
+	t.Run("json output uses custom name", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		customName := "my-custom-workspace"
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir, "--name", customName, "--output", "json", "--verbose"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Parse JSON output
+		var workspace api.Workspace
+		if err := json.Unmarshal(buf.Bytes(), &workspace); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		if workspace.Name != customName {
+			t.Errorf("Expected name %s in JSON output, got %s", customName, workspace.Name)
 		}
 	})
 }

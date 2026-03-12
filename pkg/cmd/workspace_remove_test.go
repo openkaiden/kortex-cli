@@ -20,10 +20,13 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/cmd/testutil"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 	"github.com/spf13/cobra"
@@ -67,6 +70,115 @@ func TestWorkspaceRemoveCmd_PreRun(t *testing.T) {
 
 		if c.id != "test-workspace-id" {
 			t.Errorf("Expected id to be 'test-workspace-id', got %s", c.id)
+		}
+	})
+
+	t.Run("accepts empty output flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		c := &workspaceRemoveCmd{
+			output: "",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		args := []string{"test-id"}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		if c.output != "" {
+			t.Errorf("Expected output to be empty, got %s", c.output)
+		}
+	})
+
+	t.Run("accepts json output format", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		c := &workspaceRemoveCmd{
+			output: "json",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		args := []string{"test-id"}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		if c.output != "json" {
+			t.Errorf("Expected output to be 'json', got %s", c.output)
+		}
+	})
+
+	t.Run("rejects invalid output format", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		c := &workspaceRemoveCmd{
+			output: "yaml",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		args := []string{"test-id"}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail with invalid output format")
+		}
+
+		if !strings.Contains(err.Error(), "unsupported output format") {
+			t.Errorf("Expected error to contain 'unsupported output format', got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "yaml") {
+			t.Errorf("Expected error to mention 'yaml', got: %v", err)
+		}
+	})
+
+	t.Run("outputs JSON error when manager creation fails with json output", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		// Create a file and try to use it as a parent directory - will fail cross-platform
+		notADir := filepath.Join(tempDir, "file")
+		if err := os.WriteFile(notADir, []byte("test"), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		invalidStorage := filepath.Join(notADir, "subdir")
+
+		c := &workspaceRemoveCmd{
+			output: "json",
+		}
+		cmd := &cobra.Command{}
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.Flags().String("storage", invalidStorage, "test storage flag")
+
+		args := []string{"test-id"}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail with invalid storage path")
+		}
+
+		// Verify JSON error was output
+		var errorResponse api.Error
+		if jsonErr := json.Unmarshal(buf.Bytes(), &errorResponse); jsonErr != nil {
+			t.Fatalf("Failed to unmarshal error JSON: %v\nOutput was: %s", jsonErr, buf.String())
+		}
+
+		if !strings.Contains(errorResponse.Error, "failed to create manager") {
+			t.Errorf("Expected error to contain 'failed to create manager', got: %s", errorResponse.Error)
 		}
 	})
 }
@@ -325,6 +437,201 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		if len(instancesList) != 0 {
 			t.Errorf("Expected 0 instances after removal, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("json output returns workspace ID", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		// Create a workspace
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		addedInstance, err := manager.Add(instance)
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		instanceID := addedInstance.GetID()
+
+		// Remove with JSON output
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"workspace", "remove", instanceID, "--storage", storageDir, "--output", "json"})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Parse JSON output
+		var workspaceId api.WorkspaceId
+		if err := json.Unmarshal(buf.Bytes(), &workspaceId); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		// Verify ID matches
+		if workspaceId.Id != instanceID {
+			t.Errorf("Expected ID %s in JSON output, got %s", instanceID, workspaceId.Id)
+		}
+
+		// Verify only ID field exists
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+			t.Fatalf("Failed to unmarshal to map: %v", err)
+		}
+
+		if len(parsed) != 1 {
+			t.Errorf("Expected only 1 field in JSON, got %d: %v", len(parsed), parsed)
+		}
+
+		if _, exists := parsed["id"]; !exists {
+			t.Error("Expected 'id' field in JSON")
+		}
+
+		// Verify workspace is actually removed
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 instances after removal, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("json output error for non-existent workspace", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"workspace", "remove", "invalid-id", "--storage", storageDir, "--output", "json"})
+
+		err := rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected Execute() to fail with non-existent workspace")
+		}
+
+		// Parse JSON error output
+		var errorResponse api.Error
+		if err := json.Unmarshal(buf.Bytes(), &errorResponse); err != nil {
+			t.Fatalf("Failed to unmarshal error JSON: %v", err)
+		}
+
+		// Verify error message
+		if !strings.Contains(errorResponse.Error, "workspace not found") {
+			t.Errorf("Expected error to contain 'workspace not found', got: %s", errorResponse.Error)
+		}
+
+		if !strings.Contains(errorResponse.Error, "invalid-id") {
+			t.Errorf("Expected error to contain 'invalid-id', got: %s", errorResponse.Error)
+		}
+
+		// Verify only error field exists
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+			t.Fatalf("Failed to unmarshal to map: %v", err)
+		}
+
+		if len(parsed) != 1 {
+			t.Errorf("Expected only 1 field in error JSON, got %d: %v", len(parsed), parsed)
+		}
+
+		if _, exists := parsed["error"]; !exists {
+			t.Error("Expected 'error' field in JSON")
+		}
+	})
+
+	t.Run("json output removes correct workspace when multiple exist", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir1 := t.TempDir()
+		sourcesDir2 := t.TempDir()
+
+		// Create two workspaces
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance1, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir1,
+			ConfigDir: filepath.Join(sourcesDir1, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance 1: %v", err)
+		}
+
+		instance2, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir2,
+			ConfigDir: filepath.Join(sourcesDir2, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance 2: %v", err)
+		}
+
+		addedInstance1, err := manager.Add(instance1)
+		if err != nil {
+			t.Fatalf("Failed to add instance 1: %v", err)
+		}
+
+		addedInstance2, err := manager.Add(instance2)
+		if err != nil {
+			t.Fatalf("Failed to add instance 2: %v", err)
+		}
+
+		// Remove first workspace with JSON output
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"workspace", "remove", addedInstance1.GetID(), "--storage", storageDir, "--output", "json"})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Parse JSON output
+		var workspaceId api.WorkspaceId
+		if err := json.Unmarshal(buf.Bytes(), &workspaceId); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		// Verify correct ID was removed
+		if workspaceId.Id != addedInstance1.GetID() {
+			t.Errorf("Expected ID %s in JSON output, got %s", addedInstance1.GetID(), workspaceId.Id)
+		}
+
+		// Verify only instance2 remains
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance after removal, got %d", len(instancesList))
+		}
+
+		if instancesList[0].GetID() != addedInstance2.GetID() {
+			t.Errorf("Expected remaining instance ID %s, got %s", addedInstance2.GetID(), instancesList[0].GetID())
 		}
 	})
 }

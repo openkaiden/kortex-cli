@@ -21,6 +21,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,7 +56,6 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 		c := &workspaceListCmd{}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("storage", storageDir, "test storage flag")
-		cmd.Flags().String("output", "", "test output flag")
 
 		args := []string{}
 
@@ -74,10 +74,11 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 
 		storageDir := t.TempDir()
 
-		c := &workspaceListCmd{}
+		c := &workspaceListCmd{
+			output: "",
+		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("storage", storageDir, "test storage flag")
-		cmd.Flags().String("output", "", "test output flag")
 
 		args := []string{}
 
@@ -96,11 +97,11 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 
 		storageDir := t.TempDir()
 
-		c := &workspaceListCmd{}
+		c := &workspaceListCmd{
+			output: "json",
+		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("storage", storageDir, "test storage flag")
-		cmd.Flags().String("output", "", "test output flag")
-		cmd.Flags().Set("output", "json")
 
 		args := []string{}
 
@@ -119,11 +120,11 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 
 		storageDir := t.TempDir()
 
-		c := &workspaceListCmd{}
+		c := &workspaceListCmd{
+			output: "xml",
+		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("storage", storageDir, "test storage flag")
-		cmd.Flags().String("output", "", "test output flag")
-		cmd.Flags().Set("output", "xml")
 
 		args := []string{}
 
@@ -142,11 +143,11 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 
 		storageDir := t.TempDir()
 
-		c := &workspaceListCmd{}
+		c := &workspaceListCmd{
+			output: "yaml",
+		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("storage", storageDir, "test storage flag")
-		cmd.Flags().String("output", "", "test output flag")
-		cmd.Flags().Set("output", "yaml")
 
 		args := []string{}
 
@@ -157,6 +158,43 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 
 		if !strings.Contains(err.Error(), "unsupported output format") {
 			t.Errorf("Expected error to contain 'unsupported output format', got: %v", err)
+		}
+	})
+
+	t.Run("outputs JSON error when manager creation fails with json output", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		// Create a file and try to use it as a parent directory - will fail cross-platform
+		notADir := filepath.Join(tempDir, "file")
+		if err := os.WriteFile(notADir, []byte("test"), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		invalidStorage := filepath.Join(notADir, "subdir")
+
+		c := &workspaceListCmd{
+			output: "json",
+		}
+		cmd := &cobra.Command{}
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.Flags().String("storage", invalidStorage, "test storage flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail with invalid storage path")
+		}
+
+		// Verify JSON error was output
+		var errorResponse api.Error
+		if jsonErr := json.Unmarshal(buf.Bytes(), &errorResponse); jsonErr != nil {
+			t.Fatalf("Failed to unmarshal error JSON: %v\nOutput was: %s", jsonErr, buf.String())
+		}
+
+		if !strings.Contains(errorResponse.Error, "failed to create manager") {
+			t.Errorf("Expected error to contain 'failed to create manager', got: %s", errorResponse.Error)
 		}
 	})
 }

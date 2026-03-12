@@ -36,34 +36,34 @@ type workspaceListCmd struct {
 
 // preRun validates the parameters and flags
 func (w *workspaceListCmd) preRun(cmd *cobra.Command, args []string) error {
+	// Validate output format if specified
+	if w.output != "" && w.output != "json" {
+		return fmt.Errorf("unsupported output format: %s (supported: json)", w.output)
+	}
+
+	// Silence Cobra's error and usage output when JSON mode is enabled
+	// This prevents "Error: ..." and usage info from being printed
+	if w.output == "json" {
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+	}
+
 	// Get storage directory from global flag
 	storageDir, err := cmd.Flags().GetString("storage")
 	if err != nil {
-		return fmt.Errorf("failed to read --storage flag: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to read --storage flag: %w", err))
 	}
 
 	// Convert to absolute path
 	absStorageDir, err := filepath.Abs(storageDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve storage directory path: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to resolve storage directory path: %w", err))
 	}
-
-	// Get output format flag
-	output, err := cmd.Flags().GetString("output")
-	if err != nil {
-		return fmt.Errorf("failed to read --output flag: %w", err)
-	}
-
-	// Validate output format if specified
-	if output != "" && output != "json" {
-		return fmt.Errorf("unsupported output format: %s (supported: json)", output)
-	}
-	w.output = output
 
 	// Create manager
 	manager, err := instances.NewManager(absStorageDir)
 	if err != nil {
-		return fmt.Errorf("failed to create manager: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to create manager: %w", err))
 	}
 	w.manager = manager
 
@@ -75,7 +75,7 @@ func (w *workspaceListCmd) run(cmd *cobra.Command, args []string) error {
 	// Get all instances
 	instancesList, err := w.manager.List()
 	if err != nil {
-		return fmt.Errorf("failed to list instances: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to list instances: %w", err))
 	}
 
 	// Handle JSON output format
@@ -105,14 +105,7 @@ func (w *workspaceListCmd) outputJSON(cmd *cobra.Command, instancesList []instan
 	// Convert instances to API Workspace format
 	workspaces := make([]api.Workspace, 0, len(instancesList))
 	for _, instance := range instancesList {
-		workspace := api.Workspace{
-			Id:   instance.GetID(),
-			Name: instance.GetName(),
-			Paths: api.WorkspacePaths{
-				Configuration: instance.GetConfigDir(),
-				Source:        instance.GetSourceDir(),
-			},
-		}
+		workspace := instanceToWorkspace(instance)
 		workspaces = append(workspaces, workspace)
 	}
 
@@ -124,7 +117,7 @@ func (w *workspaceListCmd) outputJSON(cmd *cobra.Command, instancesList []instan
 	// Marshal to JSON with indentation
 	jsonData, err := json.MarshalIndent(workspacesList, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal workspaces to JSON: %w", err)
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to marshal workspaces to JSON: %w", err))
 	}
 
 	// Output the JSON to stdout
@@ -152,7 +145,7 @@ kortex-cli workspace list -o json`,
 		RunE:    c.run,
 	}
 
-	cmd.Flags().StringP("output", "o", "", "Output format (supported: json)")
+	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
 
 	return cmd
 }

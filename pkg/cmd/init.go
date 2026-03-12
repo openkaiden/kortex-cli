@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,26 +37,39 @@ type initCmd struct {
 	absConfigDir       string
 	manager            instances.Manager
 	verbose            bool
+	output             string
 }
 
 // preRun validates the parameters and flags
 func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
+	// Validate output format if specified
+	if i.output != "" && i.output != "json" {
+		return fmt.Errorf("unsupported output format: %s (supported: json)", i.output)
+	}
+
+	// Silence Cobra's error and usage output when JSON mode is enabled
+	// This prevents "Error: ..." and usage info from being printed
+	if i.output == "json" {
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+	}
+
 	// Get storage directory from global flag
 	storageDir, err := cmd.Flags().GetString("storage")
 	if err != nil {
-		return fmt.Errorf("failed to read --storage flag: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to read --storage flag: %w", err))
 	}
 
 	// Convert to absolute path
 	absStorageDir, err := filepath.Abs(storageDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve storage directory path: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to resolve storage directory path: %w", err))
 	}
 
 	// Create manager
 	manager, err := instances.NewManager(absStorageDir)
 	if err != nil {
-		return fmt.Errorf("failed to create manager: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to create manager: %w", err))
 	}
 	i.manager = manager
 
@@ -68,19 +82,19 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Convert to absolute path for clarity
 	absSourcesDir, err := filepath.Abs(i.sourcesDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve sources directory path: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to resolve sources directory path: %w", err))
 	}
 	i.absSourcesDir = absSourcesDir
 
 	// Verify that the sources directory exists and is a directory
 	fileInfo, err := os.Stat(i.absSourcesDir)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("sources directory does not exist: %s", i.absSourcesDir)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("sources directory does not exist: %s", i.absSourcesDir))
 	} else if err != nil {
-		return fmt.Errorf("failed to check sources directory: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to check sources directory: %w", err))
 	}
 	if !fileInfo.IsDir() {
-		return fmt.Errorf("sources path is not a directory: %s", i.absSourcesDir)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("sources path is not a directory: %s", i.absSourcesDir))
 	}
 
 	// If workspace-configuration flag was not explicitly set, default to .kortex/ inside sources directory
@@ -91,7 +105,7 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Convert workspace config to absolute path
 	absConfigDir, err := filepath.Abs(i.workspaceConfigDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve workspace configuration directory path: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to resolve workspace configuration directory path: %w", err))
 	}
 	i.absConfigDir = absConfigDir
 
@@ -107,15 +121,21 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		Name:      i.name,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create instance: %w", err)
+		return outputErrorIfJSON(cmd, i.output, err)
 	}
 
 	// Add the instance to the manager
 	addedInstance, err := i.manager.Add(instance)
 	if err != nil {
-		return fmt.Errorf("failed to add instance: %w", err)
+		return outputErrorIfJSON(cmd, i.output, err)
 	}
 
+	// Handle JSON output
+	if i.output == "json" {
+		return i.outputJSON(cmd, addedInstance)
+	}
+
+	// Handle text output
 	if i.verbose {
 		cmd.Printf("Registered workspace:\n")
 		cmd.Printf("  ID: %s\n", addedInstance.GetID())
@@ -126,6 +146,29 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		cmd.Println(addedInstance.GetID())
 	}
 
+	return nil
+}
+
+// outputJSON outputs the instance as JSON based on verbose flag
+func (i *initCmd) outputJSON(cmd *cobra.Command, instance instances.Instance) error {
+	var jsonData []byte
+	var err error
+
+	if i.verbose {
+		// Verbose mode: return full Workspace
+		workspace := instanceToWorkspace(instance)
+		jsonData, err = json.MarshalIndent(workspace, "", "  ")
+	} else {
+		// Default mode: return only WorkspaceId
+		workspaceId := instanceToWorkspaceId(instance)
+		jsonData, err = json.MarshalIndent(workspaceId, "", "  ")
+	}
+
+	if err != nil {
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to marshal to JSON: %w", err))
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), string(jsonData))
 	return nil
 }
 
@@ -163,6 +206,9 @@ kortex-cli init --verbose`,
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")
+
+	// Add output flag
+	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
 
 	return cmd
 }

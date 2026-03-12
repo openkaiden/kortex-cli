@@ -36,6 +36,187 @@ Pre-configured capabilities or specialized functions that can be enabled for an 
 ### Workspace
 A registered directory containing your project source code and its configuration. Each workspace is tracked by kortex-cli with a unique ID and name for easy management.
 
+## Scenarios
+
+### Managing Workspaces from a UI or Programmatically
+
+This scenario demonstrates how to manage workspaces programmatically using JSON output, which is ideal for UIs, scripts, or automation tools. All commands support the `--output json` (or `-o json`) flag for machine-readable output.
+
+**Step 1: Check existing workspaces**
+
+```bash
+$ kortex-cli workspace list -o json
+```
+
+```json
+{
+  "items": []
+}
+```
+
+Exit code: `0` (success, but no workspaces registered)
+
+**Step 2: Register a new workspace**
+
+```bash
+$ kortex-cli init /path/to/project -o json
+```
+
+```json
+{
+  "id": "2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea"
+}
+```
+
+Exit code: `0` (success)
+
+**Step 3: Register with verbose output to get full details**
+
+```bash
+$ kortex-cli init /path/to/another-project -o json -v
+```
+
+```json
+{
+  "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
+  "name": "another-project",
+  "paths": {
+    "source": "/absolute/path/to/another-project",
+    "configuration": "/absolute/path/to/another-project/.kortex"
+  }
+}
+```
+
+Exit code: `0` (success)
+
+**Step 4: List all workspaces**
+
+```bash
+$ kortex-cli workspace list -o json
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea",
+      "name": "project",
+      "paths": {
+        "source": "/absolute/path/to/project",
+        "configuration": "/absolute/path/to/project/.kortex"
+      }
+    },
+    {
+      "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
+      "name": "another-project",
+      "paths": {
+        "source": "/absolute/path/to/another-project",
+        "configuration": "/absolute/path/to/another-project/.kortex"
+      }
+    }
+  ]
+}
+```
+
+Exit code: `0` (success)
+
+**Step 5: Remove a workspace**
+
+```bash
+$ kortex-cli workspace remove 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
+```
+
+```json
+{
+  "id": "2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea"
+}
+```
+
+Exit code: `0` (success)
+
+**Step 6: Verify removal**
+
+```bash
+$ kortex-cli workspace list -o json
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
+      "name": "another-project",
+      "paths": {
+        "source": "/absolute/path/to/another-project",
+        "configuration": "/absolute/path/to/another-project/.kortex"
+      }
+    }
+  ]
+}
+```
+
+Exit code: `0` (success)
+
+#### Error Handling
+
+All errors are returned in JSON format when using `--output json`, with the error written to **stdout** (not stderr) and a non-zero exit code.
+
+**Error: Non-existent directory**
+
+```bash
+$ kortex-cli init /tmp/no-exist -o json
+```
+
+```json
+{
+  "error": "sources directory does not exist: /tmp/no-exist"
+}
+```
+
+Exit code: `1` (error)
+
+**Error: Workspace not found**
+
+```bash
+$ kortex-cli workspace remove unknown-id -o json
+```
+
+```json
+{
+  "error": "workspace not found: unknown-id"
+}
+```
+
+Exit code: `1` (error)
+
+#### Best Practices for Programmatic Usage
+
+1. **Always check the exit code** to determine success (0) or failure (non-zero)
+2. **Parse stdout** for JSON output in both success and error cases
+3. **Use verbose mode** with init (`-v`) when you need full workspace details immediately after creation
+4. **Handle both success and error JSON structures** in your code:
+   - Success responses have specific fields (e.g., `id`, `items`, `name`, `paths`)
+   - Error responses always have an `error` field
+
+**Example script pattern:**
+
+```bash
+#!/bin/bash
+
+# Register a workspace
+output=$(kortex-cli init /path/to/project -o json)
+exit_code=$?
+
+if [ $exit_code -eq 0 ]; then
+    workspace_id=$(echo "$output" | jq -r '.id')
+    echo "Workspace created: $workspace_id"
+else
+    error_msg=$(echo "$output" | jq -r '.error')
+    echo "Error: $error_msg"
+    exit 1
+fi
+```
+
 ## Commands
 
 ### `init` - Register a New Workspace
@@ -57,6 +238,7 @@ kortex-cli init [sources-directory] [flags]
 - `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kortex`)
 - `--name, -n <name>` - Human-readable name for the workspace (default: generated from sources directory)
 - `--verbose, -v` - Show detailed output including all workspace information
+- `--output, -o <format>` - Output format (supported: `json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
 
 #### Examples
@@ -95,6 +277,38 @@ Registered workspace:
   Configuration directory: /absolute/path/to/myproject/.kortex
 ```
 
+**JSON output (default - ID only):**
+```bash
+kortex-cli init /path/to/myproject --output json
+```
+Output:
+```json
+{
+  "id": "a1b2c3d4e5f6..."
+}
+```
+
+**JSON output with verbose flag (full workspace details):**
+```bash
+kortex-cli init /path/to/myproject --output json --verbose
+```
+Output:
+```json
+{
+  "id": "a1b2c3d4e5f6...",
+  "name": "myproject",
+  "paths": {
+    "source": "/absolute/path/to/myproject",
+    "configuration": "/absolute/path/to/myproject/.kortex"
+  }
+}
+```
+
+**JSON output with short flags:**
+```bash
+kortex-cli init -o json -v
+```
+
 #### Workspace Naming
 
 - If `--name` is not provided, the name is automatically generated from the last component of the sources directory path
@@ -121,6 +335,10 @@ kortex-cli init /tmp/project --name "project"
 - The workspace ID is a unique identifier generated automatically
 - Workspaces can be listed using the `workspace list` command
 - The default configuration directory (`.kortex`) is created inside the sources directory unless specified otherwise
+- JSON output format is useful for scripting and automation
+- Without `--verbose`, JSON output returns only the workspace ID
+- With `--verbose`, JSON output includes full workspace details (ID, name, paths)
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
 
 ### `workspace list` - List All Registered Workspaces
 
@@ -200,6 +418,7 @@ kortex-cli list -o json
 - When no workspaces are registered, the command displays "No workspaces registered"
 - The JSON output format is useful for scripting and automation
 - All paths are displayed as absolute paths for consistency
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
 
 ### `workspace remove` - Remove a Workspace
 
@@ -218,6 +437,7 @@ kortex-cli remove ID [flags]
 
 #### Flags
 
+- `--output, -o <format>` - Output format (supported: `json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
 
 #### Examples
@@ -242,9 +462,25 @@ kortex-cli list
 kortex-cli remove a1b2c3d4e5f6...
 ```
 
+**JSON output:**
+```bash
+kortex-cli workspace remove a1b2c3d4e5f6... --output json
+```
+Output:
+```json
+{
+  "id": "a1b2c3d4e5f6..."
+}
+```
+
+**JSON output with short flag:**
+```bash
+kortex-cli remove a1b2c3d4e5f6... -o json
+```
+
 #### Error Handling
 
-**Workspace not found:**
+**Workspace not found (text format):**
 ```bash
 kortex-cli remove invalid-id
 ```
@@ -254,9 +490,23 @@ Error: workspace not found: invalid-id
 Use 'workspace list' to see available workspaces
 ```
 
+**Workspace not found (JSON format):**
+```bash
+kortex-cli remove invalid-id --output json
+```
+Output:
+```json
+{
+  "error": "workspace not found: invalid-id"
+}
+```
+
 #### Notes
 
 - The workspace ID is required and can be obtained using the `workspace list` or `list` command
 - Removing a workspace only unregisters it from kortex-cli; it does not delete any files from the sources or configuration directories
 - If the workspace ID is not found, the command will fail with a helpful error message
 - Upon successful removal, the command outputs the ID of the removed workspace
+- JSON output format is useful for scripting and automation
+- When using `--output json`, errors are also returned in JSON format for consistent parsing
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
