@@ -193,8 +193,8 @@ Exit code: `1` (error)
 
 1. **Always check the exit code** to determine success (0) or failure (non-zero)
 2. **Parse stdout** for JSON output in both success and error cases
-4. **Use verbose mode** with init (`-v`) when you need full workspace details immediately after creation
-6. **Handle both success and error JSON structures** in your code:
+3. **Use verbose mode** with init (`-v`) when you need full workspace details immediately after creation
+4. **Handle both success and error JSON structures** in your code:
    - Success responses have specific fields (e.g., `id`, `items`, `name`, `paths`)
    - Error responses always have an `error` field
 
