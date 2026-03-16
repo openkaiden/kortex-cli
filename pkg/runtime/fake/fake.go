@@ -125,6 +125,14 @@ func (f *fakeRuntime) loadFromDisk() error {
 		f.instances = make(map[string]*instanceState)
 	}
 
+	// Harden each loaded instance by ensuring Info map is non-nil
+	// to prevent panics in Start/Stop methods that write to Info map
+	for _, inst := range f.instances {
+		if inst.Info == nil {
+			inst.Info = make(map[string]string)
+		}
+	}
+
 	return nil
 }
 

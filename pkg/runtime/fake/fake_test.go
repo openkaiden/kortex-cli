@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -712,5 +714,89 @@ func TestFakeRuntime_WithoutInitialization(t *testing.T) {
 	_, err = rt.Info(ctx, info.ID)
 	if err != nil {
 		t.Fatalf("Info failed: %v", err)
+	}
+}
+
+func TestFakeRuntime_LoadWithNilInfoMap(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	storageDir := t.TempDir()
+
+	// Manually create a storage file with a nil Info map to simulate
+	// a corrupted or manually edited storage file
+	storageFile := filepath.Join(storageDir, "instances.json")
+	corruptedData := `{
+  "next_id": 2,
+  "instances": {
+    "fake-001": {
+      "id": "fake-001",
+      "name": "test-instance",
+      "state": "created",
+      "info": null,
+      "source": "/source",
+      "config": "/config"
+    }
+  }
+}`
+
+	err := os.WriteFile(storageFile, []byte(corruptedData), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write corrupted storage file: %v", err)
+	}
+
+	// Initialize runtime with the corrupted storage
+	rt := New()
+	storageAware, ok := rt.(runtime.StorageAware)
+	if !ok {
+		t.Fatal("Expected runtime to implement StorageAware")
+	}
+
+	err = storageAware.Initialize(storageDir)
+	if err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+
+	// Verify the instance was loaded
+	info, err := rt.Info(ctx, "fake-001")
+	if err != nil {
+		t.Fatalf("Info failed: %v", err)
+	}
+
+	if info.ID != "fake-001" {
+		t.Errorf("Expected ID 'fake-001', got '%s'", info.ID)
+	}
+
+	// The critical test: Start should not panic even though Info was nil in storage
+	// The hardening code should have initialized it to an empty map
+	_, err = rt.Start(ctx, "fake-001")
+	if err != nil {
+		t.Fatalf("Start failed (should not panic with nil Info): %v", err)
+	}
+
+	// Verify Info was updated by Start
+	info, err = rt.Info(ctx, "fake-001")
+	if err != nil {
+		t.Fatalf("Info failed after start: %v", err)
+	}
+
+	if info.Info["started_at"] == "" {
+		t.Error("Expected started_at timestamp to be set")
+	}
+
+	// Test Stop as well
+	err = rt.Stop(ctx, "fake-001")
+	if err != nil {
+		t.Fatalf("Stop failed (should not panic with nil Info): %v", err)
+	}
+
+	// Verify Info was updated by Stop
+	info, err = rt.Info(ctx, "fake-001")
+	if err != nil {
+		t.Fatalf("Info failed after stop: %v", err)
+	}
+
+	if info.Info["stopped_at"] == "" {
+		t.Error("Expected stopped_at timestamp to be set")
 	}
 }
