@@ -30,6 +30,8 @@ import (
 const (
 	// DefaultStorageFileName is the default filename for storing instances
 	DefaultStorageFileName = "instances.json"
+	// RuntimesSubdirectory is the subdirectory for runtime storage
+	RuntimesSubdirectory = "runtimes"
 )
 
 // InstanceFactory is a function that creates an Instance from InstanceData
@@ -70,7 +72,12 @@ var _ Manager = (*manager)(nil)
 
 // NewManager creates a new instance manager with the given storage directory.
 func NewManager(storageDir string) (Manager, error) {
-	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), runtime.NewRegistry())
+	runtimesDir := filepath.Join(storageDir, RuntimesSubdirectory)
+	reg, err := runtime.NewRegistry(runtimesDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create runtime registry: %w", err)
+	}
+	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg)
 }
 
 // newManagerWithFactory creates a new instance manager with a custom instance factory, generator, and registry.
