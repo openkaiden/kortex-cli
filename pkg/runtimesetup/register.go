@@ -18,6 +18,7 @@ package runtimesetup
 import (
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman"
 )
 
 // Registrar is an interface for types that can register runtimes.
@@ -56,6 +57,7 @@ type runtimeFactory func() runtime.Runtime
 // Add new runtimes here to make them available for automatic registration.
 var availableRuntimes = []runtimeFactory{
 	fake.New,
+	podman.New,
 }
 
 // RegisterAll registers all available runtimes to the given registrar.
