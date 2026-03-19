@@ -20,10 +20,12 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/kortex-hub/kortex-cli/pkg/config"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 	"github.com/kortex-hub/kortex-cli/pkg/runtimesetup"
 	"github.com/spf13/cobra"
@@ -127,6 +129,20 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to resolve workspace configuration directory path: %w", err))
 	}
 	i.absConfigDir = absConfigDir
+
+	// Validate workspace configuration if it exists
+	cfg, err := config.NewConfig(i.absConfigDir)
+	if err != nil {
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to create config manager: %w", err))
+	}
+
+	_, err = cfg.Load()
+	if err != nil {
+		// ErrConfigNotFound is acceptable - configuration is optional
+		if !errors.Is(err, config.ErrConfigNotFound) {
+			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("workspace configuration validation failed: %w", err))
+		}
+	}
 
 	return nil
 }

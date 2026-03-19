@@ -520,6 +520,119 @@ func TestInitCmd_PreRun(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("validates workspace configuration", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		configDir := filepath.Join(sourcesDir, ".kortex")
+
+		// Create config directory with valid workspace.json
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		workspaceJSON := `{
+  "environment": [
+    {
+      "name": "DEBUG",
+      "value": "true"
+    }
+  ],
+  "mounts": {
+    "dependencies": ["../main"],
+    "configs": [".ssh"]
+  }
+}`
+		err = os.WriteFile(filepath.Join(configDir, "workspace.json"), []byte(workspaceJSON), 0644)
+		if err != nil {
+			t.Fatalf("Failed to write workspace.json: %v", err)
+		}
+
+		c := &initCmd{
+			runtime: "fake",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{sourcesDir}
+
+		err = c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() should succeed with valid configuration: %v", err)
+		}
+	})
+
+	t.Run("fails with invalid workspace configuration", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		configDir := filepath.Join(sourcesDir, ".kortex")
+
+		// Create config directory with invalid workspace.json (both value and secret)
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		invalidJSON := `{
+  "environment": [
+    {
+      "name": "INVALID",
+      "value": "some-value",
+      "secret": "some-secret"
+    }
+  ]
+}`
+		err = os.WriteFile(filepath.Join(configDir, "workspace.json"), []byte(invalidJSON), 0644)
+		if err != nil {
+			t.Fatalf("Failed to write workspace.json: %v", err)
+		}
+
+		c := &initCmd{
+			runtime: "fake",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{sourcesDir}
+
+		err = c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("preRun() should fail with invalid configuration")
+		}
+		if !strings.Contains(err.Error(), "workspace configuration validation failed") {
+			t.Errorf("Expected error about configuration validation, got: %v", err)
+		}
+	})
+
+	t.Run("succeeds when workspace.json does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		// Don't create workspace.json - configuration is optional
+
+		c := &initCmd{
+			runtime: "fake",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{sourcesDir}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() should succeed when workspace.json doesn't exist: %v", err)
+		}
+	})
 }
 
 func TestInitCmd_E2E(t *testing.T) {

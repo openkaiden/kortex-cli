@@ -221,6 +221,125 @@ if err := runtimesetup.RegisterAll(manager); err != nil {
 
 This automatically registers all runtimes from `pkg/runtimesetup/register.go` that report as available (e.g., only registers Podman if `podman` CLI is installed).
 
+### Config System
+
+The config system manages workspace configuration stored in the `.kortex` directory. It provides an interface for reading and validating workspace settings including environment variables and mount points.
+
+**Key Components:**
+- **Config Interface** (`pkg/config/config.go`): Interface for managing configuration directories
+- **WorkspaceConfiguration Model**: Imported from `github.com/kortex-hub/kortex-cli-api/workspace-configuration/go`
+- **Configuration File**: `workspace.json` within the `.kortex` directory
+
+**Configuration Structure:**
+
+The `workspace.json` file follows the nested JSON structure pattern:
+
+```json
+{
+  "environment": [
+    {
+      "name": "DEBUG",
+      "value": "true"
+    },
+    {
+      "name": "API_KEY",
+      "secret": "github-token"
+    }
+  ],
+  "mounts": {
+    "dependencies": ["../main"],
+    "configs": [".ssh", ".gitconfig"]
+  }
+}
+```
+
+**Model Fields:**
+- `environment` - Environment variables with either hardcoded `value` or `secret` reference (optional)
+  - `name` - Variable name (must be valid Unix environment variable name)
+  - `value` - Hardcoded value (mutually exclusive with `secret`, empty strings allowed)
+  - `secret` - Secret reference (mutually exclusive with `value`, cannot be empty)
+- `mounts.dependencies` - Additional source directories to mount (optional)
+  - Paths must be relative (not absolute)
+  - Paths cannot be empty
+  - Relative to workspace sources directory
+- `mounts.configs` - Configuration directories to mount (optional)
+  - Paths must be relative (not absolute)
+  - Paths cannot be empty
+  - Relative to `$HOME`
+
+**Using the Config Interface:**
+
+```go
+import (
+    "github.com/kortex-hub/kortex-cli/pkg/config"
+    workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+)
+
+// Create a config manager for a workspace
+cfg, err := config.NewConfig("/path/to/workspace/.kortex")
+if err != nil {
+    return err
+}
+
+// Load and validate the workspace configuration
+workspaceCfg, err := cfg.Load()
+if err != nil {
+    if errors.Is(err, config.ErrConfigNotFound) {
+        // workspace.json doesn't exist, use defaults
+    } else if errors.Is(err, config.ErrInvalidConfig) {
+        // Configuration validation failed
+    } else {
+        return err
+    }
+}
+
+// Access configuration values (note: fields are pointers)
+if workspaceCfg.Environment != nil {
+    for _, env := range *workspaceCfg.Environment {
+        // Use env.Name, env.Value, env.Secret
+    }
+}
+
+if workspaceCfg.Mounts != nil {
+    if workspaceCfg.Mounts.Dependencies != nil {
+        // Use dependency paths
+    }
+    if workspaceCfg.Mounts.Configs != nil {
+        // Use config paths
+    }
+}
+```
+
+**Configuration Validation:**
+
+The `Load()` method automatically validates the configuration and returns `ErrInvalidConfig` if any of these rules are violated:
+
+**Environment Variables:**
+- Name cannot be empty
+- Name must be a valid Unix environment variable name (starts with letter or underscore, followed by letters, digits, or underscores)
+- Exactly one of `value` or `secret` must be defined
+- Secret references cannot be empty strings
+- Empty values are allowed (valid use case: set env var to empty string)
+
+**Mount Paths:**
+- Dependency paths cannot be empty
+- Dependency paths must be relative (not absolute)
+- Config paths cannot be empty
+- Config paths must be relative (not absolute)
+
+**Error Handling:**
+- `config.ErrInvalidPath` - Configuration path is empty or invalid
+- `config.ErrConfigNotFound` - The `workspace.json` file is not found
+- `config.ErrInvalidConfig` - Configuration validation failed (includes detailed error message)
+
+**Design Principles:**
+- Configuration directory is NOT automatically created
+- Missing configuration directory is treated as empty/default configuration
+- All configurations are validated on load to catch errors early
+- Follows the module design pattern with interface-based API
+- Uses nested JSON structure for clarity and extensibility
+- Model types are imported from external API package for consistency
+
 ### Skills System
 Skills are reusable capabilities that can be discovered and executed by AI agents:
 - **Location**: `skills/<skill-name>/SKILL.md`
