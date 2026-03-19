@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -128,13 +127,16 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 	uid := p.system.Getuid()
 	gid := p.system.Getgid()
 
-	buildCmd := exec.CommandContext(ctx, "podman", "build",
+	args := []string{
+		"build",
 		"--build-arg", fmt.Sprintf("UID=%d", uid),
 		"--build-arg", fmt.Sprintf("GID=%d", gid),
 		"-t", imageName,
 		"-f", containerfilePath,
-		instanceDir)
-	if err := buildCmd.Run(); err != nil {
+		instanceDir,
+	}
+
+	if err := p.executor.Run(ctx, args...); err != nil {
 		return fmt.Errorf("failed to build podman image: %w", err)
 	}
 	return nil
@@ -212,8 +214,7 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 
 // createContainer creates a podman container.
 func (p *podmanRuntime) createContainer(ctx context.Context, args []string) error {
-	createCmd := exec.CommandContext(ctx, "podman", args...)
-	if err := createCmd.Run(); err != nil {
+	if err := p.executor.Run(ctx, args...); err != nil {
 		return fmt.Errorf("failed to create podman container: %w", err)
 	}
 	return nil
@@ -221,8 +222,7 @@ func (p *podmanRuntime) createContainer(ctx context.Context, args []string) erro
 
 // getContainerID retrieves the container ID for a given container name.
 func (p *podmanRuntime) getContainerID(ctx context.Context, name string) (string, error) {
-	inspectCmd := exec.CommandContext(ctx, "podman", "inspect", "--format", "{{.Id}}", name)
-	output, err := inspectCmd.Output()
+	output, err := p.executor.Output(ctx, "inspect", "--format", "{{.Id}}", name)
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect container: %w", err)
 	}

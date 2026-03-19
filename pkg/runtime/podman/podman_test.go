@@ -17,6 +17,7 @@ package podman
 import (
 	"testing"
 
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/exec"
 	"github.com/kortex-hub/kortex-cli/pkg/system"
 )
 
@@ -40,7 +41,7 @@ func TestPodmanRuntime_Available(t *testing.T) {
 		t.Parallel()
 
 		fakeSys := &fakeSystem{commandExists: true}
-		rt := newWithSystem(fakeSys)
+		rt := newWithDeps(fakeSys, exec.New())
 
 		avail, ok := rt.(interface{ Available() bool })
 		if !ok {
@@ -60,7 +61,7 @@ func TestPodmanRuntime_Available(t *testing.T) {
 		t.Parallel()
 
 		fakeSys := &fakeSystem{commandExists: false}
-		rt := newWithSystem(fakeSys)
+		rt := newWithDeps(fakeSys, exec.New())
 
 		avail, ok := rt.(interface{ Available() bool })
 		if !ok {

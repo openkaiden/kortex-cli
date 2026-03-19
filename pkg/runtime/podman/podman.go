@@ -20,12 +20,14 @@ import (
 	"fmt"
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/exec"
 	"github.com/kortex-hub/kortex-cli/pkg/system"
 )
 
 // podmanRuntime implements the runtime.Runtime interface for Podman.
 type podmanRuntime struct {
 	system     system.System
+	executor   exec.Executor
 	storageDir string // Directory for storing runtime-specific data
 }
 
@@ -37,13 +39,14 @@ var _ runtime.StorageAware = (*podmanRuntime)(nil)
 
 // New creates a new Podman runtime instance.
 func New() runtime.Runtime {
-	return newWithSystem(system.New())
+	return newWithDeps(system.New(), exec.New())
 }
 
-// newWithSystem creates a new Podman runtime instance with a custom system (for testing).
-func newWithSystem(sys system.System) runtime.Runtime {
+// newWithDeps creates a new Podman runtime instance with custom dependencies (for testing).
+func newWithDeps(sys system.System, executor exec.Executor) runtime.Runtime {
 	return &podmanRuntime{
-		system: sys,
+		system:   sys,
+		executor: executor,
 	}
 }
 
@@ -66,11 +69,6 @@ func (p *podmanRuntime) Initialize(storageDir string) error {
 // Type returns the runtime type identifier.
 func (p *podmanRuntime) Type() string {
 	return "podman"
-}
-
-// Start starts a Podman runtime instance.
-func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
-	return runtime.RuntimeInfo{}, fmt.Errorf("not implemented")
 }
 
 // Stop stops a Podman runtime instance.
