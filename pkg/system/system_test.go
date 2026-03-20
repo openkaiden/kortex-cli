@@ -46,3 +46,27 @@ func TestCommandExists(t *testing.T) {
 		}
 	})
 }
+
+func TestGetuid(t *testing.T) {
+	t.Parallel()
+
+	sys := New()
+	uid := sys.Getuid()
+
+	// UID should be a non-negative integer
+	if uid < 0 {
+		t.Errorf("Expected non-negative UID, got %d", uid)
+	}
+}
+
+func TestGetgid(t *testing.T) {
+	t.Parallel()
+
+	sys := New()
+	gid := sys.Getgid()
+
+	// GID should be a non-negative integer
+	if gid < 0 {
+		t.Errorf("Expected non-negative GID, got %d", gid)
+	}
+}

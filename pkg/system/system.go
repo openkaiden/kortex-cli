@@ -16,7 +16,6 @@
 package system
 
 import (
-	"os"
 	"os/exec"
 )
 
@@ -45,14 +44,4 @@ func New() System {
 func (s *systemImpl) CommandExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
-}
-
-// Getuid returns the numeric user ID of the caller.
-func (s *systemImpl) Getuid() int {
-	return os.Getuid()
-}
-
-// Getgid returns the numeric group ID of the caller.
-func (s *systemImpl) Getgid() int {
-	return os.Getgid()
 }
