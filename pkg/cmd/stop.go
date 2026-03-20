@@ -28,13 +28,14 @@ func NewStopCmd() *cobra.Command {
 
 	// Create an alias command that delegates to workspace stop
 	cmd := &cobra.Command{
-		Use:     "stop ID",
-		Short:   workspaceStopCmd.Short,
-		Long:    workspaceStopCmd.Long,
-		Example: AdaptExampleForAlias(workspaceStopCmd.Example, "workspace stop", "stop"),
-		Args:    workspaceStopCmd.Args,
-		PreRunE: workspaceStopCmd.PreRunE,
-		RunE:    workspaceStopCmd.RunE,
+		Use:               "stop ID",
+		Short:             workspaceStopCmd.Short,
+		Long:              workspaceStopCmd.Long,
+		Example:           AdaptExampleForAlias(workspaceStopCmd.Example, "workspace stop", "stop"),
+		Args:              workspaceStopCmd.Args,
+		ValidArgsFunction: workspaceStopCmd.ValidArgsFunction,
+		PreRunE:           workspaceStopCmd.PreRunE,
+		RunE:              workspaceStopCmd.RunE,
 	}
 
 	// Copy flags from workspace stop command

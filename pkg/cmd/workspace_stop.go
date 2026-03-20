@@ -133,9 +133,10 @@ kortex-cli workspace stop abc123
 
 # Stop workspace with JSON output
 kortex-cli workspace stop abc123 --output json`,
-		Args:    cobra.ExactArgs(1),
-		PreRunE: c.preRun,
-		RunE:    c.run,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeRunningWorkspaceID,
+		PreRunE:           c.preRun,
+		RunE:              c.run,
 	}
 
 	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
