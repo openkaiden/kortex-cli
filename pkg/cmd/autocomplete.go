@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
@@ -41,6 +42,12 @@ func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, 
 	absStorageDir, err := filepath.Abs(storageDir)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Check if storage directory exists to avoid creating it during tab-completion
+	if _, err := os.Stat(absStorageDir); os.IsNotExist(err) {
+		// Storage doesn't exist yet, return no suggestions
+		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
 	// Create manager
@@ -97,32 +104,9 @@ func newOutputFlagCompletion(validFormats []string) func(cmd *cobra.Command, arg
 // completeRuntimeFlag provides completion for the --runtime flag
 // It lists all available runtimes, excluding the "fake" runtime (used only for testing)
 func completeRuntimeFlag(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	// Get storage directory from global flag
-	storageDir, err := cmd.Flags().GetString("storage")
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
-	}
-
-	// Normalize storage path to absolute path
-	absStorageDir, err := filepath.Abs(storageDir)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
-	}
-
-	// Create manager
-	manager, err := instances.NewManager(absStorageDir)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
-	}
-
-	// Register all available runtimes
-	// We need to register runtimes before we can list them
-	if err := runtimesetup.RegisterAll(manager); err != nil {
-		return nil, cobra.ShellCompDirectiveError
-	}
-
-	// Get all registered runtimes
-	runtimes := manager.ListRuntimes()
+	// Get all available runtimes without requiring a manager instance
+	// This avoids creating storage directories during tab-completion
+	runtimes := runtimesetup.ListAvailable()
 
 	// Filter out "fake" runtime (used only for testing)
 	var filteredRuntimes []string

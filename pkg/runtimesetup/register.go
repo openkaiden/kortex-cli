@@ -60,6 +60,33 @@ var availableRuntimes = []runtimeFactory{
 	podman.New,
 }
 
+// ListAvailable returns the names of all available runtimes.
+// It checks each runtime's availability without requiring a manager instance.
+// This is useful for tab-completion and other contexts where we want to avoid
+// creating on-disk state.
+func ListAvailable() []string {
+	return listAvailableWithFactories(availableRuntimes)
+}
+
+// listAvailableWithFactories returns the names of available runtimes from the given factories.
+// This function is internal and used for testing with custom runtime lists.
+func listAvailableWithFactories(factories []runtimeFactory) []string {
+	var names []string
+
+	for _, factory := range factories {
+		rt := factory()
+
+		// Skip runtimes that are not available in this environment
+		if avail, ok := rt.(Available); ok && !avail.Available() {
+			continue
+		}
+
+		names = append(names, rt.Type())
+	}
+
+	return names
+}
+
 // RegisterAll registers all available runtimes to the given registrar.
 // It skips runtimes that implement the Available interface and report false.
 // Returns an error if any runtime fails to register.
