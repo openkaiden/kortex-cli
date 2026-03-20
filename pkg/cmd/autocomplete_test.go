@@ -138,7 +138,8 @@ func TestCompleteNonRunningWorkspaceID(t *testing.T) {
 
 		// Use a non-existent storage directory
 		// Manager creation will succeed but List() may fail on corrupted data
-		storageDir := t.TempDir()
+		tmpDir := t.TempDir()
+		storageDir := filepath.Join(tmpDir, "not-found")
 
 		// Create a command with the storage flag
 		cmd := &cobra.Command{}
