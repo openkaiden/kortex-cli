@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 )
 
 var (
@@ -29,6 +30,9 @@ var (
 	ErrConfigNotFound = errors.New("configuration file not found")
 	// ErrInvalidConfig is returned when configuration validation fails
 	ErrInvalidConfig = errors.New("invalid configuration")
+
+	// agentNamePattern matches valid agent names (alphanumeric and underscore only).
+	agentNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 )
 
 // Config represents a Podman runtime configuration manager.
@@ -90,6 +94,11 @@ func (c *config) LoadImage() (*ImageConfig, error) {
 func (c *config) LoadAgent(agentName string) (*AgentConfig, error) {
 	if agentName == "" {
 		return nil, fmt.Errorf("%w: agent name cannot be empty", ErrInvalidConfig)
+	}
+
+	// Validate agent name to prevent path traversal attacks
+	if !agentNamePattern.MatchString(agentName) {
+		return nil, fmt.Errorf("%w: agent name must contain only alphanumeric characters or underscores: %s", ErrInvalidConfig, agentName)
 	}
 
 	configPath := filepath.Join(c.path, agentName+".json")

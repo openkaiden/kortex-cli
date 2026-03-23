@@ -16,7 +16,7 @@ package config
 
 import (
 	"fmt"
-	"strings"
+	"path/filepath"
 )
 
 // validateImageConfig validates the image configuration.
@@ -34,7 +34,7 @@ func validateImageConfig(cfg *ImageConfig) error {
 
 	// Sudo binaries must be absolute paths
 	for _, binary := range cfg.Sudo {
-		if !strings.HasPrefix(binary, "/") {
+		if !filepath.IsAbs(binary) {
 			return fmt.Errorf("sudo binary must be an absolute path: %s", binary)
 		}
 	}
@@ -55,8 +55,8 @@ func validateAgentConfig(cfg *AgentConfig) error {
 	// RunCommands can be empty (valid use case)
 
 	// Terminal command must have at least one element
-	if len(cfg.TerminalCommand) == 0 {
-		return fmt.Errorf("terminal command must have at least one element")
+	if len(cfg.TerminalCommand) == 0 || cfg.TerminalCommand[0] == "" {
+		return fmt.Errorf("terminal command must have at least one non-empty element")
 	}
 
 	return nil

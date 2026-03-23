@@ -387,6 +387,93 @@ func TestLoadAgent(t *testing.T) {
 		}
 	})
 
+	t.Run("returns error for invalid agent name characters", func(t *testing.T) {
+		t.Parallel()
+
+		configDir := t.TempDir()
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		// Test various invalid agent names
+		invalidNames := []string{
+			"../etc/passwd",     // Path traversal
+			"agent-name",        // Hyphen not allowed
+			"agent.name",        // Dot not allowed
+			"agent/name",        // Slash not allowed
+			"agent\\name",       // Backslash not allowed
+			"agent name",        // Space not allowed
+			"agent@name",        // Special char not allowed
+			".",                 // Current directory
+			"..",                // Parent directory
+			"agent-1",           // Hyphen not allowed
+			"my-agent",          // Hyphen not allowed
+		}
+
+		for _, name := range invalidNames {
+			_, err = cfg.LoadAgent(name)
+			if err == nil {
+				t.Errorf("Expected error for invalid agent name %q", name)
+				continue
+			}
+
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("Expected ErrInvalidConfig for %q, got: %v", name, err)
+			}
+		}
+	})
+
+	t.Run("accepts valid agent names", func(t *testing.T) {
+		t.Parallel()
+
+		configDir := t.TempDir()
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		// Create config directory
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+
+		// Test various valid agent names
+		validNames := []string{
+			"claude",
+			"goose",
+			"cursor",
+			"agent123",
+			"my_agent",
+			"AGENT",
+			"Agent_1",
+			"_agent",
+			"agent_",
+		}
+
+		for _, name := range validNames {
+			// Create a valid config file for this agent
+			agentConfig := &AgentConfig{
+				Packages:        []string{},
+				RunCommands:     []string{},
+				TerminalCommand: []string{name},
+			}
+			agentConfigPath := filepath.Join(configDir, name+".json")
+			data, _ := json.MarshalIndent(agentConfig, "", "  ")
+			if err := os.WriteFile(agentConfigPath, data, 0644); err != nil {
+				t.Fatalf("Failed to write config for %q: %v", name, err)
+			}
+
+			// Try to load it - should succeed
+			_, err = cfg.LoadAgent(name)
+			if err != nil {
+				t.Errorf("Expected valid agent name %q to succeed, got error: %v", name, err)
+			}
+		}
+	})
+
 	t.Run("returns ErrConfigNotFound if file missing", func(t *testing.T) {
 		t.Parallel()
 

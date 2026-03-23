@@ -54,6 +54,13 @@ func generateSudoers(sudoBinaries []string) string {
 
 // generateContainerfile generates the Containerfile content from image and agent configurations.
 func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig) string {
+	if imageConfig == nil {
+		return ""
+	}
+	if agentConfig == nil {
+		return ""
+	}
+		
 	var lines []string
 
 	// FROM line with base image
