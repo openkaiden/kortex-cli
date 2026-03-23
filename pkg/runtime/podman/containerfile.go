@@ -84,6 +84,7 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 	lines = append(lines, `RUN GROUPNAME=$(grep $GID /etc/group | cut -d: -f1); [ -n "$GROUPNAME" ] && groupdel $GROUPNAME || true`)
 	lines = append(lines, fmt.Sprintf(`RUN groupadd -g "${GID}" %s && useradd -u "${UID}" -g "${GID}" -m %s`, ContainerGroup, ContainerUser))
 	lines = append(lines, "COPY sudoers /etc/sudoers.d/claude")
+	lines = append(lines, "RUN chmod 0440 /etc/sudoers.d/claude")
 	lines = append(lines, fmt.Sprintf("USER %s:%s", ContainerUser, ContainerGroup))
 	lines = append(lines, "")
 

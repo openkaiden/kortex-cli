@@ -125,6 +125,11 @@ func TestGenerateContainerfile(t *testing.T) {
 			t.Error("Expected COPY sudoers line")
 		}
 
+		// Check for sudoers chmod
+		if !strings.Contains(result, "RUN chmod 0440 /etc/sudoers.d/claude") {
+			t.Error("Expected RUN chmod for sudoers")
+		}
+
 		// Check for PATH environment
 		if !strings.Contains(result, "ENV PATH=/home/claude/.local/bin:/usr/local/bin:/usr/bin") {
 			t.Error("Expected PATH environment variable")
