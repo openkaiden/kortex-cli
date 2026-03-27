@@ -430,6 +430,21 @@ When implemented, the registry will:
 2. Call `Initialize()` with the path
 3. The runtime can use this directory to persist data
 
+### AgentLister Interface (optional)
+
+Implement if the runtime can report which agents it supports:
+
+```go
+type AgentLister interface {
+    ListAgents() ([]string, error)
+}
+```
+
+Use this to:
+- Report agents discovered from configuration files
+- Enable the `info` command to display available agents
+- Allow agent discovery without runtime-specific knowledge
+
 ### Available Interface (optional)
 
 Implement to control runtime availability:

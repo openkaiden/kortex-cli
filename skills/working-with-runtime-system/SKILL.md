@@ -91,6 +91,36 @@ func (r *myRuntime) Create(ctx context.Context, params runtime.CreateParams) (ru
 }
 ```
 
+### AgentLister Interface
+
+The AgentLister interface enables runtimes to report which agents they support. This is used by the `info` command to discover available agents without requiring direct knowledge of runtime-specific configuration.
+
+```go
+type AgentLister interface {
+    ListAgents() ([]string, error)
+}
+```
+
+**How it works:**
+
+When a runtime implements AgentLister, the `runtimesetup.ListAgents()` function will:
+1. Create a registry and register all available runtimes (triggering StorageAware initialization)
+2. Query each runtime that implements AgentLister
+3. Collect and deduplicate agent names across all runtimes
+
+**Example implementation (Podman runtime):**
+
+```go
+func (p *podmanRuntime) ListAgents() ([]string, error) {
+    if p.config == nil {
+        return []string{}, nil
+    }
+    return p.config.ListAgents()
+}
+```
+
+This pattern decouples agent discovery from runtime-specific configuration details, allowing the `info` command to query agents generically through the runtime interface.
+
 ### Terminal Interface
 
 The Terminal interface enables interactive terminal sessions for connecting to running instances. This is used by the `terminal` command.

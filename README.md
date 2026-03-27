@@ -1854,6 +1854,63 @@ The system works without any configuration files and merges only the ones that e
 
 ## Commands
 
+### `info` - Display Information About kortex-cli
+
+Displays version, available agents, and supported runtimes.
+
+#### Usage
+
+```bash
+kortex-cli info [flags]
+```
+
+#### Flags
+
+- `--output, -o <format>` - Output format (supported: `json`)
+- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+
+#### Examples
+
+**Show info (human-readable format):**
+```bash
+kortex-cli info
+```
+Output:
+```text
+Version: 0.3.0
+Agents: claude
+Runtimes: fake, podman
+```
+
+**Show info in JSON format:**
+```bash
+kortex-cli info --output json
+```
+Output:
+```json
+{
+  "version": "0.3.0",
+  "agents": [
+    "claude"
+  ],
+  "runtimes": [
+    "fake",
+    "podman"
+  ]
+}
+```
+
+**Show info using short flag:**
+```bash
+kortex-cli info -o json
+```
+
+#### Notes
+
+- Agents are discovered from runtimes that support agent configuration (e.g., the Podman runtime reports agents from its configuration files)
+- Runtimes are listed based on availability in the current environment (e.g., the Podman runtime only appears if the `podman` CLI is installed)
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
+
 ### `init` - Register a New Workspace
 
 Registers a new workspace with kortex-cli, making it available for agent launch and configuration.

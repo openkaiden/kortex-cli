@@ -16,6 +16,8 @@
 package runtimesetup
 
 import (
+	"sort"
+
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman"
@@ -60,7 +62,8 @@ var availableRuntimes = []runtimeFactory{
 	podman.New,
 }
 
-// ListAvailable returns the names of all available runtimes.
+// ListAvailable returns the names of all available runtimes, excluding
+// internal runtimes like "fake" (used only for testing).
 // It checks each runtime's availability without requiring a manager instance.
 // This is useful for tab-completion and other contexts where we want to avoid
 // creating on-disk state.
@@ -81,10 +84,68 @@ func listAvailableWithFactories(factories []runtimeFactory) []string {
 			continue
 		}
 
+		// Skip internal runtimes not intended for display
+		if rt.Type() == "fake" {
+			continue
+		}
+
 		names = append(names, rt.Type())
 	}
 
 	return names
+}
+
+// ListAgents returns the names of all agents supported by available runtimes.
+// It creates a temporary registry with the given storage directory, registers all
+// available runtimes (which initializes StorageAware runtimes), and then queries
+// each runtime that implements the AgentLister interface.
+func ListAgents(runtimeStorageDir string) ([]string, error) {
+	return listAgentsWithFactories(runtimeStorageDir, availableRuntimes)
+}
+
+// listAgentsWithFactories returns agent names from the given runtime factories.
+// This function is internal and used for testing with custom runtime lists.
+func listAgentsWithFactories(runtimeStorageDir string, factories []runtimeFactory) ([]string, error) {
+	registry, err := runtime.NewRegistry(runtimeStorageDir)
+	if err != nil {
+		return nil, err
+	}
+
+	agentSet := make(map[string]struct{})
+	for _, factory := range factories {
+		rt := factory()
+
+		// Skip runtimes that are not available in this environment
+		if avail, ok := rt.(Available); ok && !avail.Available() {
+			continue
+		}
+
+		// Register to initialize StorageAware runtimes with their storage directory
+		if err := registry.Register(rt); err != nil {
+			continue
+		}
+
+		lister, ok := rt.(runtime.AgentLister)
+		if !ok {
+			continue
+		}
+
+		agents, err := lister.ListAgents()
+		if err != nil {
+			continue
+		}
+
+		for _, agent := range agents {
+			agentSet[agent] = struct{}{}
+		}
+	}
+
+	agents := make([]string, 0, len(agentSet))
+	for agent := range agentSet {
+		agents = append(agents, agent)
+	}
+	sort.Strings(agents)
+	return agents, nil
 }
 
 // RegisterAll registers all available runtimes to the given registrar.

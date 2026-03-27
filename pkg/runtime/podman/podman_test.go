@@ -17,6 +17,7 @@ package podman
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
@@ -202,6 +203,63 @@ func TestPodmanRuntime_WorkspaceSourcesPath(t *testing.T) {
 	if path != path2 {
 		t.Errorf("WorkspaceSourcesPath() inconsistent: %q != %q", path, path2)
 	}
+}
+
+func TestPodmanRuntime_ListAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns empty slice when not initialized", func(t *testing.T) {
+		t.Parallel()
+
+		rt := newWithDeps(system.New(), exec.New())
+
+		lister, ok := rt.(interface{ ListAgents() ([]string, error) })
+		if !ok {
+			t.Fatal("Expected runtime to implement AgentLister interface")
+		}
+
+		agents, err := lister.ListAgents()
+		if err != nil {
+			t.Fatalf("ListAgents() failed: %v", err)
+		}
+
+		if len(agents) != 0 {
+			t.Errorf("Expected empty agents, got: %v", agents)
+		}
+	})
+
+	t.Run("returns agents after initialization", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rt := newWithDeps(system.New(), exec.New())
+
+		storageAware, ok := rt.(interface{ Initialize(string) error })
+		if !ok {
+			t.Fatal("Expected runtime to implement StorageAware interface")
+		}
+
+		err := storageAware.Initialize(storageDir)
+		if err != nil {
+			t.Fatalf("Initialize() failed: %v", err)
+		}
+
+		lister, ok := rt.(interface{ ListAgents() ([]string, error) })
+		if !ok {
+			t.Fatal("Expected runtime to implement AgentLister interface")
+		}
+
+		agents, err := lister.ListAgents()
+		if err != nil {
+			t.Fatalf("ListAgents() failed: %v", err)
+		}
+
+		// Default initialization creates config files for all default agents
+		expected := []string{"claude", "cursor", "goose"}
+		if !slices.Equal(agents, expected) {
+			t.Errorf("Expected %v, got: %v", expected, agents)
+		}
+	})
 }
 
 // fakeSystem is a fake implementation of system.System for testing.

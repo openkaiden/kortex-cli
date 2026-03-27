@@ -39,6 +39,9 @@ var _ runtime.Runtime = (*podmanRuntime)(nil)
 // Ensure podmanRuntime implements runtime.StorageAware at compile time.
 var _ runtime.StorageAware = (*podmanRuntime)(nil)
 
+// Ensure podmanRuntime implements runtime.AgentLister at compile time.
+var _ runtime.AgentLister = (*podmanRuntime)(nil)
+
 // New creates a new Podman runtime instance.
 func New() runtime.Runtime {
 	return newWithDeps(system.New(), exec.New())
@@ -82,6 +85,16 @@ func (p *podmanRuntime) Initialize(storageDir string) error {
 	}
 
 	return nil
+}
+
+// ListAgents implements runtime.AgentLister.
+// It returns the names of all configured agents by delegating to the config manager.
+// Returns an empty slice if the runtime has not been initialized.
+func (p *podmanRuntime) ListAgents() ([]string, error) {
+	if p.config == nil {
+		return []string{}, nil
+	}
+	return p.config.ListAgents()
 }
 
 // Type returns the runtime type identifier.

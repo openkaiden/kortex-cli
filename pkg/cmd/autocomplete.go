@@ -119,19 +119,10 @@ func newOutputFlagCompletion(validFormats []string) func(cmd *cobra.Command, arg
 }
 
 // completeRuntimeFlag provides completion for the --runtime flag
-// It lists all available runtimes, excluding the "fake" runtime (used only for testing)
 func completeRuntimeFlag(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	// Get all available runtimes without requiring a manager instance
 	// This avoids creating storage directories during tab-completion
 	runtimes := runtimesetup.ListAvailable()
 
-	// Filter out "fake" runtime (used only for testing)
-	var filteredRuntimes []string
-	for _, rt := range runtimes {
-		if rt != "fake" {
-			filteredRuntimes = append(filteredRuntimes, rt)
-		}
-	}
-
-	return filteredRuntimes, cobra.ShellCompDirectiveNoFileComp
+	return runtimes, cobra.ShellCompDirectiveNoFileComp
 }

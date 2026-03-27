@@ -534,8 +534,9 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		if workspace.Name != addedInstance.GetName() {
 			t.Errorf("Expected Name %s, got %s", addedInstance.GetName(), workspace.Name)
 		}
-		if workspace.Project != addedInstance.GetProject() {
-			t.Errorf("Expected Project %s, got %s", addedInstance.GetProject(), workspace.Project)
+		expectedProject := addedInstance.GetProject()
+		if workspace.Project != expectedProject {
+			t.Errorf("Expected Project %s, got %s", expectedProject, workspace.Project)
 		}
 		if workspace.Paths.Source != addedInstance.GetSourceDir() {
 			t.Errorf("Expected Source %s, got %s", addedInstance.GetSourceDir(), workspace.Paths.Source)

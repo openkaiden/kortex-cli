@@ -72,6 +72,10 @@ func (f *fakeConfig) LoadAgent(agentName string) (*config.AgentConfig, error) {
 	}, nil
 }
 
+func (f *fakeConfig) ListAgents() ([]string, error) {
+	return []string{"claude"}, nil
+}
+
 func (f *fakeConfig) GenerateDefaults() error {
 	return nil
 }

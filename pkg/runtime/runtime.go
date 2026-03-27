@@ -88,6 +88,26 @@ type RuntimeInfo struct {
 	Info map[string]string
 }
 
+// AgentLister is an optional interface for runtimes that can report which agents they support.
+// Runtimes implementing this interface enable discovery of available agents
+// without requiring direct knowledge of the runtime's internal configuration.
+//
+// Example implementation:
+//
+//	type myRuntime struct {
+//	    configDir string
+//	}
+//
+//	func (r *myRuntime) ListAgents() ([]string, error) {
+//	    // Scan configuration directory for agent definitions
+//	    return []string{"claude", "goose"}, nil
+//	}
+type AgentLister interface {
+	// ListAgents returns the names of all agents supported by this runtime.
+	// Returns an empty slice if no agents are configured.
+	ListAgents() ([]string, error)
+}
+
 // Terminal is an optional interface for runtimes that support interactive terminal sessions.
 // Runtimes implementing this interface enable the terminal command for connecting to running instances.
 //

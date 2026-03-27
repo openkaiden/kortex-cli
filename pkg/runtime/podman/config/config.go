@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 )
 
 var (
@@ -47,6 +49,11 @@ type Config interface {
 	// Returns ErrConfigNotFound if the agent configuration file doesn't exist.
 	// Returns ErrInvalidConfig if the configuration is invalid.
 	LoadAgent(agentName string) (*AgentConfig, error)
+
+	// ListAgents returns the names of all configured agents.
+	// It scans the configuration directory for *.json files, excluding image.json.
+	// Returns an empty slice if the directory does not exist.
+	ListAgents() ([]string, error)
 
 	// GenerateDefaults creates default configuration files if they don't exist.
 	// Creates the configuration directory if it doesn't exist.
@@ -150,6 +157,36 @@ func (c *config) generateConfigFile(filename string, config interface{}) error {
 		}
 	}
 	return nil
+}
+
+// ListAgents returns the names of all configured agents by scanning for *.json files
+// in the config directory, excluding image.json.
+func (c *config) ListAgents() ([]string, error) {
+	entries, err := os.ReadDir(c.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("failed to read config directory: %w", err)
+	}
+
+	var agents []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		if name == ImageConfigFileName {
+			continue
+		}
+		agents = append(agents, strings.TrimSuffix(name, ".json"))
+	}
+
+	sort.Strings(agents)
+	return agents, nil
 }
 
 // GenerateDefaults creates default configuration files if they don't exist
