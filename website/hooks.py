@@ -158,7 +158,9 @@ def on_nav(nav, config, files):
     from mkdocs.structure.nav import Navigation
 
     # Read README.md again to get section titles in order
-    readme_path = Path(config['docs_dir']).parent / 'README.md'
+    # Use same path calculation as on_files for consistency
+    docs_dir_abs = Path(config['docs_dir']).resolve()
+    readme_path = docs_dir_abs.parent.parent / 'README.md'
 
     if not readme_path.exists():
         return nav
