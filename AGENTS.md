@@ -180,6 +180,26 @@ The StepLogger system provides user-facing progress feedback during runtime oper
 
 **For detailed StepLogger integration guidance, use:** `/working-with-steplogger`
 
+### Logger System
+
+The Logger system (`pkg/logger`) routes stdout and stderr from runtime CLI commands (e.g., `podman build`) to the user. It is controlled by the `--show-logs` flag.
+
+**Key Points:**
+- Commands inject a `logger.Logger` into context based on the `--show-logs` flag
+- Runtime methods retrieve it from context and pass its writers to CLI command execution
+- When `--show-logs` is set, output is written to the command's stdout/stderr; otherwise it is discarded
+- `--show-logs` cannot be combined with `--output json` (enforced in `preRun`)
+
+**Interface** (`pkg/logger/logger.go`):
+```go
+type Logger interface {
+    Stdout() io.Writer
+    Stderr() io.Writer
+}
+```
+
+**Context integration** (`pkg/logger/context.go`): `WithLogger()` / `FromContext()` — mirrors the StepLogger pattern.
+
 ### Config System
 
 The config system manages workspace configuration for **injecting environment variables and mounting directories** into workspaces (different from runtime-specific configuration).

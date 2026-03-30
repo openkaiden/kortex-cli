@@ -1128,6 +1128,7 @@ kortex-cli init [sources-directory] [flags]
 - `--project, -p <identifier>` - Custom project identifier to override auto-detection (default: auto-detected from git repository or source directory)
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
+- `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
 
 #### Examples
@@ -1203,6 +1204,11 @@ Output:
 **JSON output with short flags:**
 ```bash
 kortex-cli init -r fake -a claude -o json -v
+```
+
+**Show runtime command output (e.g., image build logs):**
+```bash
+kortex-cli init --runtime podman --agent claude --show-logs
 ```
 
 #### Workspace Naming
@@ -1308,6 +1314,7 @@ kortex-cli init /tmp/workspace --runtime fake --agent claude
 - JSON output format is useful for scripting and automation
 - Without `--verbose`, JSON output returns only the workspace ID
 - With `--verbose`, JSON output includes full workspace details (ID, name, agent, paths)
+- Use `--show-logs` to display the full stdout and stderr from runtime commands (e.g., `podman build` output during image creation)
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
 
 ### `workspace list` - List All Registered Workspaces
@@ -1412,6 +1419,7 @@ kortex-cli start ID [flags]
 #### Flags
 
 - `--output, -o <format>` - Output format (supported: `json`)
+- `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
 
 #### Examples
@@ -1450,6 +1458,11 @@ Output:
 **JSON output with short flag:**
 ```bash
 kortex-cli start a1b2c3d4e5f6... -o json
+```
+
+**Show runtime command output:**
+```bash
+kortex-cli workspace start a1b2c3d4e5f6... --show-logs
 ```
 
 #### Error Handling
@@ -1503,6 +1516,7 @@ kortex-cli stop ID [flags]
 #### Flags
 
 - `--output, -o <format>` - Output format (supported: `json`)
+- `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
 
 #### Examples
@@ -1541,6 +1555,11 @@ Output:
 **JSON output with short flag:**
 ```bash
 kortex-cli stop a1b2c3d4e5f6... -o json
+```
+
+**Show runtime command output:**
+```bash
+kortex-cli workspace stop a1b2c3d4e5f6... --show-logs
 ```
 
 #### Error Handling
@@ -1693,6 +1712,7 @@ kortex-cli remove ID [flags]
 #### Flags
 
 - `--output, -o <format>` - Output format (supported: `json`)
+- `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
 
 #### Examples
@@ -1731,6 +1751,11 @@ Output:
 **JSON output with short flag:**
 ```bash
 kortex-cli remove a1b2c3d4e5f6... -o json
+```
+
+**Show runtime command output:**
+```bash
+kortex-cli workspace remove a1b2c3d4e5f6... --show-logs
 ```
 
 #### Error Handling

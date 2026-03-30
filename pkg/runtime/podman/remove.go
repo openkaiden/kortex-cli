@@ -19,14 +19,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
 
 // Remove removes a Podman container and its associated resources.
 func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
-	logger := steplogger.FromContext(ctx)
-	defer logger.Complete()
+	stepLogger := steplogger.FromContext(ctx)
+	defer stepLogger.Complete()
 
 	// Validate the ID parameter
 	if id == "" {
@@ -34,28 +35,28 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	}
 
 	// Check if the container exists and get its state
-	logger.Start("Checking container state", "Container state checked")
+	stepLogger.Start("Checking container state", "Container state checked")
 	info, err := p.getContainerInfo(ctx, id)
 	if err != nil {
 		// If the container doesn't exist, treat it as already removed (idempotent)
 		if isNotFoundError(err) {
 			return nil
 		}
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return err
 	}
 
 	// Check if the container is running
 	if info.State == "running" {
 		err := fmt.Errorf("container %s is still running, stop it first", id)
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return err
 	}
 
 	// Remove the container
-	logger.Start(fmt.Sprintf("Removing container: %s", id), "Container removed")
+	stepLogger.Start(fmt.Sprintf("Removing container: %s", id), "Container removed")
 	if err := p.removeContainer(ctx, id); err != nil {
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return err
 	}
 
@@ -64,7 +65,8 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 
 // removeContainer removes a podman container by ID.
 func (p *podmanRuntime) removeContainer(ctx context.Context, id string) error {
-	if err := p.executor.Run(ctx, "rm", id); err != nil {
+	l := logger.FromContext(ctx)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "rm", id); err != nil {
 		return fmt.Errorf("failed to remove podman container: %w", err)
 	}
 	return nil

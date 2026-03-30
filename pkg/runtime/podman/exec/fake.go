@@ -16,6 +16,7 @@ package exec
 
 import (
 	"context"
+	"io"
 )
 
 // FakeExecutor is a fake implementation of Executor for testing.
@@ -52,7 +53,7 @@ func NewFake() *FakeExecutor {
 }
 
 // Run executes the RunFunc if set, otherwise returns nil.
-func (f *FakeExecutor) Run(ctx context.Context, args ...string) error {
+func (f *FakeExecutor) Run(ctx context.Context, stdout, stderr io.Writer, args ...string) error {
 	f.RunCalls = append(f.RunCalls, args)
 	if f.RunFunc != nil {
 		return f.RunFunc(ctx, args...)
@@ -61,7 +62,7 @@ func (f *FakeExecutor) Run(ctx context.Context, args ...string) error {
 }
 
 // Output executes the OutputFunc if set, otherwise returns empty bytes.
-func (f *FakeExecutor) Output(ctx context.Context, args ...string) ([]byte, error) {
+func (f *FakeExecutor) Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error) {
 	f.OutputCalls = append(f.OutputCalls, args)
 	if f.OutputFunc != nil {
 		return f.OutputFunc(ctx, args...)

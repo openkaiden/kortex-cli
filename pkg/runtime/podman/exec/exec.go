@@ -17,19 +17,21 @@ package exec
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 )
 
 // Executor provides an interface for executing podman commands.
 type Executor interface {
-	// Run executes a podman command and waits for it to complete.
+	// Run executes a podman command, writing stdout and stderr to the provided writers.
 	// Returns an error if the command fails.
-	Run(ctx context.Context, args ...string) error
+	Run(ctx context.Context, stdout, stderr io.Writer, args ...string) error
 
 	// Output executes a podman command and returns its standard output.
+	// Stderr is written to the provided writer.
 	// Returns an error if the command fails.
-	Output(ctx context.Context, args ...string) ([]byte, error)
+	Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error)
 
 	// RunInteractive executes a podman command with stdin/stdout/stderr connected to the terminal.
 	// This is used for interactive sessions where user input is required.
@@ -48,15 +50,19 @@ func New() Executor {
 	return &executor{}
 }
 
-// Run executes a podman command and waits for it to complete.
-func (e *executor) Run(ctx context.Context, args ...string) error {
+// Run executes a podman command, writing stdout and stderr to the provided writers.
+func (e *executor) Run(ctx context.Context, stdout, stderr io.Writer, args ...string) error {
 	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	return cmd.Run()
 }
 
 // Output executes a podman command and returns its standard output.
-func (e *executor) Output(ctx context.Context, args ...string) ([]byte, error) {
+// Stderr is written to the provided writer.
+func (e *executor) Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd.Stderr = stderr
 	return cmd.Output()
 }
 

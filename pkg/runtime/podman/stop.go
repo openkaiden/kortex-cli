@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
@@ -44,7 +45,8 @@ func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
 
 // stopContainer stops a podman container by ID.
 func (p *podmanRuntime) stopContainer(ctx context.Context, id string) error {
-	if err := p.executor.Run(ctx, "stop", id); err != nil {
+	l := logger.FromContext(ctx)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "stop", id); err != nil {
 		return fmt.Errorf("failed to stop podman container: %w", err)
 	}
 	return nil

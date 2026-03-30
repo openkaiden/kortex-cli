@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 )
 
@@ -42,7 +43,8 @@ func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInf
 func (p *podmanRuntime) getContainerInfo(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
 	// Use podman inspect to get container details in a format we can parse
 	// Format: ID|State|ImageName (custom fields from creation)
-	output, err := p.executor.Output(ctx, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", id)
+	l := logger.FromContext(ctx)
+	output, err := p.executor.Output(ctx, l.Stderr(), "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", id)
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to inspect container: %w", err)
 	}

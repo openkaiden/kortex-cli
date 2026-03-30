@@ -26,6 +26,7 @@ import (
 
 	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtimesetup"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 	"github.com/spf13/cobra"
@@ -33,9 +34,10 @@ import (
 
 // workspaceStopCmd contains the configuration for the workspace stop command
 type workspaceStopCmd struct {
-	manager instances.Manager
-	id      string
-	output  string
+	manager  instances.Manager
+	id       string
+	output   string
+	showLogs bool
 }
 
 // preRun validates the parameters and flags
@@ -43,6 +45,10 @@ func (w *workspaceStopCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Validate output format if specified
 	if w.output != "" && w.output != "json" {
 		return fmt.Errorf("unsupported output format: %s (supported: json)", w.output)
+	}
+
+	if w.showLogs && w.output == "json" {
+		return fmt.Errorf("--show-logs cannot be used with --output json")
 	}
 
 	// Silence Cobra's default error output to stderr when JSON mode is enabled,
@@ -83,18 +89,26 @@ func (w *workspaceStopCmd) preRun(cmd *cobra.Command, args []string) error {
 
 // run executes the workspace stop command logic
 func (w *workspaceStopCmd) run(cmd *cobra.Command, args []string) error {
-	// Create appropriate logger based on output mode
-	var logger steplogger.StepLogger
+	// Create appropriate step logger based on output mode
+	var stepLogger steplogger.StepLogger
 	if w.output == "json" {
 		// No step logging in JSON mode
-		logger = steplogger.NewNoOpLogger()
+		stepLogger = steplogger.NewNoOpLogger()
 	} else {
-		logger = steplogger.NewTextLogger(cmd.ErrOrStderr())
+		stepLogger = steplogger.NewTextLogger(cmd.ErrOrStderr())
 	}
-	defer logger.Complete()
+	defer stepLogger.Complete()
 
-	// Attach logger to context
-	ctx := steplogger.WithLogger(cmd.Context(), logger)
+	ctx := steplogger.WithLogger(cmd.Context(), stepLogger)
+
+	// Create appropriate logger based on --show-logs flag
+	var l logger.Logger
+	if w.showLogs {
+		l = logger.NewTextLogger(cmd.OutOrStdout(), cmd.ErrOrStderr())
+	} else {
+		l = logger.NewNoOpLogger()
+	}
+	ctx = logger.WithLogger(ctx, l)
 
 	// Stop the instance
 	err := w.manager.Stop(ctx, w.id)
@@ -146,7 +160,10 @@ func NewWorkspaceStopCmd() *cobra.Command {
 kortex-cli workspace stop abc123
 
 # Stop workspace with JSON output
-kortex-cli workspace stop abc123 --output json`,
+kortex-cli workspace stop abc123 --output json
+
+# Stop workspace and show runtime command output
+kortex-cli workspace stop abc123 --show-logs`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeRunningWorkspaceID,
 		PreRunE:           c.preRun,
@@ -154,6 +171,8 @@ kortex-cli workspace stop abc123 --output json`,
 	}
 
 	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
+	cmd.Flags().BoolVar(&c.showLogs, "show-logs", false, "Show stdout and stderr from runtime commands")
+
 	cmd.RegisterFlagCompletionFunc("output", newOutputFlagCompletion([]string{"json"}))
 
 	return cmd

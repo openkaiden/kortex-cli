@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1075,11 +1076,11 @@ type fakeExecutor struct {
 	output    []byte
 }
 
-func (f *fakeExecutor) Run(ctx context.Context, args ...string) error {
+func (f *fakeExecutor) Run(ctx context.Context, stdout, stderr io.Writer, args ...string) error {
 	return f.runErr
 }
 
-func (f *fakeExecutor) Output(ctx context.Context, args ...string) ([]byte, error) {
+func (f *fakeExecutor) Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error) {
 	if f.outputErr != nil {
 		return nil, f.outputErr
 	}

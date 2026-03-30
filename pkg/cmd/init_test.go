@@ -411,6 +411,29 @@ func TestInitCmd_PreRun(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects --show-logs with --output json", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			output:   "json",
+			showLogs: true,
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		err := c.preRun(cmd, []string{})
+		if err == nil {
+			t.Fatal("Expected preRun() to fail when --show-logs used with --output json")
+		}
+
+		if !strings.Contains(err.Error(), "--show-logs") {
+			t.Errorf("Expected error to mention '--show-logs', got: %v", err)
+		}
+	})
+
 	t.Run("outputs JSON error when manager creation fails with json output", func(t *testing.T) {
 		t.Parallel()
 
@@ -1983,7 +2006,7 @@ func TestInitCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 5
+	expectedCount := 6
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

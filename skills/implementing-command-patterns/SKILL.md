@@ -224,6 +224,68 @@ func outputErrorIfJSON(cmd interface{ OutOrStdout() io.Writer }, output string, 
 
 **Reference:** See `pkg/cmd/init.go`, `pkg/cmd/workspace_remove.go`, and `pkg/cmd/workspace_list.go` for complete implementations.
 
+## The --show-logs Flag Pattern
+
+Commands that trigger runtime CLI execution (e.g., `podman build`, `podman start`) should expose a `--show-logs` flag to let users see the raw stdout/stderr from those commands.
+
+### Rules
+
+1. Add `showLogs bool` to the command struct bound to `--show-logs`
+2. In `preRun`, reject the combination of `--show-logs` and `--output json`
+3. In `run`, create a `logger.Logger` from the flag value and inject it into context
+4. (Optional) For progress feedback, also create a `steplogger.StepLogger` as shown in `/working-with-steplogger`
+### Pattern
+
+```go
+import (
+    "github.com/kortex-hub/kortex-cli/pkg/logger"
+    "github.com/kortex-hub/kortex-cli/pkg/steplogger"
+)
+
+type myCmd struct {
+    output   string
+    showLogs bool
+    manager  instances.Manager
+}
+
+func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
+    if m.output != "" && m.output != "json" {
+        return fmt.Errorf("unsupported output format: %s (supported: json)", m.output)
+    }
+    if m.showLogs && m.output == "json" {
+        return fmt.Errorf("--show-logs cannot be used with --output json")
+    }
+    // ... rest of preRun
+}
+
+func (m *myCmd) run(cmd *cobra.Command, args []string) error {
+    var l logger.Logger
+    if m.showLogs {
+        l = logger.NewTextLogger(cmd.OutOrStdout(), cmd.ErrOrStderr())
+    } else {
+        l = logger.NewNoOpLogger()
+    }
+    ctx := logger.WithLogger(cmd.Context(), l)
+
+    return m.manager.DoSomething(ctx)
+}
+
+func NewMyCmd() *cobra.Command {
+    c := &myCmd{}
+    cmd := &cobra.Command{ /* ... */ }
+
+    cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
+    cmd.Flags().BoolVar(&c.showLogs, "show-logs", false, "Show stdout and stderr from runtime commands")
+
+    cmd.RegisterFlagCompletionFunc("output", newOutputFlagCompletion([]string{"json"}))
+    return cmd
+}
+```
+
+**Note:** Register all `RegisterFlagCompletionFunc` calls after all flag definitions.
+
+**Reference:** See `pkg/cmd/workspace_start.go`, `pkg/cmd/workspace_stop.go`, `pkg/cmd/workspace_remove.go`, and `pkg/cmd/init.go`.
+
 ## Interactive Commands (No JSON Output)
 
 Some commands are inherently interactive and do not support JSON output. These commands connect stdin/stdout/stderr directly to a user's terminal.

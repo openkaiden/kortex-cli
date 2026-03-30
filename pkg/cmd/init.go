@@ -28,6 +28,7 @@ import (
 	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
 	"github.com/kortex-hub/kortex-cli/pkg/config"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtimesetup"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 	"github.com/spf13/cobra"
@@ -47,6 +48,7 @@ type initCmd struct {
 	workspaceConfig    *workspace.WorkspaceConfiguration
 	verbose            bool
 	output             string
+	showLogs           bool
 }
 
 // preRun validates the parameters and flags
@@ -54,6 +56,10 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Validate output format if specified
 	if i.output != "" && i.output != "json" {
 		return fmt.Errorf("unsupported output format: %s (supported: json)", i.output)
+	}
+
+	if i.showLogs && i.output == "json" {
+		return fmt.Errorf("--show-logs cannot be used with --output json")
 	}
 
 	// Silence Cobra's default error output to stderr when JSON mode is enabled,
@@ -165,18 +171,26 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 
 // run executes the init command logic
 func (i *initCmd) run(cmd *cobra.Command, args []string) error {
-	// Create appropriate logger based on output mode
-	var logger steplogger.StepLogger
+	// Create appropriate step logger based on output mode
+	var stepLogger steplogger.StepLogger
 	if i.output == "json" {
 		// No step logging in JSON mode
-		logger = steplogger.NewNoOpLogger()
+		stepLogger = steplogger.NewNoOpLogger()
 	} else {
-		logger = steplogger.NewTextLogger(cmd.ErrOrStderr())
+		stepLogger = steplogger.NewTextLogger(cmd.ErrOrStderr())
 	}
-	defer logger.Complete()
+	defer stepLogger.Complete()
 
-	// Attach logger to context
-	ctx := steplogger.WithLogger(cmd.Context(), logger)
+	ctx := steplogger.WithLogger(cmd.Context(), stepLogger)
+
+	// Create appropriate logger based on --show-logs flag
+	var l logger.Logger
+	if i.showLogs {
+		l = logger.NewTextLogger(cmd.OutOrStdout(), cmd.ErrOrStderr())
+	} else {
+		l = logger.NewNoOpLogger()
+	}
+	ctx = logger.WithLogger(ctx, l)
 
 	// Create a new instance
 	instance, err := instances.NewInstance(instances.NewInstanceParams{
@@ -269,7 +283,10 @@ kortex-cli init --runtime fake --agent claude --name my-project
 kortex-cli init --runtime fake --agent goose --project my-custom-project
 
 # Show detailed output
-kortex-cli init --runtime fake --agent claude --verbose`,
+kortex-cli init --runtime fake --agent claude --verbose
+
+# Show runtime command output
+kortex-cli init --runtime fake --agent claude --show-logs`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: c.preRun,
 		RunE:    c.run,
@@ -296,6 +313,8 @@ kortex-cli init --runtime fake --agent claude --verbose`,
 
 	// Add output flag
 	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
+	cmd.Flags().BoolVar(&c.showLogs, "show-logs", false, "Show stdout and stderr from runtime commands")
+
 	cmd.RegisterFlagCompletionFunc("output", newOutputFlagCompletion([]string{"json"}))
 
 	return cmd

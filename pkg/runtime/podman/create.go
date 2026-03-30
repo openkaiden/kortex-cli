@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/constants"
@@ -128,7 +129,8 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 		instanceDir,
 	}
 
-	if err := p.executor.Run(ctx, args...); err != nil {
+	l := logger.FromContext(ctx)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), args...); err != nil {
 		return fmt.Errorf("failed to build podman image: %w", err)
 	}
 	return nil
@@ -206,7 +208,8 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 
 // createContainer creates a podman container and returns its ID.
 func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (string, error) {
-	output, err := p.executor.Output(ctx, args...)
+	l := logger.FromContext(ctx)
+	output, err := p.executor.Output(ctx, l.Stderr(), args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to create podman container: %w", err)
 	}
@@ -215,8 +218,8 @@ func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (str
 
 // Create creates a new Podman runtime instance.
 func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
-	logger := steplogger.FromContext(ctx)
-	defer logger.Complete()
+	stepLogger := steplogger.FromContext(ctx)
+	defer stepLogger.Complete()
 
 	// Validate parameters
 	if err := p.validateCreateParams(params); err != nil {
@@ -224,10 +227,10 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 
 	// Create instance directory
-	logger.Start("Creating temporary build directory", "Temporary build directory created")
+	stepLogger.Start("Creating temporary build directory", "Temporary build directory created")
 	instanceDir, err := p.createInstanceDirectory(params.Name)
 	if err != nil {
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 	// Clean up instance directory after use (whether success or error)
@@ -247,17 +250,17 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 
 	// Create Containerfile
-	logger.Start("Generating Containerfile", "Containerfile generated")
+	stepLogger.Start("Generating Containerfile", "Containerfile generated")
 	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig); err != nil {
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 
 	// Build image
 	imageName := fmt.Sprintf("kortex-cli-%s", params.Name)
-	logger.Start(fmt.Sprintf("Building container image: %s", imageName), "Container image built")
+	stepLogger.Start(fmt.Sprintf("Building container image: %s", imageName), "Container image built")
 	if err := p.buildImage(ctx, imageName, instanceDir); err != nil {
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 
@@ -268,10 +271,10 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 
 	// Create container and get its ID directly from podman create output
-	logger.Start(fmt.Sprintf("Creating container: %s", params.Name), "Container created")
+	stepLogger.Start(fmt.Sprintf("Creating container: %s", params.Name), "Container created")
 	containerID, err := p.createContainer(ctx, createArgs)
 	if err != nil {
-		logger.Fail(err)
+		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 

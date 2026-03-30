@@ -35,6 +35,7 @@ import (
     "context"
     "fmt"
     "github.com/kortex-hub/kortex-cli/pkg/runtime"
+    "github.com/kortex-hub/kortex-cli/pkg/logger"  // Optional: only if executing external commands
     "github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
 
@@ -75,21 +76,21 @@ func (r *<runtime-name>Runtime) Available() bool {
 
 // Create creates a new runtime instance
 func (r *<runtime-name>Runtime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
-    logger := steplogger.FromContext(ctx)
-    defer logger.Complete()
+    stepLogger := steplogger.FromContext(ctx)
+    defer stepLogger.Complete()
 
     // Step 1: Prepare environment
-    logger.Start("Preparing workspace environment", "Workspace environment prepared")
+    stepLogger.Start("Preparing workspace environment", "Workspace environment prepared")
     if err := r.prepareEnvironment(params); err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return runtime.RuntimeInfo{}, err
     }
 
     // Step 2: Create instance
-    logger.Start("Creating workspace instance", "Workspace instance created")
+    stepLogger.Start("Creating workspace instance", "Workspace instance created")
     info, err := r.createInstance(ctx, params)
     if err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return runtime.RuntimeInfo{}, err
     }
 
@@ -98,19 +99,19 @@ func (r *<runtime-name>Runtime) Create(ctx context.Context, params runtime.Creat
 
 // Start starts a runtime instance
 func (r *<runtime-name>Runtime) Start(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
-    logger := steplogger.FromContext(ctx)
-    defer logger.Complete()
+    stepLogger := steplogger.FromContext(ctx)
+    defer stepLogger.Complete()
 
-    logger.Start(fmt.Sprintf("Starting workspace: %s", id), "Workspace started")
+    stepLogger.Start(fmt.Sprintf("Starting workspace: %s", id), "Workspace started")
     if err := r.startInstance(ctx, id); err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return runtime.RuntimeInfo{}, err
     }
 
-    logger.Start("Verifying workspace status", "Workspace status verified")
+    stepLogger.Start("Verifying workspace status", "Workspace status verified")
     info, err := r.getInfo(ctx, id)
     if err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return runtime.RuntimeInfo{}, err
     }
 
@@ -119,12 +120,12 @@ func (r *<runtime-name>Runtime) Start(ctx context.Context, id string) (runtime.R
 
 // Stop stops a runtime instance
 func (r *<runtime-name>Runtime) Stop(ctx context.Context, id string) error {
-    logger := steplogger.FromContext(ctx)
-    defer logger.Complete()
+    stepLogger := steplogger.FromContext(ctx)
+    defer stepLogger.Complete()
 
-    logger.Start(fmt.Sprintf("Stopping workspace: %s", id), "Workspace stopped")
+    stepLogger.Start(fmt.Sprintf("Stopping workspace: %s", id), "Workspace stopped")
     if err := r.stopInstance(ctx, id); err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return err
     }
 
@@ -133,25 +134,25 @@ func (r *<runtime-name>Runtime) Stop(ctx context.Context, id string) error {
 
 // Remove removes a runtime instance
 func (r *<runtime-name>Runtime) Remove(ctx context.Context, id string) error {
-    logger := steplogger.FromContext(ctx)
-    defer logger.Complete()
+    stepLogger := steplogger.FromContext(ctx)
+    defer stepLogger.Complete()
 
-    logger.Start("Checking workspace state", "Workspace state checked")
+    stepLogger.Start("Checking workspace state", "Workspace state checked")
     state, err := r.checkState(ctx, id)
     if err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return err
     }
 
     if state == "running" {
         err := fmt.Errorf("workspace is still running, stop it first")
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return err
     }
 
-    logger.Start(fmt.Sprintf("Removing workspace: %s", id), "Workspace removed")
+    stepLogger.Start(fmt.Sprintf("Removing workspace: %s", id), "Workspace removed")
     if err := r.removeInstance(ctx, id); err != nil {
-        logger.Fail(err)
+        stepLogger.Fail(err)
         return err
     }
 
@@ -198,10 +199,10 @@ import (
 ```
 
 **Pattern:**
-1. Retrieve logger from context: `logger := steplogger.FromContext(ctx)`
-2. Defer completion: `defer logger.Complete()`
-3. Start each step: `logger.Start("In progress message", "Completion message")`
-4. Fail on errors: `logger.Fail(err)` before returning the error
+1. Retrieve logger from context: `stepLogger := steplogger.FromContext(ctx)`
+2. Defer completion: `defer stepLogger.Complete()`
+3. Start each step: `stepLogger.Start("In progress message", "Completion message")`
+4. Fail on errors: `stepLogger.Fail(err)` before returning the error
 
 **Benefits:**
 - Users see progress during long-running operations
@@ -210,6 +211,36 @@ import (
 - No changes needed for JSON vs text output
 
 **See AGENTS.md** for complete StepLogger documentation and best practices.
+
+### 3.6. Logger Integration (for CLI Command Execution)
+
+If your runtime executes external CLI commands (e.g., via `exec.Command`), use `pkg/logger` to route stdout/stderr to the user when `--show-logs` is passed.
+
+**Required imports:**
+```go
+import (
+    "github.com/kortex-hub/kortex-cli/pkg/logger"
+)
+```
+
+**Pattern — retrieve from context and pass to exec:**
+```go
+func (r *<runtime-name>Runtime) runSomething(ctx context.Context, args ...string) error {
+    l := logger.FromContext(ctx)
+    cmd := exec.CommandContext(ctx, "<tool>", args...)
+    cmd.Stdout = l.Stdout()
+    cmd.Stderr = l.Stderr()
+    return cmd.Run()
+}
+```
+
+**Variable naming convention:**
+- Use `stepLogger` for `steplogger.StepLogger`
+- Use `l` for `logger.Logger`
+
+**When `--show-logs` is not set**, `logger.FromContext` returns a no-op logger that discards all output, so the pattern is safe to use unconditionally.
+
+**See AGENTS.md** for the `--show-logs` flag pattern and complete Logger documentation.
 
 ### 4. Add Tests
 
