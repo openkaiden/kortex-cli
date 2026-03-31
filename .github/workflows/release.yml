@@ -21,13 +21,12 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-
 jobs:
   release:
     name: Release
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -47,3 +46,56 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bump-next-version:
+    name: Bump Next Version
+    runs-on: ubuntu-24.04
+    needs: release
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Install svu
+        run: go install github.com/caarlos0/svu/v3@9324add9d66418b2da930a03071dc285915c7a37 # v3.4.0
+
+      - name: Compute next version
+        id: version
+        run: |
+          NEXT_VERSION=$(svu next | sed 's/^v//')
+          echo "next_version=${NEXT_VERSION}-next" >> $GITHUB_OUTPUT
+
+      - name: Update version file
+        run: |
+          sed -i "s/var Version = \".*\"/var Version = \"${{ steps.version.outputs.next_version }}\"/" pkg/version/version.go
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create PR
+        run: |
+          BRANCH="bump-next-${{ steps.version.outputs.next_version }}"
+          git checkout -b "$BRANCH"
+          git add pkg/version/version.go
+          git commit -m "chore: bump version to ${{ steps.version.outputs.next_version }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: bump version to ${{ steps.version.outputs.next_version }}" \
+            --body "Bump version to \`${{ steps.version.outputs.next_version }}\` after release \`${{ github.ref_name }}\`." \
+            --base main \
+            --head "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
