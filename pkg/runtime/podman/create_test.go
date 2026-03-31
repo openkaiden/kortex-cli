@@ -32,70 +32,6 @@ import (
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
 
-func TestValidateDependencyPath(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		path        string
-		expectError bool
-	}{
-		{
-			name:        "one level up - OK",
-			path:        "../main",
-			expectError: false,
-		},
-		{
-			name:        "one level up, down, up again - OK",
-			path:        "../foo/../bar",
-			expectError: false,
-		},
-		{
-			name:        "two levels up - ERROR",
-			path:        "../../main",
-			expectError: true,
-		},
-		{
-			name:        "one level up, down, then two levels up - ERROR",
-			path:        "../foo/../../bar",
-			expectError: true,
-		},
-		{
-			name:        "current directory with subdirs - OK",
-			path:        "./subdir/file",
-			expectError: false,
-		},
-		{
-			name:        "complex valid path - OK",
-			path:        "../main/sub1/../sub2",
-			expectError: false,
-		},
-		{
-			name:        "complex invalid path - ERROR",
-			path:        "../main/../../../invalid",
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := validateDependencyPath(tt.path)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error for path %q, got nil", tt.path)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error for path %q, got %v", tt.path, err)
-				}
-			}
-		})
-	}
-}
-
 func TestValidateCreateParams(t *testing.T) {
 	t.Parallel()
 
@@ -146,28 +82,28 @@ func TestValidateCreateParams(t *testing.T) {
 			errorType:   runtime.ErrInvalidParams,
 		},
 		{
-			name: "valid dependency path",
+			name: "valid mount - $SOURCES target within /workspace",
 			params: runtime.CreateParams{
 				Name:       "test-workspace",
 				SourcePath: tempSourcePath,
 				Agent:      "test_agent",
 				WorkspaceConfig: &workspace.WorkspaceConfiguration{
-					Mounts: &workspace.Mounts{
-						Dependencies: &[]string{"../main"},
+					Mounts: &[]workspace.Mount{
+						{Host: "$SOURCES/../sibling", Target: "$SOURCES/../sibling"},
 					},
 				},
 			},
 			expectError: false,
 		},
 		{
-			name: "invalid dependency path - too many levels up",
+			name: "invalid mount - $SOURCES target escapes above /workspace",
 			params: runtime.CreateParams{
 				Name:       "test-workspace",
 				SourcePath: tempSourcePath,
 				Agent:      "test_agent",
 				WorkspaceConfig: &workspace.WorkspaceConfiguration{
-					Mounts: &workspace.Mounts{
-						Dependencies: &[]string{"../../main"},
+					Mounts: &[]workspace.Mount{
+						{Host: "/host/path", Target: "$SOURCES/../../etc"},
 					},
 				},
 			},
@@ -463,11 +399,6 @@ func TestBuildContainerArgs(t *testing.T) {
 
 		p := &podmanRuntime{}
 
-		deps := []string{"../main", "../shared"}
-		mounts := workspace.Mounts{
-			Dependencies: &deps,
-		}
-
 		// Create a real temp directory structure for cross-platform testing
 		tempDir := t.TempDir()
 		projectsDir := filepath.Join(tempDir, "projects")
@@ -475,7 +406,6 @@ func TestBuildContainerArgs(t *testing.T) {
 		mainDir := filepath.Join(projectsDir, "main")
 		sharedDir := filepath.Join(projectsDir, "shared")
 
-		// Create the directories
 		os.MkdirAll(currentDir, 0755)
 		os.MkdirAll(mainDir, 0755)
 		os.MkdirAll(sharedDir, 0755)
@@ -485,7 +415,10 @@ func TestBuildContainerArgs(t *testing.T) {
 			SourcePath: currentDir,
 			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
-				Mounts: &mounts,
+				Mounts: &[]workspace.Mount{
+					{Host: "$SOURCES/../main", Target: "$SOURCES/../main"},
+					{Host: "$SOURCES/../shared", Target: "$SOURCES/../shared"},
+				},
 			},
 		}
 		imageName := "kortex-cli-test-workspace"
@@ -495,16 +428,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
 
-		// Check that dependencies are mounted
 		argsStr := strings.Join(args, " ")
-
-		// Source is mounted at /workspace/sources
-		// Dependencies preserve relative paths from source:
-		// ../main is mounted at /workspace/main
-		// From /workspace/sources, "../main" resolves to /workspace/main
-		if !strings.Contains(argsStr, "-v") {
-			t.Error("Expected volume mounts")
-		}
 
 		// Build expected mount strings with cross-platform paths
 		expectedMainMount := fmt.Sprintf("%s:/workspace/main:Z", mainDir)
@@ -523,17 +447,15 @@ func TestBuildContainerArgs(t *testing.T) {
 
 		p := &podmanRuntime{}
 
-		configs := []string{".claude", ".gitconfig"}
-		mounts := workspace.Mounts{
-			Configs: &configs,
-		}
-
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
-			SourcePath: "/path/to/source",
+			SourcePath: t.TempDir(),
 			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
-				Mounts: &mounts,
+				Mounts: &[]workspace.Mount{
+					{Host: "$HOME/.claude", Target: "$HOME/.claude"},
+					{Host: "$HOME/.gitconfig", Target: "$HOME/.gitconfig"},
+				},
 			},
 		}
 		imageName := "kortex-cli-test-workspace"
@@ -572,12 +494,6 @@ func TestBuildContainerArgs(t *testing.T) {
 		envVars := []workspace.EnvironmentVariable{
 			{Name: "DEBUG", Value: &debugValue},
 		}
-		deps := []string{"../main"}
-		configs := []string{".claude"}
-		mounts := workspace.Mounts{
-			Dependencies: &deps,
-			Configs:      &configs,
-		}
 
 		// Create a real temp directory structure for cross-platform testing
 		tempDir := t.TempDir()
@@ -585,7 +501,6 @@ func TestBuildContainerArgs(t *testing.T) {
 		currentDir := filepath.Join(projectsDir, "current")
 		mainDir := filepath.Join(projectsDir, "main")
 
-		// Create the directories
 		os.MkdirAll(currentDir, 0755)
 		os.MkdirAll(mainDir, 0755)
 
@@ -595,7 +510,10 @@ func TestBuildContainerArgs(t *testing.T) {
 			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
 				Environment: &envVars,
-				Mounts:      &mounts,
+				Mounts: &[]workspace.Mount{
+					{Host: "$SOURCES/../main", Target: "$SOURCES/../main"},
+					{Host: "$HOME/.claude", Target: "$HOME/.claude"},
+				},
 			},
 		}
 		imageName := "kortex-cli-test-workspace"

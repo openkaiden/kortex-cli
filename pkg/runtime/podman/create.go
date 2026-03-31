@@ -18,45 +18,14 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
-	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/constants"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
-
-// validateDependencyPath validates that a dependency path doesn't escape above /workspace.
-// We start at /workspace/sources (depth 2 from root), and must never go above /workspace (depth 1).
-// Examples:
-// - "../main" -> OK (depth: 2 -> 1 -> 2, never goes below 1)
-// - "../../main" -> ERROR (depth: 2 -> 1 -> 0, escapes above /workspace)
-// - "../foo/../../bar" -> ERROR (depth: 2 -> 1 -> 2 -> 1 -> 0, escapes above /workspace)
-func validateDependencyPath(path string) error {
-	// Start at depth 2 (representing /workspace/sources)
-	currentDepth := 2
-
-	// Dependency paths in configuration always use forward slashes (cross-platform)
-	// Split by "/" regardless of OS
-	parts := strings.SplitSeq(path, "/")
-	for part := range parts {
-		if part == ".." {
-			currentDepth--
-			// Check immediately - we must never go above /workspace (depth 1)
-			if currentDepth < 1 {
-				return fmt.Errorf("dependency path %q would escape above /workspace", path)
-			}
-		} else if part != "" && part != "." {
-			// Normal directory component - go down one level
-			currentDepth++
-		}
-	}
-
-	return nil
-}
 
 // validateCreateParams validates the create parameters.
 func (p *podmanRuntime) validateCreateParams(params runtime.CreateParams) error {
@@ -70,13 +39,11 @@ func (p *podmanRuntime) validateCreateParams(params runtime.CreateParams) error 
 		return fmt.Errorf("%w: agent is required", runtime.ErrInvalidParams)
 	}
 
-	// Validate dependency paths don't escape above /workspace
+	// Validate mount targets don't escape their expected container root
 	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Mounts != nil {
-		if params.WorkspaceConfig.Mounts.Dependencies != nil {
-			for _, dep := range *params.WorkspaceConfig.Mounts.Dependencies {
-				if err := validateDependencyPath(dep); err != nil {
-					return fmt.Errorf("%w: %v", runtime.ErrInvalidParams, err)
-				}
+		for _, m := range *params.WorkspaceConfig.Mounts {
+			if err := validateMount(m); err != nil {
+				return fmt.Errorf("%w: %v", runtime.ErrInvalidParams, err)
 			}
 		}
 	}
@@ -159,38 +126,14 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 	// This allows symlinks to work correctly with dependencies
 	args = append(args, "-v", fmt.Sprintf("%s:/workspace/sources:Z", params.SourcePath))
 
-	// Mount dependencies if specified
-	// Dependencies are mounted at /workspace/<dep-path> to preserve relative paths for symlinks
-	// Example: if source has a symlink "../main/file", it will resolve to /workspace/main/file
+	// Mount additional directories if specified
 	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Mounts != nil {
-		if params.WorkspaceConfig.Mounts.Dependencies != nil {
-			for _, dep := range *params.WorkspaceConfig.Mounts.Dependencies {
-				// Convert dependency path from forward slashes (cross-platform config format)
-				// to OS-specific separators for the host path
-				depOSPath := filepath.FromSlash(dep)
-				depAbsPath := filepath.Join(params.SourcePath, depOSPath)
-				// Mount at /workspace/sources/<dep-path> to preserve relative path structure
-				// Use path.Join (not filepath.Join) for container paths to ensure forward slashes
-				depMountPoint := path.Join("/workspace/sources", dep)
-				args = append(args, "-v", fmt.Sprintf("%s:%s:Z", depAbsPath, depMountPoint))
-			}
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get home directory: %w", err)
 		}
-
-		// Mount configs if specified
-		if params.WorkspaceConfig.Mounts.Configs != nil {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get home directory: %w", err)
-			}
-			for _, conf := range *params.WorkspaceConfig.Mounts.Configs {
-				// Convert config path from forward slashes to OS-specific separators
-				confOSPath := filepath.FromSlash(conf)
-				confAbsPath := filepath.Join(homeDir, confOSPath)
-				// HOME in container is /home/<user> for the image
-				// Use path.Join for container paths to ensure forward slashes
-				confMountPoint := path.Join(fmt.Sprintf("/home/%s", constants.ContainerUser), conf)
-				args = append(args, "-v", fmt.Sprintf("%s:%s:Z", confAbsPath, confMountPoint))
-			}
+		for _, m := range *params.WorkspaceConfig.Mounts {
+			args = append(args, "-v", mountVolumeArg(m, params.SourcePath, homeDir))
 		}
 	}
 
