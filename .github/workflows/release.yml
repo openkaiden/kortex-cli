@@ -98,4 +98,4 @@ jobs:
             --base main \
             --head "$BRANCH"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.KORTEX_BOT_TOKEN }}
