@@ -269,7 +269,7 @@ Podman secrets are stored locally on the host and never written to the container
 **Notes:**
 
 - The `secret` field references a secret by name rather than embedding the token value directly, keeping credentials out of the configuration file
-- The project identifier used as the key must match what kortex-cli detected during `init` — run `kortex-cli list -o json -v` to see the project field for each registered workspace
+- The project identifier used as the key must match what kortex-cli detected during `init` — run `kortex-cli list -o json` to see the project field for each registered workspace
 - Configuration changes in `projects.json` take effect the next time you run `kortex-cli init` for that workspace; already-registered workspaces need to be removed and re-registered
 
 ### Working with Git Worktrees
