@@ -241,18 +241,18 @@ func TestMountVolumeArg(t *testing.T) {
 			expected: filepath.Join("/host", "data") + ":/workspace/data:ro,Z",
 		},
 		{
-			name:  "$SOURCES host and target",
-			mount: workspace.Mount{Host: "$SOURCES", Target: "$SOURCES"},
+			name:     "$SOURCES host and target",
+			mount:    workspace.Mount{Host: "$SOURCES", Target: "$SOURCES"},
 			expected: sourcesDir + ":" + containerWorkspaceSources + ":Z",
 		},
 		{
-			name:  "$SOURCES with subpath",
-			mount: workspace.Mount{Host: "$SOURCES/pkg", Target: "$SOURCES/pkg"},
+			name:     "$SOURCES with subpath",
+			mount:    workspace.Mount{Host: "$SOURCES/pkg", Target: "$SOURCES/pkg"},
 			expected: filepath.Join(sourcesDir, "pkg") + ":" + path.Join(containerWorkspaceSources, "pkg") + ":Z",
 		},
 		{
-			name:  "$HOME host and target",
-			mount: workspace.Mount{Host: "$HOME/.ssh", Target: "$HOME/.ssh"},
+			name:     "$HOME host and target",
+			mount:    workspace.Mount{Host: "$HOME/.ssh", Target: "$HOME/.ssh"},
 			expected: filepath.Join(homeDir, ".ssh") + ":" + path.Join(containerHome, ".ssh") + ":Z",
 		},
 		{
