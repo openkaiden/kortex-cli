@@ -65,7 +65,7 @@ jobs:
           git add .goreleaser.yaml
           git commit -m "chore: tag ${{ steps.version.outputs.githubTag }}"
           echo "Tagging with ${{ steps.version.outputs.githubTag }}"
-          git tag ${{ steps.version.outputs.githubTag }}"
+          git tag ${{ steps.version.outputs.githubTag }}
           git remote add prereleases https://x-access-token:${KORTEX_BOT_TOKEN}@github.com/kortex-hub/kortex-cli-prereleases
           git push prereleases "v${{ steps.version.outputs.githubTag }}"
         env:
