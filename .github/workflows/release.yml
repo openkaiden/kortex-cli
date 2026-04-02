@@ -101,10 +101,15 @@ jobs:
           git add pkg/version/version.go
           git commit -m "chore: bump version to ${{ steps.version.outputs.next_version }}"
           git push origin "$BRANCH"
-          gh pr create \
+          pullRequestUrl=$(gh pr create \
             --title "chore: bump version to ${{ steps.version.outputs.next_version }}" \
             --body "Bump version to \`${{ steps.version.outputs.next_version }}\` after release \`${{ github.ref_name }}\`." \
             --base main \
-            --head "$BRANCH"
+            --head "$BRANCH")
+          echo "📢 Pull request created: ${pullRequestUrl}"
+          echo "➡️ Flag the PR as being ready for review"
+          gh pr ready "${pullRequestUrl}"
+          echo "🔅 Mark the PR as being ok to be merged automatically"
+          gh pr merge "${pullRequestUrl}" --auto --rebase
         env:
           GH_TOKEN: ${{ secrets.KORTEX_BOT_TOKEN }}
