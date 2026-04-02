@@ -221,7 +221,7 @@ func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInf
 
 If a runtime returns an invalid state, the error message clearly identifies the problem:
 
-```
+```text
 runtime "my-runtime" returned invalid state: invalid runtime state: "created" 
 (must be one of: running, stopped, error, unknown)
 ```

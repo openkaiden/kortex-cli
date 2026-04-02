@@ -524,7 +524,7 @@ func (r *myRuntime) mapState(platformState string) api.WorkspaceState {
 - Platform-specific states must be mapped to the four valid states in your runtime
 - The manager validates all states at the boundary - you don't need to validate yourself
 - If you return an invalid state, you'll get a clear error during development:
-  ```
+  ```text
   runtime "my-runtime" returned invalid state: invalid runtime state: "created" 
   (must be one of: running, stopped, error, unknown)
   ```
