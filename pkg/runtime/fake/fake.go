@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 )
 
@@ -45,11 +46,11 @@ type fakeRuntime struct {
 
 // instanceState tracks the state of a fake runtime instance.
 type instanceState struct {
-	ID     string            `json:"id"`
-	Name   string            `json:"name"`
-	State  string            `json:"state"`
-	Info   map[string]string `json:"info"`
-	Source string            `json:"source"`
+	ID     string             `json:"id"`
+	Name   string             `json:"name"`
+	State  api.WorkspaceState `json:"state"`
+	Info   map[string]string  `json:"info"`
+	Source string             `json:"source"`
 }
 
 // persistedData is the structure stored on disk
@@ -205,7 +206,7 @@ func (f *fakeRuntime) Create(ctx context.Context, params runtime.CreateParams) (
 	state := &instanceState{
 		ID:     id,
 		Name:   params.Name,
-		State:  "created",
+		State:  api.WorkspaceStateStopped,
 		Source: params.SourcePath,
 		Info:   info,
 	}
@@ -234,11 +235,11 @@ func (f *fakeRuntime) Start(ctx context.Context, id string) (runtime.RuntimeInfo
 		return runtime.RuntimeInfo{}, fmt.Errorf("%w: %s", runtime.ErrInstanceNotFound, id)
 	}
 
-	if inst.State == "running" {
+	if inst.State == api.WorkspaceStateRunning {
 		return runtime.RuntimeInfo{}, fmt.Errorf("instance %s is already running", id)
 	}
 
-	inst.State = "running"
+	inst.State = api.WorkspaceStateRunning
 	inst.Info["started_at"] = time.Now().Format(time.RFC3339)
 
 	// Persist to disk if storage is configured
@@ -263,11 +264,11 @@ func (f *fakeRuntime) Stop(ctx context.Context, id string) error {
 		return fmt.Errorf("%w: %s", runtime.ErrInstanceNotFound, id)
 	}
 
-	if inst.State != "running" {
+	if inst.State != api.WorkspaceStateRunning {
 		return fmt.Errorf("instance %s is not running", id)
 	}
 
-	inst.State = "stopped"
+	inst.State = api.WorkspaceStateStopped
 	inst.Info["stopped_at"] = time.Now().Format(time.RFC3339)
 
 	// Persist to disk if storage is configured
@@ -290,7 +291,7 @@ func (f *fakeRuntime) Remove(ctx context.Context, id string) error {
 		return nil
 	}
 
-	if inst.State == "running" {
+	if inst.State == api.WorkspaceStateRunning {
 		return fmt.Errorf("instance %s is still running, stop it first", id)
 	}
 

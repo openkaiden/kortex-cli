@@ -34,6 +34,7 @@ package <runtime-name>
 import (
     "context"
     "fmt"
+    api "github.com/kortex-hub/kortex-cli-api/cli/go"
     "github.com/kortex-hub/kortex-cli/pkg/runtime"
     "github.com/kortex-hub/kortex-cli/pkg/logger"  // Optional: only if executing external commands
     "github.com/kortex-hub/kortex-cli/pkg/steplogger"
@@ -175,7 +176,31 @@ func (r *<runtime-name>Runtime) Remove(ctx context.Context, id string) error {
 // Info retrieves information about a runtime instance
 func (r *<runtime-name>Runtime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
     // Implementation: get workspace info
-    return runtime.RuntimeInfo{}, nil
+    
+    // Map platform-specific state to valid WorkspaceState
+    platformState := "running" // Get actual state from platform
+    state := r.mapState(platformState)
+    
+    return runtime.RuntimeInfo{
+        ID:    id,
+        State: state,
+        Info:  info,
+    }, nil
+}
+
+// mapState maps platform-specific states to valid WorkspaceState values
+func (r *<runtime-name>Runtime) mapState(platformState string) api.WorkspaceState {
+    // Example mapping - adjust for your platform
+    switch platformState {
+    case "running", "active":
+        return api.WorkspaceStateRunning
+    case "created", "exited", "stopped", "paused":
+        return api.WorkspaceStateStopped
+    case "failed", "dead":
+        return api.WorkspaceStateError
+    default:
+        return api.WorkspaceStateUnknown
+    }
 }
 ```
 
@@ -421,6 +446,89 @@ See `pkg/runtime/fake/` for a complete reference implementation that demonstrate
 - Comprehensive tests
 
 ## Common Patterns
+
+### State Validation
+
+All runtimes MUST return valid WorkspaceState values in `RuntimeInfo.State`. Valid states are:
+- `running` - The instance is actively running
+- `stopped` - The instance is created but not running  
+- `error` - The instance encountered an error
+- `unknown` - The instance state cannot be determined
+
+**Validation is enforced at the manager boundary (fail-fast approach):**
+
+The instances manager validates all `RuntimeInfo` returned from runtime methods. If a runtime returns an invalid state, the manager immediately returns an error identifying which runtime failed. This means:
+
+✅ **You don't need to call `runtime.ValidateState()` in your runtime implementation**  
+✅ **Invalid states are caught automatically during development**  
+✅ **Clear error messages identify the problematic runtime**
+
+**Required: Map platform-specific states to valid WorkspaceState values**
+
+Your runtime must map platform-specific states to the four valid states:
+
+```go
+// Create() - return "stopped" for newly created instances
+func (r *myRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
+    // ... create instance logic ...
+    
+    return runtime.RuntimeInfo{
+        ID:    id,
+        State: api.WorkspaceStateStopped,  // New instances are "stopped", not "created"
+        Info:  info,
+    }, nil
+}
+
+// Start() - return "running" after starting
+func (r *myRuntime) Start(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+    // ... start instance logic ...
+    
+    return runtime.RuntimeInfo{
+        ID:    id,
+        State: api.WorkspaceStateRunning,  // Instance is now running
+        Info:  info,
+    }, nil
+}
+
+// Info() - map platform state to valid WorkspaceState
+func (r *myRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+    platformState := r.getPlatformState(id) // e.g., "created", "exited", "paused"
+    
+    // Map platform state to valid WorkspaceState
+    state := r.mapState(platformState)
+    
+    return runtime.RuntimeInfo{
+        ID:    id,
+        State: state,
+        Info:  info,
+    }, nil
+}
+
+// mapState maps platform-specific states to valid WorkspaceState values
+func (r *myRuntime) mapState(platformState string) api.WorkspaceState {
+    switch platformState {
+    case "running", "active":
+        return api.WorkspaceStateRunning
+    case "created", "exited", "stopped", "paused":
+        return api.WorkspaceStateStopped
+    case "failed", "dead":
+        return api.WorkspaceStateError
+    default:
+        return api.WorkspaceStateUnknown
+    }
+}
+```
+
+**Important notes:**
+- Newly created instances should return state `"stopped"`, not platform-specific values like `"created"`
+- Platform-specific states must be mapped to the four valid states in your runtime
+- The manager validates all states at the boundary - you don't need to validate yourself
+- If you return an invalid state, you'll get a clear error during development:
+  ```
+  runtime "my-runtime" returned invalid state: invalid runtime state: "created" 
+  (must be one of: running, stopped, error, unknown)
+  ```
+- This fail-fast approach catches bugs early without requiring validation in every runtime
 
 ### Error Handling
 

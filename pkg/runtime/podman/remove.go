@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
@@ -47,7 +48,7 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	}
 
 	// Check if the container is running
-	if info.State == "running" {
+	if info.State == api.WorkspaceStateRunning {
 		err := fmt.Errorf("container %s is still running, stop it first", id)
 		stepLogger.Fail(err)
 		return err

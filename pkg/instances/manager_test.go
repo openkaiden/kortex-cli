@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
 	"github.com/kortex-hub/kortex-cli/pkg/git"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
@@ -846,9 +847,9 @@ func TestManager_Start(t *testing.T) {
 		})
 		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
 
-		// After Add, state should be "created"
-		if added.GetRuntimeData().State != "created" {
-			t.Errorf("After Add, state = %v, want 'created'", added.GetRuntimeData().State)
+		// After Add, state should be "stopped"
+		if added.GetRuntimeData().State != "stopped" {
+			t.Errorf("After Add, state = %v, want 'stopped'", added.GetRuntimeData().State)
 		}
 
 		// Start the instance
@@ -1088,10 +1089,10 @@ func TestManager_Stop(t *testing.T) {
 		})
 		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
 
-		// State is "created", try to stop
+		// State is "stopped", try to stop
 		err := manager.Stop(ctx, added.GetID())
 		if err == nil {
-			t.Error("Stop() expected error for instance in 'created' state, got nil")
+			t.Error("Stop() expected error for instance in 'stopped' state, got nil")
 		}
 	})
 
@@ -2434,4 +2435,315 @@ func TestReadAgentSettings(t *testing.T) {
 			t.Errorf("Expected empty map for empty directory, got %d entries", len(result))
 		}
 	})
+}
+
+// invalidStateRuntime is a test runtime that returns invalid states for testing boundary validation
+type invalidStateRuntime struct {
+	createState string
+	startState  string
+	infoState   string
+}
+
+func (r *invalidStateRuntime) Type() string {
+	return "invalid-state-runtime"
+}
+
+func (r *invalidStateRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
+	state := r.createState
+	if state == "" {
+		state = "invalid-created-state"
+	}
+	return runtime.RuntimeInfo{
+		ID:    "test-instance-id",
+		State: api.WorkspaceState(state),
+		Info:  map[string]string{},
+	}, nil
+}
+
+func (r *invalidStateRuntime) Start(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+	state := r.startState
+	if state == "" {
+		state = "invalid-started-state"
+	}
+	return runtime.RuntimeInfo{
+		ID:    id,
+		State: api.WorkspaceState(state),
+		Info:  map[string]string{},
+	}, nil
+}
+
+func (r *invalidStateRuntime) Stop(ctx context.Context, id string) error {
+	return nil
+}
+
+func (r *invalidStateRuntime) Remove(ctx context.Context, id string) error {
+	return nil
+}
+
+func (r *invalidStateRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+	state := r.infoState
+	if state == "" {
+		state = "invalid-info-state"
+	}
+	return runtime.RuntimeInfo{
+		ID:    id,
+		State: api.WorkspaceState(state),
+		Info:  map[string]string{},
+	}, nil
+}
+
+// Compile-time check to ensure invalidStateRuntime implements runtime.Runtime
+var _ runtime.Runtime = (*invalidStateRuntime)(nil)
+
+func TestManager_Add_RejectsInvalidState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		createState string
+		wantErr     string
+	}{
+		{
+			name:        "rejects created state",
+			createState: "created",
+			wantErr:     `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "created" (must be one of: running, stopped, error, unknown)`,
+		},
+		{
+			name:        "rejects arbitrary invalid state",
+			createState: "foo",
+			wantErr:     `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "foo" (must be one of: running, stopped, error, unknown)`,
+		},
+		{
+			name:        "rejects paused state",
+			createState: "paused",
+			wantErr:     `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "paused" (must be one of: running, stopped, error, unknown)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			storageDir := t.TempDir()
+			manager, err := NewManager(storageDir)
+			if err != nil {
+				t.Fatalf("Failed to create manager: %v", err)
+			}
+
+			// Register the invalid state runtime
+			invalidRT := &invalidStateRuntime{createState: tt.createState}
+			if err := manager.RegisterRuntime(invalidRT); err != nil {
+				t.Fatalf("Failed to register runtime: %v", err)
+			}
+
+			// Create test directories
+			instanceTmpDir := t.TempDir()
+			sourceDir := filepath.Join(instanceTmpDir, "source")
+			configDir := filepath.Join(instanceTmpDir, "config")
+			if err := os.MkdirAll(sourceDir, 0755); err != nil {
+				t.Fatalf("Failed to create source directory: %v", err)
+			}
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Failed to create config directory: %v", err)
+			}
+
+			inst, err := NewInstance(NewInstanceParams{
+				SourceDir: sourceDir,
+				ConfigDir: configDir,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create instance: %v", err)
+			}
+
+			// Attempt to add instance - should fail with invalid state
+			_, err = manager.Add(context.Background(), AddOptions{
+				Instance:    inst,
+				RuntimeType: "invalid-state-runtime",
+				Agent:       "test-agent",
+			})
+
+			if err == nil {
+				t.Fatal("Expected error when adding instance with invalid state, got nil")
+			}
+
+			if err.Error() != tt.wantErr {
+				t.Errorf("Add() error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestManager_Start_RejectsInvalidState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		startState string
+		wantErr    string
+	}{
+		{
+			name:       "rejects created state",
+			startState: "created",
+			wantErr:    `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "created" (must be one of: running, stopped, error, unknown)`,
+		},
+		{
+			name:       "rejects arbitrary invalid state",
+			startState: "booting",
+			wantErr:    `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "booting" (must be one of: running, stopped, error, unknown)`,
+		},
+		{
+			name:       "rejects exited state",
+			startState: "exited",
+			wantErr:    `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "exited" (must be one of: running, stopped, error, unknown)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			storageDir := t.TempDir()
+			manager, err := NewManager(storageDir)
+			if err != nil {
+				t.Fatalf("Failed to create manager: %v", err)
+			}
+
+			// Register a runtime that returns valid state for Create but invalid for Start
+			mixedRT := &invalidStateRuntime{
+				createState: "stopped", // Valid for Create
+				startState:  tt.startState,
+			}
+			if err := manager.RegisterRuntime(mixedRT); err != nil {
+				t.Fatalf("Failed to register runtime: %v", err)
+			}
+
+			// Create test directories
+			instanceTmpDir := t.TempDir()
+			sourceDir := filepath.Join(instanceTmpDir, "source")
+			configDir := filepath.Join(instanceTmpDir, "config")
+			if err := os.MkdirAll(sourceDir, 0755); err != nil {
+				t.Fatalf("Failed to create source directory: %v", err)
+			}
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Failed to create config directory: %v", err)
+			}
+
+			inst, err := NewInstance(NewInstanceParams{
+				SourceDir: sourceDir,
+				ConfigDir: configDir,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create instance: %v", err)
+			}
+
+			// Add instance (should succeed with valid state)
+			added, err := manager.Add(context.Background(), AddOptions{
+				Instance:    inst,
+				RuntimeType: "invalid-state-runtime",
+				Agent:       "test-agent",
+			})
+			if err != nil {
+				t.Fatalf("Failed to add instance: %v", err)
+			}
+
+			// Start instance - should fail with invalid state
+			err = manager.Start(context.Background(), added.GetID())
+
+			if err == nil {
+				t.Fatal("Expected error when starting instance with invalid state, got nil")
+			}
+
+			if err.Error() != tt.wantErr {
+				t.Errorf("Start() error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestManager_Stop_RejectsInvalidState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		infoState string
+		wantErr   string
+	}{
+		{
+			name:      "rejects created state from Info",
+			infoState: "created",
+			wantErr:   `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "created" (must be one of: running, stopped, error, unknown)`,
+		},
+		{
+			name:      "rejects arbitrary invalid state from Info",
+			infoState: "stopping",
+			wantErr:   `runtime "invalid-state-runtime" returned invalid state: invalid runtime state: "stopping" (must be one of: running, stopped, error, unknown)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			storageDir := t.TempDir()
+			manager, err := NewManager(storageDir)
+			if err != nil {
+				t.Fatalf("Failed to create manager: %v", err)
+			}
+
+			// Register a runtime that returns valid states for Create/Start but invalid for Info
+			mixedRT := &invalidStateRuntime{
+				createState: "stopped", // Valid for Create
+				startState:  "running", // Valid for Start
+				infoState:   tt.infoState,
+			}
+			if err := manager.RegisterRuntime(mixedRT); err != nil {
+				t.Fatalf("Failed to register runtime: %v", err)
+			}
+
+			// Create test directories
+			instanceTmpDir := t.TempDir()
+			sourceDir := filepath.Join(instanceTmpDir, "source")
+			configDir := filepath.Join(instanceTmpDir, "config")
+			if err := os.MkdirAll(sourceDir, 0755); err != nil {
+				t.Fatalf("Failed to create source directory: %v", err)
+			}
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Failed to create config directory: %v", err)
+			}
+
+			inst, err := NewInstance(NewInstanceParams{
+				SourceDir: sourceDir,
+				ConfigDir: configDir,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create instance: %v", err)
+			}
+
+			// Add instance (should succeed)
+			added, err := manager.Add(context.Background(), AddOptions{
+				Instance:    inst,
+				RuntimeType: "invalid-state-runtime",
+				Agent:       "test-agent",
+			})
+			if err != nil {
+				t.Fatalf("Failed to add instance: %v", err)
+			}
+
+			// Start instance (should succeed)
+			if err := manager.Start(context.Background(), added.GetID()); err != nil {
+				t.Fatalf("Failed to start instance: %v", err)
+			}
+
+			// Stop instance - should fail because Info() returns invalid state
+			err = manager.Stop(context.Background(), added.GetID())
+
+			if err == nil {
+				t.Fatal("Expected error when stopping instance with invalid state from Info, got nil")
+			}
+
+			if err.Error() != tt.wantErr {
+				t.Errorf("Stop() error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
 }

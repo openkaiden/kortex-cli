@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
 	"github.com/kortex-hub/kortex-cli/pkg/config"
 	"github.com/kortex-hub/kortex-cli/pkg/generator"
@@ -224,6 +225,11 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
 	}
 
+	// Validate state at boundary
+	if err := runtime.ValidateState(runtimeInfo.State); err != nil {
+		return nil, fmt.Errorf("runtime %q returned invalid state: %w", opts.RuntimeType, err)
+	}
+
 	// Create a new instance with the unique ID, name, runtime info, project, and agent
 	instanceWithID := &instance{
 		ID:        uniqueID,
@@ -290,6 +296,11 @@ func (m *manager) Start(ctx context.Context, id string) error {
 	runtimeInfo, err := rt.Start(ctx, runtimeData.InstanceID)
 	if err != nil {
 		return fmt.Errorf("failed to start runtime instance: %w", err)
+	}
+
+	// Validate state at boundary
+	if err := runtime.ValidateState(runtimeInfo.State); err != nil {
+		return fmt.Errorf("runtime %q returned invalid state: %w", runtimeData.Type, err)
 	}
 
 	// Update the instance with new runtime state
@@ -362,6 +373,11 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to get runtime info: %w", err)
 	}
 
+	// Validate state at boundary
+	if err := runtime.ValidateState(runtimeInfo.State); err != nil {
+		return fmt.Errorf("runtime %q returned invalid state: %w", runtimeData.Type, err)
+	}
+
 	// Update the instance with new runtime state
 	updatedInstance := &instance{
 		ID:        instanceToStop.GetID(),
@@ -413,7 +429,7 @@ func (m *manager) Terminal(ctx context.Context, id string, command []string) err
 	}
 
 	// Verify instance is running
-	if runtimeData.State != "running" {
+	if runtimeData.State != api.WorkspaceStateRunning {
 		return fmt.Errorf("instance is not running (current state: %s)", runtimeData.State)
 	}
 

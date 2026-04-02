@@ -139,6 +139,110 @@ return errors.New("runtime does not support terminal sessions")
 
 This pattern allows runtimes to provide additional capabilities without requiring all runtimes to implement every possible feature.
 
+## State Validation
+
+All runtimes must return valid WorkspaceState values in `RuntimeInfo.State`. The instances manager enforces validation at the boundary using a **fail-fast approach**.
+
+### Valid States
+
+The following four states are the only valid values (defined in `github.com/kortex-hub/kortex-cli-api/cli/go`):
+
+- **`running`** - The instance is actively running
+- **`stopped`** - The instance is created but not running
+- **`error`** - The instance encountered an error
+- **`unknown`** - The instance state cannot be determined
+
+### Boundary Validation (Manager Layer)
+
+The instances manager validates all `RuntimeInfo` values returned from runtimes at three boundaries:
+
+1. **`Add()`** - validates state after `runtime.Create()`
+2. **`Start()`** - validates state after `runtime.Start()`
+3. **`Stop()`** - validates state after `runtime.Info()`
+
+If a runtime returns an invalid state, the manager immediately returns an error:
+
+```go
+// In pkg/instances/manager.go
+runtimeInfo, err := rt.Create(ctx, params)
+if err != nil {
+    return nil, fmt.Errorf("failed to create runtime instance: %w", err)
+}
+
+// Validate state at boundary
+if err := runtime.ValidateState(runtimeInfo.State); err != nil {
+    return nil, fmt.Errorf("runtime %q returned invalid state: %w", runtimeType, err)
+}
+```
+
+**Benefits of boundary validation:**
+- ✅ **Centralized enforcement** - validation in one place, not N runtimes
+- ✅ **Runtime developers can't forget** - automatic validation
+- ✅ **Fail-fast** - bugs caught during development with clear error messages
+- ✅ **Single source of truth** - manager is the gatekeeper
+
+### State Mapping in Runtimes
+
+Runtime implementations must map platform-specific states to the four valid states. You do **NOT** need to call `runtime.ValidateState()` yourself - the manager does this automatically.
+
+**Example: Podman runtime state mapping**
+
+```go
+// In pkg/runtime/podman/info.go
+func mapPodmanState(podmanState string) api.WorkspaceState {
+    switch podmanState {
+    case "running":
+        return api.WorkspaceStateRunning
+    case "created", "exited", "stopped", "paused", "removing":
+        return api.WorkspaceStateStopped
+    case "dead":
+        return api.WorkspaceStateError
+    default:
+        return api.WorkspaceStateUnknown
+    }
+}
+
+func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+    // Get podman-specific state
+    podmanState := getPodmanContainerState(id)
+    
+    // Map to valid WorkspaceState (no validation needed - manager handles it)
+    state := mapPodmanState(podmanState)
+    
+    return runtime.RuntimeInfo{
+        ID:    id,
+        State: state,
+        Info:  info,
+    }, nil
+}
+```
+
+### Error Messages
+
+If a runtime returns an invalid state, the error message clearly identifies the problem:
+
+```
+runtime "my-runtime" returned invalid state: invalid runtime state: "created" 
+(must be one of: running, stopped, error, unknown)
+```
+
+This tells you:
+1. Which runtime has the bug
+2. What invalid state was returned
+3. What the valid states are
+
+### Best Practices
+
+- **Map platform states** to valid WorkspaceState values in your runtime
+- **Return "stopped"** for newly created instances, not platform-specific values like "created"
+- **Don't call `runtime.ValidateState()`** yourself - the manager handles this
+- **Document your mapping logic** for maintainability
+- **Write tests** with invalid states to verify the manager catches them
+
+**Reference implementation:** See `pkg/runtime/podman/info.go` for complete state mapping example
+
+**Boundary validation tests:** See `pkg/instances/manager_test.go` for tests that verify the manager rejects invalid states
+
 ## Mount Path Requirements
 
 When implementing a new runtime, the container-side path used for `$SOURCES` must **not be a direct child of `/`**.

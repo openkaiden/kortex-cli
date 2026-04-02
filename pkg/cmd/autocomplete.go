@@ -22,13 +22,14 @@ import (
 	"os"
 	"path/filepath"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
 	"github.com/kortex-hub/kortex-cli/pkg/runtimesetup"
 	"github.com/spf13/cobra"
 )
 
 // stateFilter is a function that determines if an instance with the given state should be included
-type stateFilter func(state string) bool
+type stateFilter func(state api.WorkspaceState) bool
 
 // getFilteredWorkspaceIDs retrieves workspace IDs and names, optionally filtered by state
 func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, cobra.ShellCompDirective) {
@@ -81,8 +82,8 @@ func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, 
 // The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
 // because Cobra's shell completion framework automatically filters results based on user input.
 func completeNonRunningWorkspaceID(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return getFilteredWorkspaceIDs(cmd, func(state string) bool {
-		return state != "running"
+	return getFilteredWorkspaceIDs(cmd, func(state api.WorkspaceState) bool {
+		return state != api.WorkspaceStateRunning
 	})
 }
 
@@ -90,8 +91,8 @@ func completeNonRunningWorkspaceID(cmd *cobra.Command, args []string, toComplete
 // The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
 // because Cobra's shell completion framework automatically filters results based on user input.
 func completeRunningWorkspaceID(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return getFilteredWorkspaceIDs(cmd, func(state string) bool {
-		return state == "running"
+	return getFilteredWorkspaceIDs(cmd, func(state api.WorkspaceState) bool {
+		return state == api.WorkspaceStateRunning
 	})
 }
 

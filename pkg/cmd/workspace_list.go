@@ -96,6 +96,7 @@ func (w *workspaceListCmd) run(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(out, "  Agent: %s\n", instance.GetAgent())
 		fmt.Fprintf(out, "  Sources: %s\n", instance.GetSourceDir())
 		fmt.Fprintf(out, "  Configuration: %s\n", instance.GetConfigDir())
+		fmt.Fprintf(out, "  State: %s\n", instance.GetRuntimeData().State)
 		fmt.Fprintln(out)
 	}
 

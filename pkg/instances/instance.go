@@ -19,6 +19,8 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 )
 
 var (
@@ -44,8 +46,8 @@ type RuntimeData struct {
 	Type string `json:"type"`
 	// InstanceID is the runtime-assigned instance identifier
 	InstanceID string `json:"instance_id"`
-	// State is the current runtime state (e.g., "created", "running", "stopped")
-	State string `json:"state"`
+	// State is the current runtime state (e.g., "running", "stopped")
+	State api.WorkspaceState `json:"state"`
 	// Info contains runtime-specific metadata
 	Info map[string]string `json:"info"`
 }

@@ -1,10 +1,8 @@
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/kortex-hub/kortex-cli-api/cli/go v0.0.0-20260326121446-aa3f0c37fc1e h1:3QOu5FzhFeUzJ/RYZ6GcYo4C4gSt5qr1FJ2pCOydOKI=
-github.com/kortex-hub/kortex-cli-api/cli/go v0.0.0-20260326121446-aa3f0c37fc1e/go.mod h1:jWKudiw26CIjuOsROQ80FOuuk2m2/5BVkuATpmD5xQQ=
-github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.0.0-20260319072318-abc0e6182754 h1:Igfvw+SfpmqApUWA4uBhMq4vmhuinJLAGk9YMtSdTr8=
-github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.0.0-20260319072318-abc0e6182754/go.mod h1:N4tLoDdBbAPYJ9ALLfYbqYScydJb546JgKQ6EjHswLw=
+github.com/kortex-hub/kortex-cli-api/cli/go v0.0.0-20260402113340-592f26f380bc h1:7/9dbYdsvDPNduAN/Uq8dUDH9BYUbeG0yVZ2JEuhY+k=
+github.com/kortex-hub/kortex-cli-api/cli/go v0.0.0-20260402113340-592f26f380bc/go.mod h1:jWKudiw26CIjuOsROQ80FOuuk2m2/5BVkuATpmD5xQQ=
 github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.0.0-20260331070743-a7c5f045c21c h1:kFz1ImgIiAJEmliiuASCJLKjiDIGFowLh6Fdd4hjFM8=
 github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.0.0-20260331070743-a7c5f045c21c/go.mod h1:N4tLoDdBbAPYJ9ALLfYbqYScydJb546JgKQ6EjHswLw=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=

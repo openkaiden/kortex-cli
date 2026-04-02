@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
@@ -241,7 +242,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 
 	return runtime.RuntimeInfo{
 		ID:    containerID,
-		State: "created",
+		State: api.WorkspaceStateStopped,
 		Info:  info,
 	}, nil
 }

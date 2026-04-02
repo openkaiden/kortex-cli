@@ -19,9 +19,25 @@ import (
 	"fmt"
 	"strings"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/logger"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 )
+
+// mapPodmanState maps podman container states to valid WorkspaceState values.
+// Podman states: https://docs.podman.io/en/latest/markdown/podman-ps.1.html
+func mapPodmanState(podmanState string) api.WorkspaceState {
+	switch podmanState {
+	case "running":
+		return api.WorkspaceStateRunning
+	case "created", "exited", "stopped", "paused", "removing":
+		return api.WorkspaceStateStopped
+	case "dead":
+		return api.WorkspaceStateError
+	default:
+		return api.WorkspaceStateUnknown
+	}
+}
 
 // Info retrieves information about a Podman runtime instance.
 func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
@@ -56,8 +72,11 @@ func (p *podmanRuntime) getContainerInfo(ctx context.Context, id string) (runtim
 	}
 
 	containerID := fields[0]
-	state := fields[1]
+	podmanState := fields[1]
 	imageName := fields[2]
+
+	// Map podman state to valid WorkspaceState
+	state := mapPodmanState(podmanState)
 
 	// Build the info map
 	info := map[string]string{

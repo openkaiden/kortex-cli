@@ -438,8 +438,8 @@ func TestWorkspaceStartCmd_E2E(t *testing.T) {
 		}
 
 		runtimeData2 := retrievedInstance2.GetRuntimeData()
-		if runtimeData2.State != "created" {
-			t.Errorf("Expected instance2 state to be 'created', got: %s", runtimeData2.State)
+		if runtimeData2.State != "stopped" {
+			t.Errorf("Expected instance2 state to be 'stopped', got: %s", runtimeData2.State)
 		}
 	})
 
@@ -715,8 +715,8 @@ func TestWorkspaceStartCmd_E2E(t *testing.T) {
 		}
 
 		runtimeData2 := retrievedInstance2.GetRuntimeData()
-		if runtimeData2.State != "created" {
-			t.Errorf("Expected instance2 state to be 'created', got: %s", runtimeData2.State)
+		if runtimeData2.State != "stopped" {
+			t.Errorf("Expected instance2 state to be 'stopped', got: %s", runtimeData2.State)
 		}
 	})
 }

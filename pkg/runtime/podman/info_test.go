@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/exec"
 )
@@ -50,28 +51,28 @@ func TestInfo_Success(t *testing.T) {
 		name          string
 		containerID   string
 		output        string
-		expectedState string
+		expectedState api.WorkspaceState
 		expectedImage string
 	}{
 		{
 			name:          "running container",
 			containerID:   "abc123def456",
 			output:        "abc123def456|running|kortex-cli-test\n",
-			expectedState: "running",
+			expectedState: api.WorkspaceStateRunning,
 			expectedImage: "kortex-cli-test",
 		},
 		{
 			name:          "stopped container",
 			containerID:   "xyz789ghi012",
 			output:        "xyz789ghi012|exited|kortex-cli-stopped\n",
-			expectedState: "exited",
+			expectedState: api.WorkspaceStateStopped,
 			expectedImage: "kortex-cli-stopped",
 		},
 		{
 			name:          "created container",
 			containerID:   "def456jkl789",
 			output:        "def456jkl789|created|kortex-cli-new\n",
-			expectedState: "created",
+			expectedState: api.WorkspaceStateStopped,
 			expectedImage: "kortex-cli-new",
 		},
 	}
@@ -163,28 +164,28 @@ func TestGetContainerInfo_ParsesOutput(t *testing.T) {
 		name          string
 		containerID   string
 		output        string
-		expectedState string
+		expectedState api.WorkspaceState
 		expectedImage string
 	}{
 		{
 			name:          "running container",
 			containerID:   "abc123",
 			output:        "abc123def456|running|kortex-cli-test\n",
-			expectedState: "running",
+			expectedState: api.WorkspaceStateRunning,
 			expectedImage: "kortex-cli-test",
 		},
 		{
 			name:          "stopped container",
 			containerID:   "xyz789",
 			output:        "xyz789ghi012|exited|kortex-cli-stopped\n",
-			expectedState: "exited",
+			expectedState: api.WorkspaceStateStopped,
 			expectedImage: "kortex-cli-stopped",
 		},
 		{
 			name:          "created container",
 			containerID:   "def456",
 			output:        "def456|created|kortex-cli-new\n",
-			expectedState: "created",
+			expectedState: api.WorkspaceStateStopped,
 			expectedImage: "kortex-cli-new",
 		},
 	}

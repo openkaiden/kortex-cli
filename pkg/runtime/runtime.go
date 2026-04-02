@@ -18,7 +18,9 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 
+	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
 )
 
@@ -74,8 +76,8 @@ type RuntimeInfo struct {
 	// ID is the runtime-assigned instance identifier.
 	ID string
 
-	// State is the current runtime state (e.g., "created", "running", "stopped").
-	State string
+	// State is the current runtime state.
+	State api.WorkspaceState
 
 	// Info contains runtime-specific metadata as key-value pairs.
 	// Examples: container_id, pid, created_at, network addresses.
@@ -112,4 +114,14 @@ type Terminal interface {
 	//   - command: The command to execute (e.g., ["bash"], ["claude-code", "--debug"]).
 	//              If empty, the runtime will use the agent's configured terminal command.
 	Terminal(ctx context.Context, instanceID string, agent string, command []string) error
+}
+
+// ValidateState validates that a runtime state is one of the valid WorkspaceState values.
+// Valid states are: "running", "stopped", "error", "unknown".
+// Returns an error if the state is not valid.
+func ValidateState(state api.WorkspaceState) error {
+	if !state.Valid() {
+		return fmt.Errorf("invalid runtime state: %q (must be one of: running, stopped, error, unknown)", state)
+	}
+	return nil
 }

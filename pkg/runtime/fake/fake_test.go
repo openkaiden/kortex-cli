@@ -57,8 +57,8 @@ func TestFakeRuntime_CreateStartStopRemove(t *testing.T) {
 	if info.ID == "" {
 		t.Error("Expected non-empty instance ID")
 	}
-	if info.State != "created" {
-		t.Errorf("Expected state 'created', got '%s'", info.State)
+	if info.State != "stopped" {
+		t.Errorf("Expected state 'stopped', got '%s'", info.State)
 	}
 	if !strings.HasPrefix(info.ID, "fake-") {
 		t.Errorf("Expected ID to start with 'fake-', got '%s'", info.ID)
@@ -128,8 +128,8 @@ func TestFakeRuntime_InfoRetrievesCorrectState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Info failed: %v", err)
 	}
-	if info.State != "created" {
-		t.Errorf("Expected state 'created', got '%s'", info.State)
+	if info.State != "stopped" {
+		t.Errorf("Expected state 'stopped', got '%s'", info.State)
 	}
 
 	// Start and verify running state
@@ -722,7 +722,7 @@ func TestFakeRuntime_LoadWithNilInfoMap(t *testing.T) {
     "fake-001": {
       "id": "fake-001",
       "name": "test-instance",
-      "state": "created",
+      "state": "stopped",
       "info": null,
       "source": "/source"
     }

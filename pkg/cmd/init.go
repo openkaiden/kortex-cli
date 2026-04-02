@@ -230,6 +230,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(out, "  Agent: %s\n", addedInstance.GetAgent())
 		fmt.Fprintf(out, "  Sources directory: %s\n", addedInstance.GetSourceDir())
 		fmt.Fprintf(out, "  Configuration directory: %s\n", addedInstance.GetConfigDir())
+		fmt.Fprintf(out, "  State: %s\n", addedInstance.GetRuntimeData().State)
 	} else {
 		fmt.Fprintln(out, addedInstance.GetID())
 	}

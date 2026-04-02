@@ -78,6 +78,12 @@ Pre-configured capabilities or specialized functions that can be enabled for an 
 ### Workspace
 A registered directory containing your project source code and its configuration. Each workspace is tracked by kortex-cli with a unique ID and a human-readable name. Workspaces can be accessed using either their ID or name in all commands (start, stop, remove, terminal).
 
+**Workspace States:**
+- `stopped` - The workspace instance is created but not running
+- `running` - The workspace instance is actively running
+- `error` - The workspace instance encountered an error
+- `unknown` - The workspace state cannot be determined
+
 ## Scenarios
 
 ### Claude with a Model from Vertex AI
@@ -439,6 +445,8 @@ $ kortex-cli init /path/to/another-project --runtime fake --agent claude -o json
   "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
   "name": "another-project",
   "agent": "claude",
+  "project": "/absolute/path/to/another-project",
+  "state": "stopped",
   "paths": {
     "source": "/absolute/path/to/another-project",
     "configuration": "/absolute/path/to/another-project/.kortex"
@@ -461,6 +469,8 @@ $ kortex-cli workspace list -o json
       "id": "2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea",
       "name": "project",
       "agent": "claude",
+      "project": "/absolute/path/to/project",
+      "state": "running",
       "paths": {
         "source": "/absolute/path/to/project",
         "configuration": "/absolute/path/to/project/.kortex"
@@ -470,6 +480,8 @@ $ kortex-cli workspace list -o json
       "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
       "name": "another-project",
       "agent": "claude",
+      "project": "/absolute/path/to/another-project",
+      "state": "stopped",
       "paths": {
         "source": "/absolute/path/to/another-project",
         "configuration": "/absolute/path/to/another-project/.kortex"
@@ -536,6 +548,8 @@ $ kortex-cli workspace list -o json
       "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
       "name": "another-project",
       "agent": "claude",
+      "project": "/absolute/path/to/another-project",
+      "state": "stopped",
       "paths": {
         "source": "/absolute/path/to/another-project",
         "configuration": "/absolute/path/to/another-project/.kortex"
@@ -1519,9 +1533,11 @@ Output:
 Registered workspace:
   ID: a1b2c3d4e5f6...
   Name: myproject
+  Project: /absolute/path/to/myproject
   Agent: claude
   Sources directory: /absolute/path/to/myproject
   Configuration directory: /absolute/path/to/myproject/.kortex
+  State: stopped
 ```
 
 **JSON output (default - ID only):**
@@ -1545,6 +1561,8 @@ Output:
   "id": "a1b2c3d4e5f6...",
   "name": "myproject",
   "agent": "claude",
+  "project": "/absolute/path/to/myproject",
+  "state": "stopped",
   "paths": {
     "source": "/absolute/path/to/myproject",
     "configuration": "/absolute/path/to/myproject/.kortex"
@@ -1694,15 +1712,19 @@ Output:
 ```text
 ID: a1b2c3d4e5f6...
   Name: myproject
+  Project: /absolute/path/to/myproject
   Agent: claude
   Sources: /absolute/path/to/myproject
   Configuration: /absolute/path/to/myproject/.kortex
+  State: running
 
 ID: f6e5d4c3b2a1...
   Name: another-project
+  Project: /absolute/path/to/another-project
   Agent: goose
   Sources: /absolute/path/to/another-project
   Configuration: /absolute/path/to/another-project/.kortex
+  State: stopped
 ```
 
 **Use the short alias:**
@@ -1722,6 +1744,8 @@ Output:
       "id": "a1b2c3d4e5f6...",
       "name": "myproject",
       "agent": "claude",
+      "project": "/absolute/path/to/myproject",
+      "state": "running",
       "paths": {
         "source": "/absolute/path/to/myproject",
         "configuration": "/absolute/path/to/myproject/.kortex"
@@ -1731,6 +1755,8 @@ Output:
       "id": "f6e5d4c3b2a1...",
       "name": "another-project",
       "agent": "goose",
+      "project": "/absolute/path/to/another-project",
+      "state": "stopped",
       "paths": {
         "source": "/absolute/path/to/another-project",
         "configuration": "/absolute/path/to/another-project/.kortex"
