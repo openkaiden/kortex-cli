@@ -144,8 +144,8 @@ func TestCommands_OutputToStdout(t *testing.T) {
 
 		// Verify output is in stdout
 		stdoutContent := stdout.String()
-		if !strings.Contains(stdoutContent, "ID:") {
-			t.Errorf("Expected workspace info in stdout, got: %q", stdoutContent)
+		if !strings.Contains(stdoutContent, "SHORT ID") {
+			t.Errorf("Expected table header 'SHORT ID' in stdout, got: %q", stdoutContent)
 		}
 		if !strings.Contains(stdoutContent, "test-workspace") {
 			t.Errorf("Expected workspace name in stdout, got: %q", stdoutContent)

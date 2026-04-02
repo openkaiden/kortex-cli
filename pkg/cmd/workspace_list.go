@@ -21,10 +21,15 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
+	"github.com/fatih/color"
 	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +37,26 @@ import (
 type workspaceListCmd struct {
 	manager instances.Manager
 	output  string
+}
+
+// truncateID returns the first n characters of an ID
+func truncateID(id string, n int) string {
+	if len(id) <= n {
+		return id
+	}
+	return id[:n]
+}
+
+// compactPath replaces the home directory prefix with ~/
+func compactPath(path string) string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	if strings.HasPrefix(path, homeDir) {
+		return "~" + strings.TrimPrefix(path, homeDir)
+	}
+	return path
 }
 
 // preRun validates the parameters and flags
@@ -82,23 +107,57 @@ func (w *workspaceListCmd) run(cmd *cobra.Command, args []string) error {
 		return w.outputJSON(cmd, instancesList)
 	}
 
-	// Display the instances in text format
+	// Display the instances in table format
+	return w.displayTable(cmd, instancesList)
+}
+
+// displayTable displays the instances in a formatted table
+func (w *workspaceListCmd) displayTable(cmd *cobra.Command, instancesList []instances.Instance) error {
 	out := cmd.OutOrStdout()
 	if len(instancesList) == 0 {
 		fmt.Fprintln(out, "No workspaces registered")
 		return nil
 	}
 
+	// Sort instances by project, then sources, then state, then agent, then name
+	sort.Slice(instancesList, func(i, j int) bool {
+		if instancesList[i].GetProject() != instancesList[j].GetProject() {
+			return instancesList[i].GetProject() < instancesList[j].GetProject()
+		}
+		if instancesList[i].GetSourceDir() != instancesList[j].GetSourceDir() {
+			return instancesList[i].GetSourceDir() < instancesList[j].GetSourceDir()
+		}
+		if instancesList[i].GetRuntimeData().State != instancesList[j].GetRuntimeData().State {
+			return instancesList[i].GetRuntimeData().State < instancesList[j].GetRuntimeData().State
+		}
+		if instancesList[i].GetAgent() != instancesList[j].GetAgent() {
+			return instancesList[i].GetAgent() < instancesList[j].GetAgent()
+		}
+		return instancesList[i].GetName() < instancesList[j].GetName()
+	})
+
+	// Create table with headers and formatters
+	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
+	columnFmt := color.New(color.FgYellow).SprintfFunc()
+
+	tbl := table.New("NAME", "SHORT ID", "PROJECT", "SOURCES", "AGENT", "STATE")
+	tbl.WithWriter(out)
+	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+
+	// Add each instance as a row
 	for _, instance := range instancesList {
-		fmt.Fprintf(out, "ID: %s\n", instance.GetID())
-		fmt.Fprintf(out, "  Name: %s\n", instance.GetName())
-		fmt.Fprintf(out, "  Project: %s\n", instance.GetProject())
-		fmt.Fprintf(out, "  Agent: %s\n", instance.GetAgent())
-		fmt.Fprintf(out, "  Sources: %s\n", instance.GetSourceDir())
-		fmt.Fprintf(out, "  Configuration: %s\n", instance.GetConfigDir())
-		fmt.Fprintf(out, "  State: %s\n", instance.GetRuntimeData().State)
-		fmt.Fprintln(out)
+		shortID := truncateID(instance.GetID(), 12)
+		name := instance.GetName()
+		project := instance.GetProject()
+		sources := compactPath(instance.GetSourceDir())
+		agent := instance.GetAgent()
+		state := instance.GetRuntimeData().State
+
+		tbl.AddRow(name, shortID, project, sources, agent, state)
 	}
+
+	// Print the table
+	tbl.Print()
 
 	return nil
 }
