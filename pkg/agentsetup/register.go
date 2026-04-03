@@ -38,6 +38,7 @@ type agentFactory func() agent.Agent
 // Add new agents here to make them available for automatic registration.
 var availableAgents = []agentFactory{
 	agent.NewClaude,
+	agent.NewCursor,
 }
 
 // RegisterAll registers all available agent implementations to the given registrar.

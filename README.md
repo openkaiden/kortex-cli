@@ -252,6 +252,169 @@ Claude Code finds this file on startup and skips onboarding.
 - This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.claude` directory is not exposed inside the container
 - To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
 
+### Using Cursor CLI Agent
+
+This scenario demonstrates how to configure the Cursor agent in a kortex-cli workspace, covering API key injection, sharing your local Cursor settings, and pre-configuring the default model.
+
+#### Defining the Cursor API Key via a Secret
+
+Cursor requires a `CURSOR_API_KEY` environment variable to authenticate with the Cursor service. Rather than embedding the key as plain text, use the secret mechanism to keep credentials out of your configuration files.
+
+**Step 1: Create the secret**
+
+For the **Podman runtime**, create the secret once on your host machine using `podman secret create`:
+
+```bash
+echo "$CURSOR_API_KEY" | podman secret create cursor-api-key -
+```
+
+**Step 2: Reference the secret in agent configuration**
+
+Create or edit `~/.kortex-cli/config/agents.json` to inject the secret as an environment variable for the `cursor` agent:
+
+```json
+{
+  "cursor": {
+    "environment": [
+      {
+        "name": "CURSOR_API_KEY",
+        "secret": "cursor-api-key"
+      }
+    ]
+  }
+}
+```
+
+**Step 3: Register and start the workspace**
+
+```bash
+# Register a workspace with the Podman runtime and Cursor agent
+kortex-cli init /path/to/project --runtime podman --agent cursor
+
+# Start the workspace
+kortex-cli start my-project
+
+# Connect — Cursor starts with the API key available
+kortex-cli terminal my-project
+```
+
+The secret name (`cursor-api-key`) must match the `secret` field value in your configuration. At workspace creation time, kortex-cli passes the secret to Podman, which injects it as the `CURSOR_API_KEY` environment variable inside the container.
+
+#### Sharing Local Cursor Settings
+
+To reuse your host Cursor settings (preferences, keybindings, extensions configuration, etc.) inside the workspace, mount the `~/.cursor` directory.
+
+Edit `~/.kortex-cli/config/agents.json` to add the mount:
+
+```json
+{
+  "cursor": {
+    "environment": [
+      {
+        "name": "CURSOR_API_KEY",
+        "secret": "cursor-api-key"
+      }
+    ],
+    "mounts": [
+      {"host": "$HOME/.cursor", "target": "$HOME/.cursor"}
+    ]
+  }
+}
+```
+
+The `~/.cursor` directory contains your Cursor configuration (settings, model preferences, etc.). It is mounted read-write so that changes made inside the workspace are persisted back to your host.
+
+#### Using Default Settings
+
+If you want to pre-configure Cursor with default settings without exposing your local `~/.cursor` directory inside the container, create default settings files that are baked into the container image at workspace registration time. This is an alternative to mounting your local Cursor settings — use one approach or the other, not both.
+
+**Automatic Onboarding Skip**
+
+When you register a workspace with the Cursor agent, kortex-cli automatically creates a `.workspace-trusted` file in the Cursor projects directory for the workspace sources path, so Cursor skips its workspace trust dialog on first launch.
+
+**Step 1: Configure the agent environment**
+
+Create or edit `~/.kortex-cli/config/agents.json` to inject the API key. No mount is needed since settings are baked in:
+
+```json
+{
+  "cursor": {
+    "environment": [
+      {
+        "name": "CURSOR_API_KEY",
+        "secret": "cursor-api-key"
+      }
+    ]
+  }
+}
+```
+
+**Step 2: Create the agent settings directory**
+
+```bash
+mkdir -p ~/.kortex-cli/config/cursor/.cursor
+```
+
+**Step 3: Write the default Cursor settings file**
+
+As an example, you can configure a default model:
+
+```bash
+cat > ~/.kortex-cli/config/cursor/.cursor/cli-config.json << 'EOF'
+{
+  "model": {
+    "modelId": "claude-4.5-opus-high-thinking",
+    "displayModelId": "claude-4.5-opus-high-thinking",
+    "displayName": "Opus 4.5 Thinking",
+    "displayNameShort": "Opus 4.5 Thinking",
+    "aliases": [
+      "opus",
+      "opus-4.5",
+      "opus-4-5"
+    ],
+    "maxMode": false
+  },
+  "hasChangedDefaultModel": true
+}
+EOF
+```
+
+**Fields:**
+
+- `model.modelId` - The model identifier used internally by Cursor
+- `model.displayName` / `model.displayNameShort` - Human-readable model names shown in the UI
+- `model.aliases` - Shorthand names that can be used to reference the model
+- `model.maxMode` - Whether to enable max mode for this model
+- `hasChangedDefaultModel` - Tells Cursor that the model selection is intentional and should not prompt the user to choose a model
+
+**Step 4: Register and start the workspace**
+
+```bash
+# Register a workspace — the settings file is embedded in the container image
+kortex-cli init /path/to/project --runtime podman --agent cursor
+
+# Start the workspace
+kortex-cli start my-project
+
+# Connect — Cursor starts with the configured model
+kortex-cli terminal my-project
+```
+
+When `init` runs, kortex-cli:
+1. Reads all files from `~/.kortex-cli/config/cursor/` (e.g., your model settings)
+2. Automatically creates the workspace trust file so Cursor skips its trust dialog
+3. Copies the final settings into the container image at `/home/agent/.cursor/cli-config.json`
+
+Cursor finds this file on startup and uses the pre-configured model without prompting.
+
+**Notes:**
+
+- The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
+- Any file placed under `~/.kortex-cli/config/cursor/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/cursor/.cursor/cli-config.json` becomes `/home/agent/.cursor/cli-config.json` inside the container)
+- To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
+- This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.cursor` directory is not exposed inside the container
+- Do not combine this approach with the `~/.cursor` mount from the previous section — the mounted directory would override the baked-in defaults at runtime
+
 ### Sharing a GitHub Token
 
 This scenario demonstrates how to make a GitHub token available inside workspaces using the multi-level configuration system — either globally for all projects or scoped to a specific project.
