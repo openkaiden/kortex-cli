@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -34,9 +35,14 @@ func TestRemoveCmd(t *testing.T) {
 		t.Errorf("Expected Use to be 'remove NAME|ID', got '%s'", cmd.Use)
 	}
 
-	// Verify it has the same behavior as workspace remove
+	// Verify it includes the original workspace remove Short description
 	workspaceRemoveCmd := NewWorkspaceRemoveCmd()
-	if cmd.Short != workspaceRemoveCmd.Short {
-		t.Errorf("Expected Short to match workspace remove, got '%s'", cmd.Short)
+	if !strings.Contains(cmd.Short, workspaceRemoveCmd.Short) {
+		t.Errorf("Expected Short to contain workspace remove Short '%s', got '%s'", workspaceRemoveCmd.Short, cmd.Short)
+	}
+
+	// Verify it includes the alias indicator
+	if !strings.Contains(cmd.Short, "(alias for 'workspace remove')") {
+		t.Errorf("Expected Short to contain alias indicator, got '%s'", cmd.Short)
 	}
 }

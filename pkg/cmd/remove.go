@@ -29,7 +29,7 @@ func NewRemoveCmd() *cobra.Command {
 	// Create an alias command that delegates to workspace remove
 	cmd := &cobra.Command{
 		Use:               "remove NAME|ID",
-		Short:             workspaceRemoveCmd.Short,
+		Short:             workspaceRemoveCmd.Short + " (alias for 'workspace remove')",
 		Long:              workspaceRemoveCmd.Long,
 		Example:           AdaptExampleForAlias(workspaceRemoveCmd.Example, "workspace remove", "remove"),
 		Args:              workspaceRemoveCmd.Args,

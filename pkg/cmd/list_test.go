@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -34,9 +35,14 @@ func TestListCmd(t *testing.T) {
 		t.Errorf("Expected Use to be 'list', got '%s'", cmd.Use)
 	}
 
-	// Verify it has the same behavior as workspace list
+	// Verify it includes the original workspace list Short description
 	workspaceListCmd := NewWorkspaceListCmd()
-	if cmd.Short != workspaceListCmd.Short {
-		t.Errorf("Expected Short to match workspace list, got '%s'", cmd.Short)
+	if !strings.Contains(cmd.Short, workspaceListCmd.Short) {
+		t.Errorf("Expected Short to contain workspace list Short '%s', got '%s'", workspaceListCmd.Short, cmd.Short)
+	}
+
+	// Verify it includes the alias indicator
+	if !strings.Contains(cmd.Short, "(alias for 'workspace list')") {
+		t.Errorf("Expected Short to contain alias indicator, got '%s'", cmd.Short)
 	}
 }

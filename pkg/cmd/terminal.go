@@ -29,7 +29,7 @@ func NewTerminalCmd() *cobra.Command {
 	// Create an alias command that delegates to workspace terminal
 	cmd := &cobra.Command{
 		Use:               "terminal NAME|ID [COMMAND...]",
-		Short:             workspaceTerminalCmd.Short,
+		Short:             workspaceTerminalCmd.Short + " (alias for 'workspace terminal')",
 		Long:              workspaceTerminalCmd.Long,
 		Example:           AdaptExampleForAlias(workspaceTerminalCmd.Example, "workspace terminal", "terminal"),
 		Args:              workspaceTerminalCmd.Args,

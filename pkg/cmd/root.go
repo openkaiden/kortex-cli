@@ -45,15 +45,47 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	// Add subcommands
+	// Add command groups
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "main",
+		Title: "Main Commands:",
+	})
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "workspace",
+		Title: "Workspace Commands:",
+	})
+
+	// Add subcommands with groups
+	initCmd := NewInitCmd()
+	initCmd.GroupID = "main"
+	rootCmd.AddCommand(initCmd)
+
+	listCmd := NewListCmd()
+	listCmd.GroupID = "main"
+	rootCmd.AddCommand(listCmd)
+
+	removeCmd := NewRemoveCmd()
+	removeCmd.GroupID = "main"
+	rootCmd.AddCommand(removeCmd)
+
+	startCmd := NewStartCmd()
+	startCmd.GroupID = "main"
+	rootCmd.AddCommand(startCmd)
+
+	stopCmd := NewStopCmd()
+	stopCmd.GroupID = "main"
+	rootCmd.AddCommand(stopCmd)
+
+	terminalCmd := NewTerminalCmd()
+	terminalCmd.GroupID = "main"
+	rootCmd.AddCommand(terminalCmd)
+
+	workspaceCmd := NewWorkspaceCmd()
+	workspaceCmd.GroupID = "workspace"
+	rootCmd.AddCommand(workspaceCmd)
+
+	// Commands without a group (will appear under "Additional Commands")
 	rootCmd.AddCommand(NewVersionCmd())
-	rootCmd.AddCommand(NewInitCmd())
-	rootCmd.AddCommand(NewWorkspaceCmd())
-	rootCmd.AddCommand(NewListCmd())
-	rootCmd.AddCommand(NewRemoveCmd())
-	rootCmd.AddCommand(NewStartCmd())
-	rootCmd.AddCommand(NewStopCmd())
-	rootCmd.AddCommand(NewTerminalCmd())
 
 	// Global flags
 	rootCmd.PersistentFlags().String("storage", defaultStoragePath, "Directory where kortex-cli will store all its files")

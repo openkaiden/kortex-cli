@@ -47,9 +47,14 @@ func TestTerminalCmd_DelegatesToWorkspaceTerminal(t *testing.T) {
 	terminalCmd := NewTerminalCmd()
 	workspaceTerminalCmd := NewWorkspaceTerminalCmd()
 
-	// Verify it delegates to workspace terminal
-	if terminalCmd.Short != workspaceTerminalCmd.Short {
-		t.Errorf("Short mismatch: alias=%s, workspace=%s", terminalCmd.Short, workspaceTerminalCmd.Short)
+	// Verify it includes the original workspace terminal Short description
+	if !strings.Contains(terminalCmd.Short, workspaceTerminalCmd.Short) {
+		t.Errorf("Expected Short to contain workspace terminal Short '%s', got '%s'", workspaceTerminalCmd.Short, terminalCmd.Short)
+	}
+
+	// Verify it includes the alias indicator
+	if !strings.Contains(terminalCmd.Short, "(alias for 'workspace terminal')") {
+		t.Errorf("Expected Short to contain alias indicator, got '%s'", terminalCmd.Short)
 	}
 
 	if terminalCmd.Long != workspaceTerminalCmd.Long {

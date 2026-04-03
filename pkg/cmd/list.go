@@ -29,7 +29,7 @@ func NewListCmd() *cobra.Command {
 	// Create an alias command that delegates to workspace list
 	cmd := &cobra.Command{
 		Use:     "list",
-		Short:   workspaceListCmd.Short,
+		Short:   workspaceListCmd.Short + " (alias for 'workspace list')",
 		Long:    workspaceListCmd.Long,
 		Example: AdaptExampleForAlias(workspaceListCmd.Example, "workspace list", "list"),
 		Args:    workspaceListCmd.Args,

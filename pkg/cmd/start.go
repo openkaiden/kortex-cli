@@ -29,7 +29,7 @@ func NewStartCmd() *cobra.Command {
 	// Create an alias command that delegates to workspace start
 	cmd := &cobra.Command{
 		Use:               "start NAME|ID",
-		Short:             workspaceStartCmd.Short,
+		Short:             workspaceStartCmd.Short + " (alias for 'workspace start')",
 		Long:              workspaceStartCmd.Long,
 		Example:           AdaptExampleForAlias(workspaceStartCmd.Example, "workspace start", "start"),
 		Args:              workspaceStartCmd.Args,

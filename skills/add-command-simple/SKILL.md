@@ -141,6 +141,28 @@ In `pkg/cmd/root.go`, add to the `NewRootCmd()` function:
 rootCmd.AddCommand(New<Command>Cmd())
 ```
 
+**Optional: Assign to a command group**
+
+If you want the command to appear in a specific group in the help output:
+
+```go
+// Define a group if it doesn't exist yet
+rootCmd.AddGroup(&cobra.Group{
+    ID:    "mygroup",
+    Title: "My Command Group:",
+})
+
+// Create and assign command to the group
+myCmd := New<Command>Cmd()
+myCmd.GroupID = "mygroup"
+rootCmd.AddCommand(myCmd)
+```
+
+Existing groups:
+- `main` - Main Commands (for commonly used workspace operations)
+- `workspace` - Workspace Commands (for the workspace parent command)
+- Commands without a group appear under "Additional Commands"
+
 ### 3. Create Tests
 
 Create `pkg/cmd/<command>_test.go`:
