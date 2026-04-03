@@ -129,6 +129,162 @@ func TestMyCmd_PreRun(t *testing.T) {
 
 **Reference:** See `pkg/cmd/init.go`, `pkg/cmd/workspace_remove.go`, and `pkg/cmd/workspace_list.go` for examples of proper flag binding.
 
+## Environment Variable Fallback Pattern
+
+Commands can support environment variables as fallbacks for flags, allowing users to set defaults without specifying flags every time.
+
+### Rules
+
+1. **Flags always take precedence** over environment variables
+2. **Check the struct field value** - If empty/false, then check environment variable
+3. **Parse environment variable** after checking if the field value is not set
+4. **Document priority** in command help text and examples
+
+### Pattern
+
+```go
+type myCmd struct {
+    runtime string  // Bound to --runtime flag
+    agent   string  // Bound to --agent flag
+    start   bool    // Bound to --start flag
+}
+
+func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
+    // String flag: check if empty, then try environment variable
+    if m.runtime == "" {
+        if envRuntime := os.Getenv("KORTEX_CLI_DEFAULT_RUNTIME"); envRuntime != "" {
+            m.runtime = envRuntime
+        } else {
+            return fmt.Errorf("runtime is required: use --runtime flag or set KORTEX_CLI_DEFAULT_RUNTIME environment variable")
+        }
+    }
+
+    // Boolean flag: check if false, then try environment variable
+    if !m.start {
+        if envStart := os.Getenv("KORTEX_CLI_INIT_AUTO_START"); envStart != "" {
+            // Parse truthy values
+            switch envStart {
+            case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
+                m.start = true
+            }
+        }
+    }
+
+    return nil
+}
+
+func NewMyCmd() *cobra.Command {
+    c := &myCmd{}
+
+    cmd := &cobra.Command{
+        Use:   "my-command",
+        Short: "My command description",
+        PreRunE: c.preRun,
+        RunE:    c.run,
+    }
+
+    // Bind flags with helpful descriptions mentioning environment variable fallback
+    cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use (or set KORTEX_CLI_DEFAULT_RUNTIME)")
+    cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent to use (or set KORTEX_CLI_DEFAULT_AGENT)")
+    cmd.Flags().BoolVar(&c.start, "start", false, "Auto-start (or set KORTEX_CLI_INIT_AUTO_START)")
+
+    return cmd
+}
+```
+
+### Environment Variable Parsing
+
+**String values:**
+- Simple: just use the environment variable value directly
+- Empty string means not set
+
+**Boolean values:**
+- Check if field is `false`, then parse environment variable
+- Parse truthy values: `"1"`, `"true"`, `"True"`, `"TRUE"`, `"yes"`, `"Yes"`, `"YES"`
+- All other values (including `"0"`, `"false"`, `"no"`, `""`) are falsy
+- If flag is explicitly set to `true`, the field is already `true`, so environment variable is never checked
+
+### Testing Environment Variables
+
+```go
+func TestMyCmd_PreRun(t *testing.T) {
+    t.Run("uses environment variable when flag not set", func(t *testing.T) {
+        // Note: Cannot use t.Parallel() when using t.Setenv()
+        t.Setenv("KORTEX_CLI_DEFAULT_RUNTIME", "podman")
+
+        c := &myCmd{}
+        cmd := &cobra.Command{}
+        cmd.Flags().String("runtime", "", "test flag")
+
+        err := c.preRun(cmd, []string{})
+        if err != nil {
+            t.Fatalf("preRun() failed: %v", err)
+        }
+
+        if c.runtime != "podman" {
+            t.Errorf("Expected runtime to be 'podman' from env var, got: %s", c.runtime)
+        }
+    })
+
+    t.Run("flag takes precedence over environment variable", func(t *testing.T) {
+        // Note: Cannot use t.Parallel() when using t.Setenv()
+        t.Setenv("KORTEX_CLI_DEFAULT_RUNTIME", "fake")
+
+        c := &myCmd{runtime: "podman"}  // Set via flag
+        cmd := &cobra.Command{}
+        cmd.Flags().String("runtime", "", "test flag")
+        cmd.Flags().Set("runtime", "podman")
+
+        err := c.preRun(cmd, []string{})
+        if err != nil {
+            t.Fatalf("preRun() failed: %v", err)
+        }
+
+        if c.runtime != "podman" {
+            t.Errorf("Expected runtime to be 'podman' from flag, got: %s", c.runtime)
+        }
+    })
+
+    // Table-driven test for boolean environment variable values
+    t.Run("parses boolean environment variable", func(t *testing.T) {
+        tests := []struct {
+            name     string
+            envValue string
+            expected bool
+        }{
+            {"1 is truthy", "1", true},
+            {"true is truthy", "true", true},
+            {"True is truthy", "True", true},
+            {"yes is truthy", "yes", true},
+            {"0 is falsy", "0", false},
+            {"false is falsy", "false", false},
+            {"empty is falsy", "", false},
+        }
+
+        for _, tt := range tests {
+            t.Run(tt.name, func(t *testing.T) {
+                t.Setenv("KORTEX_CLI_INIT_AUTO_START", tt.envValue)
+
+                c := &myCmd{}
+                cmd := &cobra.Command{}
+                cmd.Flags().Bool("start", false, "test flag")
+
+                err := c.preRun(cmd, []string{})
+                if err != nil {
+                    t.Fatalf("preRun() failed: %v", err)
+                }
+
+                if c.start != tt.expected {
+                    t.Errorf("Expected start to be %v, got %v", tt.expected, c.start)
+                }
+            })
+        }
+    })
+}
+```
+
+**Reference:** See `pkg/cmd/init.go` for a complete implementation with `KORTEX_CLI_DEFAULT_RUNTIME`, `KORTEX_CLI_DEFAULT_AGENT`, and `KORTEX_CLI_INIT_AUTO_START`.
+
 ## JSON Output Support Pattern
 
 When adding JSON output support to commands, follow this pattern to ensure consistent error handling and output formatting.

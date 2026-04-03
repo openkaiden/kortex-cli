@@ -456,6 +456,20 @@ $ kortex-cli init /path/to/another-project --runtime fake --agent claude -o json
 
 Exit code: `0` (success)
 
+**Step 3a: Register and start immediately with auto-start flag**
+
+```bash
+$ kortex-cli init /path/to/third-project --runtime fake --agent claude -o json --start
+```
+
+```json
+{
+  "id": "3c4d5e6f7a8b9098765432109876543210987654321098765432109876543210b"
+}
+```
+
+Exit code: `0` (success, workspace is running)
+
 **Step 4: List all workspaces**
 
 ```bash
@@ -736,6 +750,57 @@ kortex-cli list
 # Override the environment variable with the flag
 kortex-cli list --storage /tmp/kortex-storage
 ```
+
+### `KORTEX_CLI_INIT_AUTO_START`
+
+Automatically starts a workspace after registration when using the `init` command.
+
+**Usage:**
+
+```bash
+export KORTEX_CLI_INIT_AUTO_START=1
+kortex-cli init /path/to/project --runtime fake --agent claude
+```
+
+**Priority:**
+
+The auto-start behavior is determined in the following order (highest to lowest priority):
+
+1. `--start` flag (if specified)
+2. `KORTEX_CLI_INIT_AUTO_START` environment variable (if set to a truthy value)
+3. Default: workspace is not started automatically
+
+**Supported Values:**
+
+The environment variable accepts the following truthy values (case-insensitive):
+- `1`
+- `true`, `True`, `TRUE`
+- `yes`, `Yes`, `YES`
+
+Any other value (including `0`, `false`, `no`, or empty string) will not trigger auto-start.
+
+**Example:**
+
+```bash
+# Set auto-start for the current shell session
+export KORTEX_CLI_INIT_AUTO_START=1
+
+# Register and start a workspace automatically
+kortex-cli init /path/to/project --runtime fake --agent claude
+# Workspace is now running
+
+# Override the environment variable with the flag
+export KORTEX_CLI_INIT_AUTO_START=0
+kortex-cli init /path/to/another-project --runtime fake --agent claude --start
+# Workspace is started despite env var being 0
+```
+
+**Notes:**
+
+- Auto-starting combines the `init` and `start` commands into a single operation
+- Useful for automation scripts where you want workspaces ready to use immediately
+- If the workspace fails to start, the registration still succeeds, but an error is returned
+- The `--start` flag always takes precedence over the environment variable
 
 ## Podman Runtime
 
@@ -1491,6 +1556,7 @@ kortex-cli init [sources-directory] [flags]
 - `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kortex`)
 - `--name, -n <name>` - Human-readable name for the workspace (default: generated from sources directory)
 - `--project, -p <identifier>` - Custom project identifier to override auto-detection (default: auto-detected from git repository or source directory)
+- `--start` - Start the workspace after registration (can also be set via `KORTEX_CLI_INIT_AUTO_START` environment variable)
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
@@ -1523,6 +1589,19 @@ kortex-cli init /path/to/myproject --runtime fake --agent claude --project "my p
 ```bash
 kortex-cli init /path/to/myproject --runtime fake --agent claude --workspace-configuration /path/to/config
 ```
+
+**Register and start immediately:**
+```bash
+kortex-cli init /path/to/myproject --runtime fake --agent claude --start
+```
+Output: `a1b2c3d4e5f6...` (workspace ID, workspace is now running)
+
+**Register and start using environment variable:**
+```bash
+export KORTEX_CLI_INIT_AUTO_START=1
+kortex-cli init /path/to/myproject --runtime fake --agent claude
+```
+Output: `a1b2c3d4e5f6...` (workspace ID, workspace is now running)
 
 **View detailed output:**
 ```bash
@@ -1676,6 +1755,7 @@ kortex-cli init /tmp/workspace --runtime fake --agent claude
 - **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KORTEX_CLI_DEFAULT_RUNTIME` environment variable
 - **Agent is required**: You must specify an agent using either the `--agent` flag or the `KORTEX_CLI_DEFAULT_AGENT` environment variable
 - **Project auto-detection**: The project identifier is automatically detected from git repository information or source directory path. Use `--project` flag to override with a custom identifier
+- **Auto-start**: Use the `--start` flag or set `KORTEX_CLI_INIT_AUTO_START=1` to automatically start the workspace after registration, combining `init` and `start` into a single operation
 - All directory paths are converted to absolute paths for consistency
 - The workspace ID is a unique identifier generated automatically
 - Workspaces can be listed using the `workspace list` command

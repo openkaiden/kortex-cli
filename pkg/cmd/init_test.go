@@ -30,6 +30,7 @@ import (
 	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/cmd/testutil"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/runtimesetup"
 	"github.com/spf13/cobra"
 )
 
@@ -748,6 +749,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
 		cmd.Flags().String("storage", tempDir, "test storage flag")
+		cmd.Flags().Bool("start", false, "test start flag")
 
 		args := []string{sourcesDir}
 
@@ -755,6 +757,142 @@ func TestInitCmd_PreRun(t *testing.T) {
 		if err != nil {
 			t.Fatalf("preRun() should succeed when workspace.json doesn't exist: %v", err)
 		}
+	})
+
+	t.Run("start flag defaults to false", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			runtime: "fake",
+			agent:   "test-agent",
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+		cmd.Flags().Bool("start", false, "test start flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		if c.start {
+			t.Errorf("Expected start to be false by default, got true")
+		}
+	})
+
+	t.Run("start flag can be set to true", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			runtime: "fake",
+			agent:   "test-agent",
+			start:   true,
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+		cmd.Flags().Bool("start", false, "test start flag")
+		cmd.Flags().Set("start", "true")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		if !c.start {
+			t.Errorf("Expected start to be true, got false")
+		}
+	})
+
+	t.Run("uses environment variable when start flag is not set", func(t *testing.T) {
+		// Note: Cannot use t.Parallel() when using t.Setenv()
+
+		tests := []struct {
+			name     string
+			envValue string
+			expected bool
+		}{
+			{"KORTEX_CLI_INIT_AUTO_START=1", "1", true},
+			{"KORTEX_CLI_INIT_AUTO_START=true", "true", true},
+			{"KORTEX_CLI_INIT_AUTO_START=True", "True", true},
+			{"KORTEX_CLI_INIT_AUTO_START=TRUE", "TRUE", true},
+			{"KORTEX_CLI_INIT_AUTO_START=yes", "yes", true},
+			{"KORTEX_CLI_INIT_AUTO_START=Yes", "Yes", true},
+			{"KORTEX_CLI_INIT_AUTO_START=YES", "YES", true},
+			{"KORTEX_CLI_INIT_AUTO_START=0", "0", false},
+			{"KORTEX_CLI_INIT_AUTO_START=false", "false", false},
+			{"KORTEX_CLI_INIT_AUTO_START=no", "no", false},
+			{"KORTEX_CLI_INIT_AUTO_START=empty", "", false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Setenv("KORTEX_CLI_INIT_AUTO_START", tt.envValue)
+
+				tempDir := t.TempDir()
+
+				c := &initCmd{
+					runtime: "fake",
+					agent:   "test-agent",
+				}
+				cmd := &cobra.Command{}
+				cmd.Flags().String("workspace-configuration", "", "test flag")
+				cmd.Flags().String("storage", tempDir, "test storage flag")
+				cmd.Flags().Bool("start", false, "test start flag")
+
+				args := []string{}
+
+				err := c.preRun(cmd, args)
+				if err != nil {
+					t.Fatalf("preRun() failed: %v", err)
+				}
+
+				if c.start != tt.expected {
+					t.Errorf("Expected start to be %v with env var '%s', got %v", tt.expected, tt.envValue, c.start)
+				}
+			})
+		}
+	})
+
+	t.Run("start flag takes precedence over environment variable", func(t *testing.T) {
+		// Note: Cannot use t.Parallel() when using t.Setenv()
+
+		t.Run("flag true overrides env", func(t *testing.T) {
+			t.Setenv("KORTEX_CLI_INIT_AUTO_START", "0")
+
+			tempDir := t.TempDir()
+
+			c := &initCmd{
+				runtime: "fake",
+				agent:   "test-agent",
+				start:   true,
+			}
+			cmd := &cobra.Command{}
+			cmd.Flags().String("workspace-configuration", "", "test flag")
+			cmd.Flags().String("storage", tempDir, "test storage flag")
+			cmd.Flags().Bool("start", false, "test start flag")
+			cmd.Flags().Set("start", "true")
+
+			args := []string{}
+
+			err := c.preRun(cmd, args)
+			if err != nil {
+				t.Fatalf("preRun() failed: %v", err)
+			}
+
+			if !c.start {
+				t.Errorf("Expected start to be true from flag, got false")
+			}
+		})
 	})
 }
 
@@ -1694,6 +1832,141 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Errorf("Expected project %s, got %s", customProject, inst.GetProject())
 		}
 	})
+
+	t.Run("registers and starts workspace with --start flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--start"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance was created and register runtimes to check state
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := runtimesetup.RegisterAll(manager); err != nil {
+			t.Fatalf("Failed to register runtimes: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		inst := instancesList[0]
+
+		// Verify instance is running
+		if inst.GetRuntimeData().State != "running" {
+			t.Errorf("Expected instance state to be 'running', got '%s'", inst.GetRuntimeData().State)
+		}
+	})
+
+	t.Run("registers without starting when --start is not set and env var is not set", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance was created and register runtimes to check state
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := runtimesetup.RegisterAll(manager); err != nil {
+			t.Fatalf("Failed to register runtimes: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		inst := instancesList[0]
+
+		// Verify instance is not running (fake runtime sets state to "created" for new instances)
+		if inst.GetRuntimeData().State == "running" {
+			t.Errorf("Expected instance state to not be 'running', got '%s'", inst.GetRuntimeData().State)
+		}
+	})
+}
+
+func TestInitCmd_E2E_AutoStartWithEnv(t *testing.T) {
+	// Note: This test function cannot use t.Parallel() because subtests use t.Setenv()
+
+	t.Run("registers and starts workspace with KORTEX_CLI_INIT_AUTO_START environment variable", func(t *testing.T) {
+		t.Run("with env var set to 1", func(t *testing.T) {
+			t.Setenv("KORTEX_CLI_INIT_AUTO_START", "1")
+
+			storageDir := t.TempDir()
+			sourcesDir := t.TempDir()
+
+			rootCmd := NewRootCmd()
+			buf := new(bytes.Buffer)
+			rootCmd.SetOut(buf)
+			rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir})
+
+			err := rootCmd.Execute()
+			if err != nil {
+				t.Fatalf("Execute() failed: %v", err)
+			}
+
+			// Verify instance was created and register runtimes to check state
+			manager, err := instances.NewManager(storageDir)
+			if err != nil {
+				t.Fatalf("Failed to create manager: %v", err)
+			}
+
+			if err := runtimesetup.RegisterAll(manager); err != nil {
+				t.Fatalf("Failed to register runtimes: %v", err)
+			}
+
+			instancesList, err := manager.List()
+			if err != nil {
+				t.Fatalf("Failed to list instances: %v", err)
+			}
+
+			if len(instancesList) != 1 {
+				t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+			}
+
+			inst := instancesList[0]
+
+			// Verify instance is running
+			if inst.GetRuntimeData().State != "running" {
+				t.Errorf("Expected instance state to be 'running', got '%s'", inst.GetRuntimeData().State)
+			}
+		})
+	})
 }
 
 func TestInitCmd_MultiLevelConfig(t *testing.T) {
@@ -2007,7 +2280,7 @@ func TestInitCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 6
+	expectedCount := 7
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

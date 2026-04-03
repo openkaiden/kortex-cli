@@ -49,6 +49,7 @@ type initCmd struct {
 	verbose            bool
 	output             string
 	showLogs           bool
+	start              bool
 }
 
 // preRun validates the parameters and flags
@@ -112,6 +113,18 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 		} else {
 			// Neither flag nor environment variable is set
 			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("agent is required: use --agent flag or set KORTEX_CLI_DEFAULT_AGENT environment variable"))
+		}
+	}
+
+	// Determine start behavior: if flag is not set to true, check environment variable
+	if !i.start {
+		// Check environment variable
+		if envStart := os.Getenv("KORTEX_CLI_INIT_AUTO_START"); envStart != "" {
+			// Accept "1", "true", "yes" as truthy values (case-insensitive)
+			switch envStart {
+			case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
+				i.start = true
+			}
 		}
 	}
 
@@ -215,6 +228,14 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		return outputErrorIfJSON(cmd, i.output, err)
 	}
 
+	// Start the workspace if auto-start is enabled
+	if i.start {
+		err = i.manager.Start(ctx, addedInstance.GetID())
+		if err != nil {
+			return outputErrorIfJSON(cmd, i.output, err)
+		}
+	}
+
 	// Handle JSON output
 	if i.output == "json" {
 		return i.outputJSON(cmd, addedInstance)
@@ -283,6 +304,9 @@ kortex-cli init --runtime fake --agent claude --name my-project
 # Register with custom project identifier
 kortex-cli init --runtime fake --agent goose --project my-custom-project
 
+# Register and start workspace
+kortex-cli init --runtime fake --agent claude --start
+
 # Show detailed output
 kortex-cli init --runtime fake --agent claude --verbose
 
@@ -308,6 +332,9 @@ kortex-cli init --runtime fake --agent claude --show-logs`,
 
 	// Add agent flag
 	cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent name for loading agent-specific configuration (required if KORTEX_CLI_DEFAULT_AGENT is not set)")
+
+	// Add start flag
+	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KORTEX_CLI_INIT_AUTO_START environment variable)")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")
