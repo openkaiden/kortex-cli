@@ -88,6 +88,10 @@ func (c *cursorAgent) SetModel(settings map[string][]byte, modelID string) (map[
 		return nil, fmt.Errorf("failed to parse existing %s: %w", CursorCLIConfigPath, err)
 	}
 
+	if config == nil {
+		config = make(map[string]interface{})
+	}
+
 	config["model"] = map[string]interface{}{
 		"modelId":          modelID,
 		"displayModelId":   modelID,
