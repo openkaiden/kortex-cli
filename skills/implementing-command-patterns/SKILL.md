@@ -152,16 +152,16 @@ type myCmd struct {
 func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
     // String flag: check if empty, then try environment variable
     if m.runtime == "" {
-        if envRuntime := os.Getenv("KORTEX_CLI_DEFAULT_RUNTIME"); envRuntime != "" {
+        if envRuntime := os.Getenv("KDN_DEFAULT_RUNTIME"); envRuntime != "" {
             m.runtime = envRuntime
         } else {
-            return fmt.Errorf("runtime is required: use --runtime flag or set KORTEX_CLI_DEFAULT_RUNTIME environment variable")
+            return fmt.Errorf("runtime is required: use --runtime flag or set KDN_DEFAULT_RUNTIME environment variable")
         }
     }
 
     // Boolean flag: check if false, then try environment variable
     if !m.start {
-        if envStart := os.Getenv("KORTEX_CLI_INIT_AUTO_START"); envStart != "" {
+        if envStart := os.Getenv("KDN_INIT_AUTO_START"); envStart != "" {
             // Parse truthy values
             switch envStart {
             case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
@@ -184,9 +184,9 @@ func NewMyCmd() *cobra.Command {
     }
 
     // Bind flags with helpful descriptions mentioning environment variable fallback
-    cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use (or set KORTEX_CLI_DEFAULT_RUNTIME)")
-    cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent to use (or set KORTEX_CLI_DEFAULT_AGENT)")
-    cmd.Flags().BoolVar(&c.start, "start", false, "Auto-start (or set KORTEX_CLI_INIT_AUTO_START)")
+    cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use (or set KDN_DEFAULT_RUNTIME)")
+    cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent to use (or set KDN_DEFAULT_AGENT)")
+    cmd.Flags().BoolVar(&c.start, "start", false, "Auto-start (or set KDN_INIT_AUTO_START)")
 
     return cmd
 }
@@ -210,7 +210,7 @@ func NewMyCmd() *cobra.Command {
 func TestMyCmd_PreRun(t *testing.T) {
     t.Run("uses environment variable when flag not set", func(t *testing.T) {
         // Note: Cannot use t.Parallel() when using t.Setenv()
-        t.Setenv("KORTEX_CLI_DEFAULT_RUNTIME", "podman")
+        t.Setenv("KDN_DEFAULT_RUNTIME", "podman")
 
         c := &myCmd{}
         cmd := &cobra.Command{}
@@ -228,7 +228,7 @@ func TestMyCmd_PreRun(t *testing.T) {
 
     t.Run("flag takes precedence over environment variable", func(t *testing.T) {
         // Note: Cannot use t.Parallel() when using t.Setenv()
-        t.Setenv("KORTEX_CLI_DEFAULT_RUNTIME", "fake")
+        t.Setenv("KDN_DEFAULT_RUNTIME", "fake")
 
         c := &myCmd{runtime: "podman"}  // Set via flag
         cmd := &cobra.Command{}
@@ -263,7 +263,7 @@ func TestMyCmd_PreRun(t *testing.T) {
 
         for _, tt := range tests {
             t.Run(tt.name, func(t *testing.T) {
-                t.Setenv("KORTEX_CLI_INIT_AUTO_START", tt.envValue)
+                t.Setenv("KDN_INIT_AUTO_START", tt.envValue)
 
                 c := &myCmd{}
                 cmd := &cobra.Command{}
@@ -283,7 +283,7 @@ func TestMyCmd_PreRun(t *testing.T) {
 }
 ```
 
-**Reference:** See `pkg/cmd/init.go` for a complete implementation with `KORTEX_CLI_DEFAULT_RUNTIME`, `KORTEX_CLI_DEFAULT_AGENT`, and `KORTEX_CLI_INIT_AUTO_START`.
+**Reference:** See `pkg/cmd/init.go` for a complete implementation with `KDN_DEFAULT_RUNTIME`, `KDN_DEFAULT_AGENT`, and `KDN_INIT_AUTO_START`.
 
 ## JSON Output Support Pattern
 

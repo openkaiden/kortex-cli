@@ -104,29 +104,29 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Determine runtime: flag takes precedence over environment variable
 	if i.runtime == "" {
 		// Check environment variable
-		if envRuntime := os.Getenv("KORTEX_CLI_DEFAULT_RUNTIME"); envRuntime != "" {
+		if envRuntime := os.Getenv("KDN_DEFAULT_RUNTIME"); envRuntime != "" {
 			i.runtime = envRuntime
 		} else {
 			// Neither flag nor environment variable is set
-			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("runtime is required: use --runtime flag or set KORTEX_CLI_DEFAULT_RUNTIME environment variable"))
+			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("runtime is required: use --runtime flag or set KDN_DEFAULT_RUNTIME environment variable"))
 		}
 	}
 
 	// Determine agent: flag takes precedence over environment variable
 	if i.agent == "" {
 		// Check environment variable
-		if envAgent := os.Getenv("KORTEX_CLI_DEFAULT_AGENT"); envAgent != "" {
+		if envAgent := os.Getenv("KDN_DEFAULT_AGENT"); envAgent != "" {
 			i.agent = envAgent
 		} else {
 			// Neither flag nor environment variable is set
-			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("agent is required: use --agent flag or set KORTEX_CLI_DEFAULT_AGENT environment variable"))
+			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("agent is required: use --agent flag or set KDN_DEFAULT_AGENT environment variable"))
 		}
 	}
 
 	// Determine start behavior: if flag is not set to true, check environment variable
 	if !i.start {
 		// Check environment variable
-		if envStart := os.Getenv("KORTEX_CLI_INIT_AUTO_START"); envStart != "" {
+		if envStart := os.Getenv("KDN_INIT_AUTO_START"); envStart != "" {
 			// Accept "1", "true", "yes" as truthy values (case-insensitive)
 			switch envStart {
 			case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
@@ -335,20 +335,20 @@ kdn init --runtime podman --agent claude --show-logs`,
 	cmd.Flags().StringVarP(&c.name, "name", "n", "", "Name for the workspace (default: generated from sources directory)")
 
 	// Add runtime flag
-	cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use for the workspace (required if KORTEX_CLI_DEFAULT_RUNTIME is not set)")
+	cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use for the workspace (required if KDN_DEFAULT_RUNTIME is not set)")
 	cmd.RegisterFlagCompletionFunc("runtime", completeRuntimeFlag)
 
 	// Add project flag
 	cmd.Flags().StringVarP(&c.project, "project", "p", "", "Custom project identifier (default: auto-detected from git repository or source directory)")
 
 	// Add agent flag
-	cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent name for loading agent-specific configuration (required if KORTEX_CLI_DEFAULT_AGENT is not set)")
+	cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent name for loading agent-specific configuration (required if KDN_DEFAULT_AGENT is not set)")
 
 	// Add model flag
 	cmd.Flags().StringVarP(&c.model, "model", "m", "", "Model ID to configure for the agent (optional)")
 
 	// Add start flag
-	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KORTEX_CLI_INIT_AUTO_START environment variable)")
+	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KDN_INIT_AUTO_START environment variable)")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")

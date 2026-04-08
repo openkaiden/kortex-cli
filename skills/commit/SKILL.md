@@ -257,7 +257,7 @@ Closes #55
 **Test addition:**
 
 ```text
-test: add tests for KORTEX_CLI_STORAGE support
+test: add tests for KDN_STORAGE support
 
 Ensures the environment variable is properly respected and has
 the correct priority order relative to the --storage flag.

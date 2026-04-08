@@ -81,7 +81,7 @@ This allows users to quickly specify a model without manually editing settings f
 
 ## Configuration File Locations
 
-All user-specific configuration files are stored under the storage directory (default: `~/.kdn`, configurable via `--storage` flag or `KORTEX_CLI_STORAGE` environment variable):
+All user-specific configuration files are stored under the storage directory (default: `~/.kdn`, configurable via `--storage` flag or `KDN_STORAGE` environment variable):
 
 - **Agent configs**: `<storage-dir>/config/agents.json`
 - **Project configs**: `<storage-dir>/config/projects.json`
@@ -368,7 +368,7 @@ rootCmd.Execute()
 - Invalid JSON or validation errors are reported
 - All loaders follow the module design pattern
 - Cross-platform compatible (uses `filepath.Join()`, `t.TempDir()`)
-- Storage directory is configurable via `--storage` flag or `KORTEX_CLI_STORAGE` env var
+- Storage directory is configurable via `--storage` flag or `KDN_STORAGE` env var
 - Uses nested JSON structure for clarity and extensibility
 - Model types are imported from external API package for consistency
 

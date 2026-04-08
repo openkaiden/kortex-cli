@@ -34,7 +34,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	// Check for environment variable
-	if envStorage := os.Getenv("KORTEX_CLI_STORAGE"); envStorage != "" {
+	if envStorage := os.Getenv("KDN_STORAGE"); envStorage != "" {
 		defaultStoragePath = envStorage
 	}
 
