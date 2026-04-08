@@ -958,14 +958,14 @@ fi
 
 kdn supports environment variables for configuring default behavior.
 
-### `KORTEX_CLI_DEFAULT_RUNTIME`
+### `KDN_DEFAULT_RUNTIME`
 
 Sets the default runtime to use when registering a workspace with the `init` command.
 
 **Usage:**
 
 ```bash
-export KORTEX_CLI_DEFAULT_RUNTIME=fake
+export KDN_DEFAULT_RUNTIME=fake
 kdn init /path/to/project --agent claude
 ```
 
@@ -974,14 +974,14 @@ kdn init /path/to/project --agent claude
 The runtime is determined in the following order (highest to lowest priority):
 
 1. `--runtime` flag (if specified)
-2. `KORTEX_CLI_DEFAULT_RUNTIME` environment variable (if set)
+2. `KDN_DEFAULT_RUNTIME` environment variable (if set)
 3. Error if neither is set (runtime is required)
 
 **Example:**
 
 ```bash
 # Set the default runtime for the current shell session
-export KORTEX_CLI_DEFAULT_RUNTIME=fake
+export KDN_DEFAULT_RUNTIME=fake
 
 # Register a workspace using the environment variable
 kdn init /path/to/project --agent claude
@@ -997,14 +997,14 @@ kdn init /path/to/another-project --agent claude --runtime podman
 - Supported runtime types depend on the available runtime implementations
 - Setting this environment variable is useful for automation scripts or when you consistently use the same runtime
 
-### `KORTEX_CLI_DEFAULT_AGENT`
+### `KDN_DEFAULT_AGENT`
 
 Sets the default agent to use when registering a workspace with the `init` command.
 
 **Usage:**
 
 ```bash
-export KORTEX_CLI_DEFAULT_AGENT=claude
+export KDN_DEFAULT_AGENT=claude
 kdn init /path/to/project --runtime podman
 ```
 
@@ -1013,14 +1013,14 @@ kdn init /path/to/project --runtime podman
 The agent is determined in the following order (highest to lowest priority):
 
 1. `--agent` flag (if specified)
-2. `KORTEX_CLI_DEFAULT_AGENT` environment variable (if set)
+2. `KDN_DEFAULT_AGENT` environment variable (if set)
 3. Error if neither is set (agent is required)
 
 **Example:**
 
 ```bash
 # Set the default agent for the current shell session
-export KORTEX_CLI_DEFAULT_AGENT=claude
+export KDN_DEFAULT_AGENT=claude
 
 # Register a workspace using the environment variable
 kdn init /path/to/project --runtime podman
@@ -1037,14 +1037,14 @@ kdn init /path/to/another-project --runtime podman --agent goose
 - Agent names must contain only alphanumeric characters or underscores (e.g., `claude`, `goose`, `my_agent`)
 - Setting this environment variable is useful for automation scripts or when you consistently use the same agent
 
-### `KORTEX_CLI_STORAGE`
+### `KDN_STORAGE`
 
 Sets the default storage directory where kdn stores its data files.
 
 **Usage:**
 
 ```bash
-export KORTEX_CLI_STORAGE=/custom/path/to/storage
+export KDN_STORAGE=/custom/path/to/storage
 kdn init /path/to/project --runtime podman --agent claude
 ```
 
@@ -1053,14 +1053,14 @@ kdn init /path/to/project --runtime podman --agent claude
 The storage directory is determined in the following order (highest to lowest priority):
 
 1. `--storage` flag (if specified)
-2. `KORTEX_CLI_STORAGE` environment variable (if set)
+2. `KDN_STORAGE` environment variable (if set)
 3. Default: `$HOME/.kdn`
 
 **Example:**
 
 ```bash
 # Set a custom storage directory
-export KORTEX_CLI_STORAGE=/var/lib/kortex
+export KDN_STORAGE=/var/lib/kortex
 
 # All commands will use this storage directory
 kdn init /path/to/project --runtime podman --agent claude
@@ -1070,14 +1070,14 @@ kdn list
 kdn list --storage /tmp/kortex-storage
 ```
 
-### `KORTEX_CLI_INIT_AUTO_START`
+### `KDN_INIT_AUTO_START`
 
 Automatically starts a workspace after registration when using the `init` command.
 
 **Usage:**
 
 ```bash
-export KORTEX_CLI_INIT_AUTO_START=1
+export KDN_INIT_AUTO_START=1
 kdn init /path/to/project --runtime podman --agent claude
 ```
 
@@ -1086,7 +1086,7 @@ kdn init /path/to/project --runtime podman --agent claude
 The auto-start behavior is determined in the following order (highest to lowest priority):
 
 1. `--start` flag (if specified)
-2. `KORTEX_CLI_INIT_AUTO_START` environment variable (if set to a truthy value)
+2. `KDN_INIT_AUTO_START` environment variable (if set to a truthy value)
 3. Default: workspace is not started automatically
 
 **Supported Values:**
@@ -1102,14 +1102,14 @@ Any other value (including `0`, `false`, `no`, or empty string) will not trigger
 
 ```bash
 # Set auto-start for the current shell session
-export KORTEX_CLI_INIT_AUTO_START=1
+export KDN_INIT_AUTO_START=1
 
 # Register and start a workspace automatically
 kdn init /path/to/project --runtime podman --agent claude
 # Workspace is now running
 
 # Override the environment variable with the flag
-export KORTEX_CLI_INIT_AUTO_START=0
+export KDN_INIT_AUTO_START=0
 kdn init /path/to/another-project --runtime podman --agent claude --start
 # Workspace is started despite env var being 0
 ```
@@ -1645,7 +1645,7 @@ When registering a workspace, configurations are merged in this order (later con
 User-specific configurations are stored in the kdn storage directory:
 
 - **Default location**: `~/.kdn/config/`
-- **Custom location**: Set via `--storage` flag or `KORTEX_CLI_STORAGE` environment variable
+- **Custom location**: Set via `--storage` flag or `KDN_STORAGE` environment variable
 
 The storage directory contains:
 - `config/agents.json` - Agent-specific environment variables and mounts
@@ -1781,7 +1781,7 @@ kdn init --runtime podman --agent claude
 kdn init --runtime podman --project my-custom-project --agent goose
 ```
 
-**Note:** The `--agent` flag is required (or set `KORTEX_CLI_DEFAULT_AGENT` environment variable) when registering a workspace.
+**Note:** The `--agent` flag is required (or set `KDN_DEFAULT_AGENT` environment variable) when registering a workspace.
 
 ### Merging Behavior
 
@@ -1928,13 +1928,13 @@ kdn init [sources-directory] [flags]
 
 #### Flags
 
-- `--runtime, -r <type>` - Runtime to use for the workspace (required if `KORTEX_CLI_DEFAULT_RUNTIME` is not set)
-- `--agent, -a <name>` - Agent to use for the workspace (required if `KORTEX_CLI_DEFAULT_AGENT` is not set)
+- `--runtime, -r <type>` - Runtime to use for the workspace (required if `KDN_DEFAULT_RUNTIME` is not set)
+- `--agent, -a <name>` - Agent to use for the workspace (required if `KDN_DEFAULT_AGENT` is not set)
 - `--model, -m <id>` - Model ID to configure for the agent (optional, uses agent's default if not specified)
 - `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kaiden`)
 - `--name, -n <name>` - Human-readable name for the workspace (default: generated from sources directory)
 - `--project, -p <identifier>` - Custom project identifier to override auto-detection (default: auto-detected from git repository or source directory)
-- `--start` - Start the workspace after registration (can also be set via `KORTEX_CLI_INIT_AUTO_START` environment variable)
+- `--start` - Start the workspace after registration (can also be set via `KDN_INIT_AUTO_START` environment variable)
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
@@ -1981,7 +1981,7 @@ Output: `a1b2c3d4e5f6...` (workspace ID, workspace is now running)
 
 **Register and start using environment variable:**
 ```bash
-export KORTEX_CLI_INIT_AUTO_START=1
+export KDN_INIT_AUTO_START=1
 kdn init /path/to/myproject --runtime podman --agent claude
 ```
 Output: `a1b2c3d4e5f6...` (workspace ID, workspace is now running)
@@ -2135,11 +2135,11 @@ kdn init /tmp/workspace --runtime podman --agent claude
 
 #### Notes
 
-- **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KORTEX_CLI_DEFAULT_RUNTIME` environment variable
-- **Agent is required**: You must specify an agent using either the `--agent` flag or the `KORTEX_CLI_DEFAULT_AGENT` environment variable
+- **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KDN_DEFAULT_RUNTIME` environment variable
+- **Agent is required**: You must specify an agent using either the `--agent` flag or the `KDN_DEFAULT_AGENT` environment variable
 - **Model is optional**: Use `--model` to specify a model ID for the agent. The flag takes precedence over any model defined in the agent's default settings files (`~/.kdn/config/<agent>/`). If not provided, the agent uses its default model or the one configured in settings. All agents support model configuration: Claude (via `.claude/settings.json`), Goose (via `config.yaml`), and Cursor (via `.cursor/cli-config.json`)
 - **Project auto-detection**: The project identifier is automatically detected from git repository information or source directory path. Use `--project` flag to override with a custom identifier
-- **Auto-start**: Use the `--start` flag or set `KORTEX_CLI_INIT_AUTO_START=1` to automatically start the workspace after registration, combining `init` and `start` into a single operation
+- **Auto-start**: Use the `--start` flag or set `KDN_INIT_AUTO_START=1` to automatically start the workspace after registration, combining `init` and `start` into a single operation
 - All directory paths are converted to absolute paths for consistency
 - The workspace ID is a unique identifier generated automatically
 - Workspaces can be listed using the `workspace list` command

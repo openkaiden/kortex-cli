@@ -164,7 +164,7 @@ func TestRootCmd_StorageEnvVariable(t *testing.T) {
 	t.Run("env variable sets default", func(t *testing.T) {
 		// Set the environment variable
 		envPath := filepath.Join(t.TempDir(), "from-env")
-		t.Setenv("KORTEX_CLI_STORAGE", envPath)
+		t.Setenv("KDN_STORAGE", envPath)
 
 		rootCmd := NewRootCmd()
 		flag := rootCmd.PersistentFlags().Lookup("storage")
@@ -181,7 +181,7 @@ func TestRootCmd_StorageEnvVariable(t *testing.T) {
 	t.Run("flag overrides env variable", func(t *testing.T) {
 		// Set the environment variable
 		envPath := filepath.Join(t.TempDir(), "from-env")
-		t.Setenv("KORTEX_CLI_STORAGE", envPath)
+		t.Setenv("KDN_STORAGE", envPath)
 
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
@@ -210,7 +210,7 @@ func TestRootCmd_StorageEnvVariable(t *testing.T) {
 
 	t.Run("default used when env var not set", func(t *testing.T) {
 		// Explicitly unset the environment variable (in case it was set in the shell)
-		t.Setenv("KORTEX_CLI_STORAGE", "")
+		t.Setenv("KDN_STORAGE", "")
 
 		rootCmd := NewRootCmd()
 		flag := rootCmd.PersistentFlags().Lookup("storage")

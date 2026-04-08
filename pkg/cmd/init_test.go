@@ -530,7 +530,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
 		t.Run("with valid runtime from env", func(t *testing.T) {
-			t.Setenv("KORTEX_CLI_DEFAULT_RUNTIME", "fake")
+			t.Setenv("KDN_DEFAULT_RUNTIME", "fake")
 
 			tempDir := t.TempDir()
 
@@ -559,7 +559,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
 		t.Run("with valid agent from env", func(t *testing.T) {
-			t.Setenv("KORTEX_CLI_DEFAULT_AGENT", "test-agent")
+			t.Setenv("KDN_DEFAULT_AGENT", "test-agent")
 
 			tempDir := t.TempDir()
 
@@ -588,7 +588,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
 		t.Run("flag overrides env", func(t *testing.T) {
-			t.Setenv("KORTEX_CLI_DEFAULT_RUNTIME", "env-runtime")
+			t.Setenv("KDN_DEFAULT_RUNTIME", "env-runtime")
 
 			tempDir := t.TempDir()
 
@@ -617,7 +617,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
 		t.Run("flag overrides env", func(t *testing.T) {
-			t.Setenv("KORTEX_CLI_DEFAULT_AGENT", "env-agent")
+			t.Setenv("KDN_DEFAULT_AGENT", "env-agent")
 
 			tempDir := t.TempDir()
 
@@ -821,22 +821,22 @@ func TestInitCmd_PreRun(t *testing.T) {
 			envValue string
 			expected bool
 		}{
-			{"KORTEX_CLI_INIT_AUTO_START=1", "1", true},
-			{"KORTEX_CLI_INIT_AUTO_START=true", "true", true},
-			{"KORTEX_CLI_INIT_AUTO_START=True", "True", true},
-			{"KORTEX_CLI_INIT_AUTO_START=TRUE", "TRUE", true},
-			{"KORTEX_CLI_INIT_AUTO_START=yes", "yes", true},
-			{"KORTEX_CLI_INIT_AUTO_START=Yes", "Yes", true},
-			{"KORTEX_CLI_INIT_AUTO_START=YES", "YES", true},
-			{"KORTEX_CLI_INIT_AUTO_START=0", "0", false},
-			{"KORTEX_CLI_INIT_AUTO_START=false", "false", false},
-			{"KORTEX_CLI_INIT_AUTO_START=no", "no", false},
-			{"KORTEX_CLI_INIT_AUTO_START=empty", "", false},
+			{"KDN_INIT_AUTO_START=1", "1", true},
+			{"KDN_INIT_AUTO_START=true", "true", true},
+			{"KDN_INIT_AUTO_START=True", "True", true},
+			{"KDN_INIT_AUTO_START=TRUE", "TRUE", true},
+			{"KDN_INIT_AUTO_START=yes", "yes", true},
+			{"KDN_INIT_AUTO_START=Yes", "Yes", true},
+			{"KDN_INIT_AUTO_START=YES", "YES", true},
+			{"KDN_INIT_AUTO_START=0", "0", false},
+			{"KDN_INIT_AUTO_START=false", "false", false},
+			{"KDN_INIT_AUTO_START=no", "no", false},
+			{"KDN_INIT_AUTO_START=empty", "", false},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Setenv("KORTEX_CLI_INIT_AUTO_START", tt.envValue)
+				t.Setenv("KDN_INIT_AUTO_START", tt.envValue)
 
 				tempDir := t.TempDir()
 
@@ -867,7 +867,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
 		t.Run("flag true overrides env", func(t *testing.T) {
-			t.Setenv("KORTEX_CLI_INIT_AUTO_START", "0")
+			t.Setenv("KDN_INIT_AUTO_START", "0")
 
 			tempDir := t.TempDir()
 
@@ -1989,9 +1989,9 @@ func TestInitCmd_E2E(t *testing.T) {
 func TestInitCmd_E2E_AutoStartWithEnv(t *testing.T) {
 	// Note: This test function cannot use t.Parallel() because subtests use t.Setenv()
 
-	t.Run("registers and starts workspace with KORTEX_CLI_INIT_AUTO_START environment variable", func(t *testing.T) {
+	t.Run("registers and starts workspace with KDN_INIT_AUTO_START environment variable", func(t *testing.T) {
 		t.Run("with env var set to 1", func(t *testing.T) {
-			t.Setenv("KORTEX_CLI_INIT_AUTO_START", "1")
+			t.Setenv("KDN_INIT_AUTO_START", "1")
 
 			storageDir := t.TempDir()
 			sourcesDir := t.TempDir()

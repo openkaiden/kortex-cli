@@ -87,11 +87,11 @@ Global flags are defined as persistent flags in `pkg/cmd/root.go` and are availa
 
 The `--storage` flag specifies the directory where kdn stores all its files. The default path is computed at runtime using `os.UserHomeDir()` and `filepath.Join()` to ensure cross-platform compatibility (Linux, macOS, Windows). The default is `$HOME/.kdn` with a fallback to `.kdn` in the current directory if the home directory cannot be determined.
 
-**Environment Variable**: The `KORTEX_CLI_STORAGE` environment variable can be used to set the storage directory path. The flag `--storage` will override the environment variable if both are specified.
+**Environment Variable**: The `KDN_STORAGE` environment variable can be used to set the storage directory path. The flag `--storage` will override the environment variable if both are specified.
 
 **Priority order** (highest to lowest):
 1. `--storage` flag (if specified)
-2. `KORTEX_CLI_STORAGE` environment variable (if set)
+2. `KDN_STORAGE` environment variable (if set)
 3. Default: `$HOME/.kdn`
 
 To access this value in any command:
