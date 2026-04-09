@@ -54,7 +54,7 @@ jobs:
 
       - name: Override GoReleaser config for prereleases
         run: |
-          yq -i '.release.github.name = "kortex-cli-prereleases"' .goreleaser.yaml
+          yq -i '.release.github.name = "kdn-prereleases"' .goreleaser.yaml
           yq -i '.release.prerelease = "auto"' .goreleaser.yaml
           yq -i '.changelog.disable = true' .goreleaser.yaml
 
@@ -66,7 +66,7 @@ jobs:
           git commit -m "chore: tag ${{ steps.version.outputs.githubTag }}"
           echo "Tagging with ${{ steps.version.outputs.githubTag }}"
           git tag ${{ steps.version.outputs.githubTag }}
-          git remote add prereleases https://x-access-token:${KORTEX_BOT_TOKEN}@github.com/kortex-hub/kortex-cli-prereleases
+          git remote add prereleases https://x-access-token:${KORTEX_BOT_TOKEN}@github.com/openkaiden/kdn-prereleases
           git push prereleases ${{ steps.version.outputs.githubTag }}
         env:
           KORTEX_BOT_TOKEN: ${{ secrets.KORTEX_BOT_TOKEN }}
@@ -74,7 +74,7 @@ jobs:
       - name: checkout the tag
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: kortex-hub/kortex-cli-prereleases
+          repository: openkaiden/kdn-prereleases
           ref: ${{ steps.version.outputs.githubTag }}
           fetch-depth: 0
 
