@@ -24,3 +24,11 @@ updates:
       # check at 3am UTC
       time: "03:00"
     open-pull-requests-limit: 10
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      # check at 3am UTC
+      time: "03:00"
+    open-pull-requests-limit: 20
