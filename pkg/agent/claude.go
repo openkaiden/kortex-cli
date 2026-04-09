@@ -108,6 +108,11 @@ func (c *claudeAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 	return settings, nil
 }
 
+// SkillsDir returns the container path under which skill directories are mounted for Claude Code.
+func (c *claudeAgent) SkillsDir() string {
+	return "$HOME/.claude/skills"
+}
+
 // SetModel configures the model ID in Claude settings.
 // It sets the model field in .claude/settings.json.
 // All other fields in the settings file are preserved.

@@ -309,3 +309,12 @@ func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
 		t.Errorf("%s = %v, want false", gooseTelemetryKey, val)
 	}
 }
+
+func TestGoose_SkillsDir(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	if got := agent.SkillsDir(); got != "$HOME/.agents/skills" {
+		t.Errorf("SkillsDir() = %q, want %q", got, "$HOME/.agents/skills")
+	}
+}

@@ -204,7 +204,7 @@ type Logger interface {
 
 ### Config System
 
-The config system manages workspace configuration for **injecting environment variables and mounting directories** into workspaces (different from runtime-specific configuration).
+The config system manages workspace configuration for **injecting environment variables, mounting directories, and providing skills** into workspaces (different from runtime-specific configuration).
 
 **Multi-Level Configuration:**
 - **Workspace-level** (`.kaiden/workspace.json`) - Project configuration, set via `--workspace-configuration` flag
@@ -239,13 +239,25 @@ The Podman runtime supports runtime-specific configuration for **building and co
 **For Podman runtime configuration details, use:** `/working-with-podman-runtime-config`
 
 ### Skills System
+
 Skills are reusable capabilities that can be discovered and executed by AI agents:
+
 - **Location**: `skills/<skill-name>/SKILL.md`
 - **Claude support**: Skills are symlinked in `.claude/skills/` for Claude Code
 - **Format**: Each SKILL.md contains:
   - YAML frontmatter with `name`, `description`, `argument-hint`
   - Detailed instructions for execution
   - Usage examples
+
+Skills can be provided to workspaces via the `skills` field in `workspace.json` (or any other config level). Each entry is the path to a single skill directory on the host. kdn mounts it read-only into the agent's skills directory inside the container using the directory's basename as the skill name:
+
+| Agent | Container skills directory |
+|-------|--------------------------|
+| Claude Code | `$HOME/.claude/skills/` |
+| Goose | `$HOME/.agents/skills/` |
+| Cursor | `$HOME/.cursor/skills/` |
+
+The `Agent` interface (`pkg/agent/agent.go`) exposes `SkillsDir() string` which returns the container path (using the `$HOME` variable) where skill directories should be mounted. The manager calls this during `Add()` to convert `WorkspaceConfig.Skills` entries into `workspace.Mount` entries before passing the config to the runtime.
 
 ### Adding a New Skill
 1. Create directory: `skills/<skill-name>/`

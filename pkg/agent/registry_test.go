@@ -40,6 +40,10 @@ func (f *fakeAgent) SetModel(settings map[string][]byte, _ string) (map[string][
 	return settings, nil
 }
 
+func (f *fakeAgent) SkillsDir() string {
+	return ""
+}
+
 func TestNewRegistry(t *testing.T) {
 	t.Parallel()
 

@@ -34,4 +34,8 @@ type Agent interface {
 	// If the agent does not support model configuration, settings are returned unchanged.
 	// Returns the modified settings map, or an error if modification fails.
 	SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error)
+	// SkillsDir returns the container path (using $HOME variable) under which skill
+	// directories should be mounted (e.g., "$HOME/.claude/skills" for Claude Code).
+	// Returns "" if the agent does not support skills mounting.
+	SkillsDir() string
 }

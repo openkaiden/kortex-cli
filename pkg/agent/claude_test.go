@@ -493,3 +493,12 @@ func TestClaude_SetModel_OverwritesExistingModel(t *testing.T) {
 		t.Errorf("otherField = %v, want true", config["otherField"])
 	}
 }
+
+func TestClaude_SkillsDir(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	if got := agent.SkillsDir(); got != "$HOME/.claude/skills" {
+		t.Errorf("SkillsDir() = %q, want %q", got, "$HOME/.claude/skills")
+	}
+}

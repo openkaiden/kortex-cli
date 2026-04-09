@@ -81,6 +81,11 @@ func (g *gooseAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[s
 	return settings, nil
 }
 
+// SkillsDir returns the container path under which skill directories are mounted for Goose.
+func (g *gooseAgent) SkillsDir() string {
+	return "$HOME/.agents/skills"
+}
+
 // SetModel configures the model ID in Goose settings.
 // It sets the GOOSE_MODEL key in the config file.
 // All other fields in the settings file are preserved.

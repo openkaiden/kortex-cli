@@ -66,6 +66,9 @@ func (m *merger) Merge(base, override *workspace.WorkspaceConfiguration) *worksp
 	// Merge mounts
 	result.Mounts = mergeMounts(base.Mounts, override.Mounts)
 
+	// Merge skills
+	result.Skills = mergeSkills(base.Skills, override.Skills)
+
 	return result
 }
 
@@ -157,6 +160,34 @@ func mergeMounts(base, override *[]workspace.Mount) *[]workspace.Mount {
 	return &result
 }
 
+// mergeSkills merges skills slices, deduplicating by path value.
+// Skills from base come first; skills from override are appended if not already present.
+func mergeSkills(base, override *[]string) *[]string {
+	if base == nil && override == nil {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, slice := range []*[]string{base, override} {
+		if slice == nil {
+			continue
+		}
+		for _, s := range *slice {
+			if !seen[s] {
+				seen[s] = true
+				result = append(result, s)
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return &result
+}
+
 // copyConfig creates a deep copy of a WorkspaceConfiguration
 func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfiguration {
 	if cfg == nil {
@@ -179,6 +210,13 @@ func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfi
 			mountsCopy[i] = deepCopyMount(m)
 		}
 		result.Mounts = &mountsCopy
+	}
+
+	// Copy skills
+	if cfg.Skills != nil {
+		skillsCopy := make([]string, len(*cfg.Skills))
+		copy(skillsCopy, *cfg.Skills)
+		result.Skills = &skillsCopy
 	}
 
 	return result

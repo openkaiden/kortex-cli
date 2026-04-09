@@ -204,6 +204,7 @@ func (g *fakeSequentialGenerator) Generate() string {
 // trackingAgent is a test double for the Agent interface that tracks method calls
 type trackingAgent struct {
 	name                   string
+	skillsDir              string
 	skipOnboardingCalled   bool
 	skipOnboardingSettings map[string][]byte
 	skipOnboardingPath     string
@@ -218,6 +219,10 @@ var _ agent.Agent = (*trackingAgent)(nil)
 
 func newTrackingAgent(name string) *trackingAgent {
 	return &trackingAgent{name: name}
+}
+
+func newTrackingAgentWithSkillsDir(name, skillsDir string) *trackingAgent {
+	return &trackingAgent{name: name, skillsDir: skillsDir}
 }
 
 func (t *trackingAgent) Name() string {
@@ -266,6 +271,10 @@ func (t *trackingAgent) WasSkipOnboardingCalled() bool {
 	return t.skipOnboardingCalled
 }
 
+func (t *trackingAgent) SkillsDir() string {
+	return t.skillsDir
+}
+
 // erroringSetModelAgent is a test double that returns an error from SetModel
 type erroringSetModelAgent struct {
 	name string
@@ -291,6 +300,10 @@ func (e *erroringSetModelAgent) SkipOnboarding(settings map[string][]byte, _ str
 
 func (e *erroringSetModelAgent) SetModel(_ map[string][]byte, _ string) (map[string][]byte, error) {
 	return nil, errors.New("simulated SetModel error")
+}
+
+func (e *erroringSetModelAgent) SkillsDir() string {
+	return ""
 }
 
 // newTestRegistry creates a runtime registry with a fake runtime for testing
@@ -3526,4 +3539,183 @@ func TestManager_Stop_RejectsInvalidState(t *testing.T) {
 			}
 		})
 	}
+}
+
+// spyRuntime is a test double for runtime.Runtime that captures the params passed to Create.
+type spyRuntime struct {
+	wrapped          runtime.Runtime
+	lastCreateParams runtime.CreateParams
+	mu               sync.Mutex
+}
+
+var _ runtime.Runtime = (*spyRuntime)(nil)
+
+func newSpyRuntime(wrapped runtime.Runtime) *spyRuntime {
+	return &spyRuntime{wrapped: wrapped}
+}
+
+func (s *spyRuntime) Type() string { return s.wrapped.Type() }
+
+func (s *spyRuntime) WorkspaceSourcesPath() string { return s.wrapped.WorkspaceSourcesPath() }
+
+func (s *spyRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
+	s.mu.Lock()
+	s.lastCreateParams = params
+	s.mu.Unlock()
+	return s.wrapped.Create(ctx, params)
+}
+
+func (s *spyRuntime) Start(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+	return s.wrapped.Start(ctx, id)
+}
+
+func (s *spyRuntime) Stop(ctx context.Context, id string) error { return s.wrapped.Stop(ctx, id) }
+
+func (s *spyRuntime) Remove(ctx context.Context, id string) error {
+	return s.wrapped.Remove(ctx, id)
+}
+
+func (s *spyRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+	return s.wrapped.Info(ctx, id)
+}
+
+func (s *spyRuntime) LastCreateParams() runtime.CreateParams {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastCreateParams
+}
+
+func TestManager_Add_ConvertsSkillsToMounts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("skills are converted to mounts using agent SkillsDir", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		spy := newSpyRuntime(fake.New())
+		if err := manager.RegisterRuntime(spy); err != nil {
+			t.Fatalf("Failed to register spy runtime: %v", err)
+		}
+
+		trackingAgent := newTrackingAgentWithSkillsDir("test-agent", "$HOME/.claude/skills")
+		if err := manager.RegisterAgent("test-agent", trackingAgent); err != nil {
+			t.Fatalf("Failed to register tracking agent: %v", err)
+		}
+
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		skillsPath := "/absolute/path/to/skills"
+		workspaceCfg := &workspace.WorkspaceConfiguration{
+			Skills: &[]string{skillsPath},
+		}
+
+		_, err = manager.Add(context.Background(), AddOptions{
+			Instance:        inst,
+			RuntimeType:     "fake",
+			Agent:           "test-agent",
+			WorkspaceConfig: workspaceCfg,
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		params := spy.LastCreateParams()
+		if params.WorkspaceConfig == nil || params.WorkspaceConfig.Mounts == nil {
+			t.Fatal("Expected mounts to be set in CreateParams")
+		}
+
+		mounts := *params.WorkspaceConfig.Mounts
+		if len(mounts) != 1 {
+			t.Fatalf("Expected 1 mount, got %d: %v", len(mounts), mounts)
+		}
+
+		if mounts[0].Host != skillsPath {
+			t.Errorf("Mount host = %q, want %q", mounts[0].Host, skillsPath)
+		}
+		wantTarget := "$HOME/.claude/skills/skills"
+		if mounts[0].Target != wantTarget {
+			t.Errorf("Mount target = %q, want %q", mounts[0].Target, wantTarget)
+		}
+		if mounts[0].Ro == nil || !*mounts[0].Ro {
+			t.Error("Expected mount to be read-only")
+		}
+	})
+
+	t.Run("skills are not converted when agent has no SkillsDir", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		spy := newSpyRuntime(fake.New())
+		if err := manager.RegisterRuntime(spy); err != nil {
+			t.Fatalf("Failed to register spy runtime: %v", err)
+		}
+
+		trackingAgent := newTrackingAgentWithSkillsDir("test-agent", "")
+		if err := manager.RegisterAgent("test-agent", trackingAgent); err != nil {
+			t.Fatalf("Failed to register tracking agent: %v", err)
+		}
+
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		workspaceCfg := &workspace.WorkspaceConfiguration{
+			Skills: &[]string{"/some/skills"},
+		}
+
+		_, err = manager.Add(context.Background(), AddOptions{
+			Instance:        inst,
+			RuntimeType:     "fake",
+			Agent:           "test-agent",
+			WorkspaceConfig: workspaceCfg,
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		params := spy.LastCreateParams()
+		if params.WorkspaceConfig != nil && params.WorkspaceConfig.Mounts != nil {
+			t.Errorf("Expected no mounts when agent has empty SkillsDir, got %v", *params.WorkspaceConfig.Mounts)
+		}
+	})
 }

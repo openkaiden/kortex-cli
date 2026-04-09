@@ -66,11 +66,20 @@ type config struct {
 // Compile-time check to ensure config implements Config interface
 var _ Config = (*config)(nil)
 
-// isValidHostPath returns true if the host path is a native OS absolute path or starts with $SOURCES or $HOME.
-// Uses filepath.IsAbs so that only paths valid on the current OS are accepted
-// (e.g. "C:\foo" on Windows, "/foo" on Unix).
-func isValidHostPath(p string) bool {
-	return filepath.IsAbs(p) || strings.HasPrefix(p, "$SOURCES") || strings.HasPrefix(p, "$HOME")
+// isValidHostPath returns true if the host path is a native OS absolute path or starts with
+// one of the allowed variable prefixes. Variables should be provided without the leading "$"
+// (e.g. "HOME", "SOURCES"). Uses filepath.IsAbs so that only paths valid on the current OS
+// are accepted (e.g. "C:\foo" on Windows, "/foo" on Unix).
+func isValidHostPath(p string, variables []string) bool {
+	if filepath.IsAbs(p) {
+		return true
+	}
+	for _, v := range variables {
+		if strings.HasPrefix(p, "$"+v) {
+			return true
+		}
+	}
+	return false
 }
 
 // isValidTargetPath returns true if the container target path is a Unix absolute path or starts with $SOURCES or $HOME.
@@ -159,7 +168,7 @@ func (c *config) validate(cfg *workspace.WorkspaceConfiguration) error {
 			if m.Target == "" {
 				return fmt.Errorf("%w: mount at index %d is missing target", ErrInvalidConfig, i)
 			}
-			if !isValidHostPath(m.Host) {
+			if !isValidHostPath(m.Host, []string{"SOURCES", "HOME"}) {
 				return fmt.Errorf("%w: mount host %q (index %d) must be a native absolute path or start with $SOURCES or $HOME", ErrInvalidConfig, m.Host, i)
 			}
 			if !isValidTargetPath(m.Target) {
@@ -167,6 +176,18 @@ func (c *config) validate(cfg *workspace.WorkspaceConfiguration) error {
 			}
 			if err := checkTargetEscape(m.Target); err != nil {
 				return fmt.Errorf("%w: %s (index %d)", ErrInvalidConfig, err, i)
+			}
+		}
+	}
+
+	// Validate skills
+	if cfg.Skills != nil {
+		for i, s := range *cfg.Skills {
+			if s == "" {
+				return fmt.Errorf("%w: skills path at index %d is empty", ErrInvalidConfig, i)
+			}
+			if !isValidHostPath(s, []string{"HOME"}) {
+				return fmt.Errorf("%w: skills path %q (index %d) must be a native absolute path or start with $HOME", ErrInvalidConfig, s, i)
 			}
 		}
 	}

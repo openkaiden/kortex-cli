@@ -411,3 +411,12 @@ func TestCursor_SetModel_InvalidJSON(t *testing.T) {
 		t.Fatal("Expected error for invalid JSON")
 	}
 }
+
+func TestCursor_SkillsDir(t *testing.T) {
+	t.Parallel()
+
+	agent := NewCursor()
+	if got := agent.SkillsDir(); got != "$HOME/.cursor/skills" {
+		t.Errorf("SkillsDir() = %q, want %q", got, "$HOME/.cursor/skills")
+	}
+}

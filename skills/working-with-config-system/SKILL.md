@@ -1,6 +1,6 @@
 ---
 name: working-with-config-system
-description: Guide to workspace configuration for environment variables and mount points at multiple levels
+description: Guide to workspace configuration for environment variables, mount points, and skills at multiple levels
 argument-hint: ""
 ---
 
@@ -11,6 +11,7 @@ The config system manages **workspace configuration** for injecting environment 
 **What this config system controls:**
 - Environment variables to inject into workspace containers/VMs
 - Additional directories to mount, with explicit host and container paths
+- Skills directories to provide to agents inside the workspace
 
 **What this does NOT control:**
 - Runtime-specific settings (e.g., Podman container image, packages to install)
@@ -119,6 +120,10 @@ The `workspace.json` file controls what gets injected into the workspace:
     {"host": "$HOME/.ssh", "target": "$HOME/.ssh", "ro": true},
     {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig", "ro": true},
     {"host": "/absolute/path/to/data", "target": "/workspace/data", "ro": true}
+  ],
+  "skills": [
+    "/absolute/path/to/commit-skill",
+    "$HOME/review-skill"
   ]
 }
 ```
@@ -145,6 +150,11 @@ kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
   - `ro` - If `true`, mount is read-only (optional, defaults to read-write)
   - `$SOURCES` expands to the workspace sources directory on host, `/workspace/sources` in container
   - `$HOME` expands to the user's home directory on host, `/home/<container-user>` in container
+- `skills` - List of skill directories to provide to the agent (optional)
+  - Each entry is a path to a single skill directory on the host (containing a `SKILL.md` and related files)
+  - Paths must be absolute or start with `$HOME` (`$SOURCES` is not supported)
+  - Each directory is mounted read-only into the agent's skills directory using the directory's basename as the skill name
+  - The target path is agent-specific (e.g., `$HOME/.claude/skills/<basename>/` for Claude Code)
 
 ### Agent Configuration (`agents.json`)
 
@@ -253,6 +263,12 @@ if workspaceCfg.Mounts != nil {
         // Use m.Host, m.Target, m.Ro
     }
 }
+
+if workspaceCfg.Skills != nil {
+    for _, s := range *workspaceCfg.Skills {
+        // Use s (host path to skill directory)
+    }
+}
 ```
 
 ## Using the Multi-Level Config System
@@ -278,13 +294,15 @@ The Manager's `Add()` method:
 4. Merges configs: workspace → global → project → agent
 5. Calls agent's `SkipOnboarding()` if agent is registered
 6. Calls agent's `SetModel()` if model is specified (takes precedence over settings)
-7. Passes merged config to runtime for injection into workspace
+7. Converts `Skills` entries into `Mounts` using the agent's `SkillsDir()` (agent-specific target path)
+8. Passes merged config to runtime for injection into workspace
 
 ## Merging Behavior
 
 - **Environment variables**: Later configs override earlier ones by name
   - If the same variable appears in multiple configs, the one from the higher-precedence config wins
 - **Mounts**: Deduplicated by `host`+`target` pair (preserves order, removes duplicates)
+- **Skills**: Deduplicated by path value (preserves order, base skills first then override)
 
 **Example Merge Flow:**
 
@@ -334,6 +352,12 @@ The `Load()` method automatically validates the configuration and returns `ErrIn
 - Relative paths (e.g., `../foo`) are not allowed
 - `$SOURCES`-based container targets must not escape above `/workspace`
 - `$HOME`-based container targets must not escape above `/home/<container-user>`
+
+### Skills
+
+- Each entry cannot be empty
+- Each path must be an absolute path or start with `$HOME` (`$SOURCES` is not supported)
+- Duplicate paths (within or across config levels) are deduplicated by the merger
 
 ## Error Handling
 

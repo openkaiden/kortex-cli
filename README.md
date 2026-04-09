@@ -1394,7 +1394,7 @@ Configuration changes take effect when you **register a new workspace with `init
 
 ## Workspace Configuration
 
-Each workspace can optionally include a configuration file that customizes the environment and mount behavior for that specific workspace. The configuration is stored in a `workspace.json` file within the workspace's configuration directory (typically `.kaiden` in the sources directory).
+Each workspace can optionally include a configuration file that customizes the environment, mount, and skills behavior for that specific workspace. The configuration is stored in a `workspace.json` file within the workspace's configuration directory (typically `.kaiden` in the sources directory).
 
 ### Configuration File Location
 
@@ -1425,6 +1425,10 @@ The `workspace.json` file uses a nested JSON structure:
     {"host": "$SOURCES/../main", "target": "$SOURCES/../main"},
     {"host": "$HOME/.ssh", "target": "$HOME/.ssh"},
     {"host": "/absolute/path/to/data", "target": "/workspace/data"}
+  ],
+  "skills": [
+    "/absolute/path/to/commit-skill",
+    "$HOME/review-skill"
   ]
 }
 ```
@@ -1500,6 +1504,49 @@ Paths can also be absolute (e.g., `/absolute/path`).
 - Each path must be absolute or start with `$SOURCES` or `$HOME`
 - `$SOURCES`-based container targets must not escape above `/workspace`
 - `$HOME`-based container targets must not escape above `/home/agent`
+
+### Skills
+
+Configure skill directories to make available to the agent inside the workspace.
+
+Each entry is a path to a directory on the host that contains a single skill — a `SKILL.md` file and any related files. The directory is mounted read-only inside the agent's skills directory using the directory's basename as the skill name, allowing the agent to discover and use it.
+
+**Structure:**
+```json
+{
+  "skills": [
+    "/absolute/path/to/commit-skill",
+    "$HOME/review-skill"
+  ]
+}
+```
+
+**Fields:**
+- Each entry is a path to a host directory containing a single skill (`SKILL.md` and related files)
+
+**Path Variables:**
+
+Skills paths support the following variables:
+- `$HOME` - Expands to the user's home directory on the host
+
+Paths can also be absolute (e.g., `/absolute/path/to/commit-skill`).
+
+**Mount targets per agent:**
+
+Each skill directory is mounted read-only under the agent's skills directory inside the container. The subdirectory name matches the basename of the host path:
+
+| Agent | Mount target |
+|-------|-------------|
+| Claude Code | `~/.claude/skills/<basename>/` |
+| Goose | `~/.agents/skills/<basename>/` |
+| Cursor | `~/.cursor/skills/<basename>/` |
+
+For example, a skills path of `/home/user/commit-skill` is mounted at `~/.claude/skills/commit-skill/` for Claude Code, making the skill discoverable by the agent.
+
+**Validation Rules:**
+- Each path cannot be empty
+- Each path must be an absolute path or start with `$HOME`
+- `$SOURCES`-based paths are not supported for skills
 
 ### Configuration Validation
 

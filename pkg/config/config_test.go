@@ -1071,4 +1071,144 @@ func TestConfig_Load(t *testing.T) {
 			t.Errorf("Expected 3 mounts, got %d", len(*workspaceCfg.Mounts))
 		}
 	})
+
+	t.Run("rejects skills path that is empty", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, ".kaiden")
+
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			t.Fatalf("os.MkdirAll() failed: %v", err)
+		}
+
+		workspaceJSON := `{
+  "skills": [""]
+}`
+		workspacePath := filepath.Join(configDir, WorkspaceConfigFile)
+		err = os.WriteFile(workspacePath, []byte(workspaceJSON), 0644)
+		if err != nil {
+			t.Fatalf("os.WriteFile() failed: %v", err)
+		}
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		_, err = cfg.Load()
+		if err == nil {
+			t.Fatal("Expected error for empty skills path, got nil")
+		}
+		if !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("Expected ErrInvalidConfig, got %v", err)
+		}
+	})
+
+	t.Run("rejects skills path that is relative", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, ".kaiden")
+
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			t.Fatalf("os.MkdirAll() failed: %v", err)
+		}
+
+		workspaceJSON := `{
+  "skills": ["relative/path/to/skills"]
+}`
+		workspacePath := filepath.Join(configDir, WorkspaceConfigFile)
+		err = os.WriteFile(workspacePath, []byte(workspaceJSON), 0644)
+		if err != nil {
+			t.Fatalf("os.WriteFile() failed: %v", err)
+		}
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		_, err = cfg.Load()
+		if err == nil {
+			t.Fatal("Expected error for relative skills path, got nil")
+		}
+		if !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("Expected ErrInvalidConfig, got %v", err)
+		}
+	})
+
+	t.Run("rejects skills path starting with $SOURCES", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, ".kaiden")
+
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			t.Fatalf("os.MkdirAll() failed: %v", err)
+		}
+
+		workspaceJSON := `{
+  "skills": ["$SOURCES/skills"]
+}`
+		workspacePath := filepath.Join(configDir, WorkspaceConfigFile)
+		err = os.WriteFile(workspacePath, []byte(workspaceJSON), 0644)
+		if err != nil {
+			t.Fatalf("os.WriteFile() failed: %v", err)
+		}
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		_, err = cfg.Load()
+		if err == nil {
+			t.Fatal("Expected error for $SOURCES skills path, got nil")
+		}
+		if !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("Expected ErrInvalidConfig, got %v", err)
+		}
+	})
+
+	t.Run("accepts valid skills paths", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, ".kaiden")
+
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			t.Fatalf("os.MkdirAll() failed: %v", err)
+		}
+
+		workspaceJSON := fmt.Sprintf(`{
+  "skills": ["%s", "$HOME/my-skills"]
+}`, filepath.ToSlash(tempDir))
+		workspacePath := filepath.Join(configDir, WorkspaceConfigFile)
+		err = os.WriteFile(workspacePath, []byte(workspaceJSON), 0644)
+		if err != nil {
+			t.Fatalf("os.WriteFile() failed: %v", err)
+		}
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		workspaceCfg, err := cfg.Load()
+		if err != nil {
+			t.Fatalf("Load() failed: %v", err)
+		}
+
+		if workspaceCfg.Skills == nil {
+			t.Fatal("Expected skills to be non-nil")
+		}
+		if len(*workspaceCfg.Skills) != 2 {
+			t.Errorf("Expected 2 skills, got %d", len(*workspaceCfg.Skills))
+		}
+	})
 }

@@ -540,3 +540,79 @@ func TestMerger_Merge_EmptyConfigurations(t *testing.T) {
 func strPtr(s string) *string {
 	return &s
 }
+
+func TestMergeSkills(t *testing.T) {
+	t.Parallel()
+
+	t.Run("both nil returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		result := mergeSkills(nil, nil)
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("base nil returns copy of override", func(t *testing.T) {
+		t.Parallel()
+
+		override := &[]string{"/path/a", "/path/b"}
+		result := mergeSkills(nil, override)
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if len(*result) != 2 {
+			t.Errorf("Expected 2 skills, got %d", len(*result))
+		}
+		if (*result)[0] != "/path/a" || (*result)[1] != "/path/b" {
+			t.Errorf("Unexpected skills: %v", *result)
+		}
+	})
+
+	t.Run("override nil returns copy of base", func(t *testing.T) {
+		t.Parallel()
+
+		base := &[]string{"/path/a", "/path/b"}
+		result := mergeSkills(base, nil)
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if len(*result) != 2 {
+			t.Errorf("Expected 2 skills, got %d", len(*result))
+		}
+	})
+
+	t.Run("no overlap combines all", func(t *testing.T) {
+		t.Parallel()
+
+		base := &[]string{"/path/a"}
+		override := &[]string{"/path/b"}
+		result := mergeSkills(base, override)
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if len(*result) != 2 {
+			t.Errorf("Expected 2 skills, got %d", len(*result))
+		}
+		if (*result)[0] != "/path/a" || (*result)[1] != "/path/b" {
+			t.Errorf("Unexpected skills order: %v", *result)
+		}
+	})
+
+	t.Run("duplicates are deduplicated", func(t *testing.T) {
+		t.Parallel()
+
+		base := &[]string{"/path/a", "/path/b"}
+		override := &[]string{"/path/b", "/path/c"}
+		result := mergeSkills(base, override)
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if len(*result) != 3 {
+			t.Errorf("Expected 3 skills, got %d: %v", len(*result), *result)
+		}
+		if (*result)[0] != "/path/a" || (*result)[1] != "/path/b" || (*result)[2] != "/path/c" {
+			t.Errorf("Unexpected skills: %v", *result)
+		}
+	})
+}

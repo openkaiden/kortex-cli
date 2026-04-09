@@ -69,6 +69,11 @@ func (c *cursorAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 	return settings, nil
 }
 
+// SkillsDir returns the container path under which skill directories are mounted for Cursor.
+func (c *cursorAgent) SkillsDir() string {
+	return "$HOME/.cursor/skills"
+}
+
 // SetModel configures the model ID in Cursor settings.
 // It sets the model object in cli-config.json with the specified model ID.
 // All other fields in the settings file are preserved.
