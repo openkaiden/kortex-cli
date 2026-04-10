@@ -175,7 +175,7 @@ All runtimes must return valid WorkspaceState values in `RuntimeInfo.State`. The
 
 ### Valid States
 
-The following four states are the only valid values (defined in `github.com/kortex-hub/kortex-cli-api/cli/go`):
+The following four states are the only valid values (defined in `github.com/openkaiden/kdn-api/cli/go`):
 
 - **`running`** - The instance is actively running
 - **`stopped`** - The instance is created but not running

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	api "github.com/kortex-hub/kortex-cli-api/cli/go"
+	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/steplogger"

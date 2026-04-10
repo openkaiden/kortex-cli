@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	api "github.com/kortex-hub/kortex-cli-api/cli/go"
+	api "github.com/openkaiden/kdn-api/cli/go"
 )
 
 var (

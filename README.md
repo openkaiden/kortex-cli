@@ -1600,7 +1600,7 @@ mount at index 0 is missing host
 - The configuration file is validated only when it exists
 - Validation errors are caught early during workspace registration (`init` command)
 - All validation rules are enforced to prevent runtime errors
-- The configuration model is imported from the `github.com/kortex-hub/kortex-cli-api/workspace-configuration/go` package for consistency across tools
+- The configuration model is imported from the `github.com/openkaiden/kdn-api/workspace-configuration/go` package for consistency across tools
 
 ## Multi-Level Configuration
 

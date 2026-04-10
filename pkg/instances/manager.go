@@ -25,8 +25,8 @@ import (
 	"strings"
 	"sync"
 
-	api "github.com/kortex-hub/kortex-cli-api/cli/go"
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	api "github.com/openkaiden/kdn-api/cli/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/generator"

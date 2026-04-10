@@ -27,7 +27,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	api "github.com/kortex-hub/kortex-cli-api/cli/go"
+	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"

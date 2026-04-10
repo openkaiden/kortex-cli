@@ -34,10 +34,10 @@ package <runtime-name>
 import (
     "context"
     "fmt"
-    api "github.com/kortex-hub/kortex-cli-api/cli/go"
     "github.com/openkaiden/kdn/pkg/runtime"
     "github.com/openkaiden/kdn/pkg/logger"  // Optional: only if executing external commands
     "github.com/openkaiden/kdn/pkg/steplogger"
+    api "github.com/openkaiden/kdn-api/cli/go"
 )
 
 type <runtime-name>Runtime struct {

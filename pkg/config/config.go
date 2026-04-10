@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"strings"
 
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 const (

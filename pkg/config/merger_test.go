@@ -17,7 +17,7 @@ package config
 import (
 	"testing"
 
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 func TestMerger_Merge_NilInputs(t *testing.T) {
