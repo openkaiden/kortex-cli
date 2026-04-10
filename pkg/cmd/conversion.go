@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 
-	api "github.com/kortex-hub/kortex-cli-api/cli/go"
+	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/instances"
 )
 

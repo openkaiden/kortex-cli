@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	api "github.com/kortex-hub/kortex-cli-api/cli/go"
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	api "github.com/openkaiden/kdn-api/cli/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 // Runtime manages the lifecycle of workspace instances in a specific execution environment.

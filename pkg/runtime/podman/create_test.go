@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"

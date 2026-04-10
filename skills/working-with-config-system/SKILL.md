@@ -220,7 +220,7 @@ Project-specific and global settings for environment variables and mounts:
 ```go
 import (
     "github.com/openkaiden/kdn/pkg/config"
-    workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+    workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 // Create a config manager for a workspace

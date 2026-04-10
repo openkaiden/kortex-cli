@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agentsetup"
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/instances"

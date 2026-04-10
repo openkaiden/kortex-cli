@@ -15,7 +15,7 @@
 package config
 
 import (
-	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 // Merger merges multiple WorkspaceConfiguration objects with proper precedence rules.
