@@ -3662,6 +3662,58 @@ func TestManager_Add_ConvertsSkillsToMounts(t *testing.T) {
 		}
 	})
 
+	t.Run("duplicate skill basenames produce an error", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		spy := newSpyRuntime(fake.New())
+		if err := manager.RegisterRuntime(spy); err != nil {
+			t.Fatalf("Failed to register spy runtime: %v", err)
+		}
+
+		trackingAgent := newTrackingAgentWithSkillsDir("test-agent", "$HOME/.claude/skills")
+		if err := manager.RegisterAgent("test-agent", trackingAgent); err != nil {
+			t.Fatalf("Failed to register tracking agent: %v", err)
+		}
+
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		workspaceCfg := &workspace.WorkspaceConfiguration{
+			Skills: &[]string{"/path/one/my-skill", "/path/two/my-skill"},
+		}
+
+		_, err = manager.Add(context.Background(), AddOptions{
+			Instance:        inst,
+			RuntimeType:     "fake",
+			Agent:           "test-agent",
+			WorkspaceConfig: workspaceCfg,
+		})
+		if err == nil {
+			t.Fatal("Expected Add() to return an error for duplicate skill targets, got nil")
+		}
+	})
+
 	t.Run("skills are not converted when agent has no SkillsDir", func(t *testing.T) {
 		t.Parallel()
 
