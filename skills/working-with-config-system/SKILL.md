@@ -77,7 +77,7 @@ The `--model` flag takes precedence over any model already defined in the settin
 - **AgentConfigLoader** (`pkg/config/agents.go`): Loads agent-specific configuration
 - **ProjectConfigLoader** (`pkg/config/projects.go`): Loads project and global configuration
 - **Manager Integration** (`pkg/instances/manager.go`): Handles config loading and merging during instance creation
-- **WorkspaceConfiguration Model**: Imported from `github.com/kortex-hub/kortex-cli-api/workspace-configuration/go`
+- **WorkspaceConfiguration Model**: Imported from `github.com/openkaiden/kdn-api/workspace-configuration/go`
 
 ## Configuration File Locations
 
