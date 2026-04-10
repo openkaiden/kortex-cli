@@ -204,7 +204,7 @@ Project-specific and global settings for environment variables and mounts:
       }
     ],
     "mounts": [
-      {"host": "$SOURCES/../kortex-common", "target": "$SOURCES/../kortex-common"}
+      {"host": "$SOURCES/../kaiden-common", "target": "$SOURCES/../kaiden-common"}
     ]
   },
   "/home/user/my/project": {

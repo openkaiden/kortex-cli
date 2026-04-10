@@ -1063,14 +1063,14 @@ The storage directory is determined in the following order (highest to lowest pr
 
 ```bash
 # Set a custom storage directory
-export KDN_STORAGE=/var/lib/kortex
+export KDN_STORAGE=/var/lib/kaiden
 
 # All commands will use this storage directory
 kdn init /path/to/project --runtime podman --agent claude
 kdn list
 
 # Override the environment variable with the flag
-kdn list --storage /tmp/kortex-storage
+kdn list --storage /tmp/kaiden-storage
 ```
 
 ### `KDN_INIT_AUTO_START`
@@ -1754,7 +1754,7 @@ Each key is an agent name (e.g., `claude`, `goose`). The value uses the same str
       }
     ],
     "mounts": [
-      {"host": "$SOURCES/../kortex-common", "target": "$SOURCES/../kortex-common"}
+      {"host": "$SOURCES/../kaiden-common", "target": "$SOURCES/../kaiden-common"}
     ]
   },
   "/home/user/my/project": {
