@@ -21,6 +21,8 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 const (
@@ -90,4 +92,10 @@ func (o *openCodeAgent) SetModel(settings map[string][]byte, modelID string) (ma
 // SkillsDir returns the container path under which skill directories are mounted for OpenCode.
 func (o *openCodeAgent) SkillsDir() string {
 	return "$HOME/.opencode/skills"
+}
+
+// SetMCPServers returns the settings unchanged, as OpenCode does not support MCP configuration
+// through agent settings files.
+func (o *openCodeAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+	return settings, nil
 }

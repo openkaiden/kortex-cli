@@ -21,6 +21,8 @@ package agent
 import (
 	"encoding/json"
 	"testing"
+
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 func TestOpenCode_Name(t *testing.T) {
@@ -249,4 +251,73 @@ func TestOpenCode_SkillsDir(t *testing.T) {
 	if got := agent.SkillsDir(); got != "$HOME/.opencode/skills" {
 		t.Errorf("SkillsDir() = %q, want %q", got, "$HOME/.opencode/skills")
 	}
+}
+
+func TestOpenCode_SetMCPServers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil MCP returns settings unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := map[string][]byte{
+			OpenCodeConfigPath: []byte(`{"model":"some-model"}`),
+		}
+
+		result, err := agent.SetMCPServers(settings, nil)
+		if err != nil {
+			t.Fatalf("SetMCPServers() error = %v", err)
+		}
+
+		if string(result[OpenCodeConfigPath]) != `{"model":"some-model"}` {
+			t.Errorf("SetMCPServers() with nil MCP modified settings unexpectedly: %s", result[OpenCodeConfigPath])
+		}
+	})
+
+	t.Run("nil settings returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		mcp := &workspace.McpConfiguration{
+			Commands: &[]workspace.McpCommand{
+				{Name: "test", Command: "npx", Args: &[]string{"-y", "test-server"}},
+			},
+		}
+
+		result, err := agent.SetMCPServers(nil, mcp)
+		if err != nil {
+			t.Fatalf("SetMCPServers() error = %v", err)
+		}
+
+		if result != nil {
+			t.Errorf("SetMCPServers() with nil settings should return nil, got %v", result)
+		}
+	})
+
+	t.Run("non-nil MCP returns settings unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := map[string][]byte{
+			OpenCodeConfigPath: []byte(`{"model":"some-model"}`),
+			"some/other/file":  []byte("existing content"),
+		}
+		mcp := &workspace.McpConfiguration{
+			Commands: &[]workspace.McpCommand{
+				{Name: "test", Command: "npx", Args: &[]string{"-y", "test-server"}},
+			},
+		}
+
+		result, err := agent.SetMCPServers(settings, mcp)
+		if err != nil {
+			t.Fatalf("SetMCPServers() error = %v", err)
+		}
+
+		if string(result[OpenCodeConfigPath]) != `{"model":"some-model"}` {
+			t.Errorf("SetMCPServers() modified config unexpectedly: %s", result[OpenCodeConfigPath])
+		}
+		if string(result["some/other/file"]) != "existing content" {
+			t.Errorf("SetMCPServers() modified other settings unexpectedly")
+		}
+	})
 }
