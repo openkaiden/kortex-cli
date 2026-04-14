@@ -215,6 +215,32 @@ func (c *config) validate(cfg *workspace.WorkspaceConfiguration) error {
 		}
 	}
 
+	// Validate secrets
+	if cfg.Secrets != nil {
+		type sKey struct{ typ, name string }
+		seenSecrets := make(map[sKey]int)
+		for i, s := range *cfg.Secrets {
+			if s.Type == "" {
+				return fmt.Errorf("%w: secret at index %d has empty type", ErrInvalidConfig, i)
+			}
+			if s.Value == "" {
+				return fmt.Errorf("%w: secret at index %d has empty value", ErrInvalidConfig, i)
+			}
+			name := ""
+			if s.Name != nil {
+				name = *s.Name
+			}
+			key := sKey{typ: s.Type, name: name}
+			if prevIdx, exists := seenSecrets[key]; exists {
+				if s.Name != nil {
+					return fmt.Errorf("%w: secret with type %q and name %q (index %d) is a duplicate of index %d", ErrInvalidConfig, s.Type, *s.Name, i, prevIdx)
+				}
+				return fmt.Errorf("%w: secret with type %q (index %d) is a duplicate of index %d", ErrInvalidConfig, s.Type, i, prevIdx)
+			}
+			seenSecrets[key] = i
+		}
+	}
+
 	// Validate skills
 	if cfg.Skills != nil {
 		for i, s := range *cfg.Skills {

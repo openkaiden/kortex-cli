@@ -72,6 +72,9 @@ func (m *merger) Merge(base, override *workspace.WorkspaceConfiguration) *worksp
 	// Merge MCP configuration
 	result.Mcp = mergeMCP(base.Mcp, override.Mcp)
 
+	// Merge secrets
+	result.Secrets = mergeSecrets(base.Secrets, override.Secrets)
+
 	return result
 }
 
@@ -186,6 +189,83 @@ func mergeSkills(base, override *[]string) *[]string {
 
 	if len(result) == 0 {
 		return nil
+	}
+	return &result
+}
+
+// deepCopySecret returns a deep copy of s so that its pointer fields do not
+// alias the original.
+func deepCopySecret(s workspace.Secret) workspace.Secret {
+	if s.Header != nil {
+		headerCopy := *s.Header
+		s.Header = &headerCopy
+	}
+	if s.HeaderTemplate != nil {
+		htCopy := *s.HeaderTemplate
+		s.HeaderTemplate = &htCopy
+	}
+	if s.Hosts != nil {
+		hostsCopy := make([]string, len(*s.Hosts))
+		copy(hostsCopy, *s.Hosts)
+		s.Hosts = &hostsCopy
+	}
+	if s.Name != nil {
+		nameCopy := *s.Name
+		s.Name = &nameCopy
+	}
+	if s.Path != nil {
+		pathCopy := *s.Path
+		s.Path = &pathCopy
+	}
+	return s
+}
+
+// secretKey builds the deduplication key for a secret from its (type, name) tuple.
+func secretKey(s workspace.Secret) struct{ typ, name string } {
+	name := ""
+	if s.Name != nil {
+		name = *s.Name
+	}
+	return struct{ typ, name string }{typ: s.Type, name: name}
+}
+
+// mergeSecrets merges secret slices, deduplicating by (type, name) tuple.
+// Secrets from base come first; override entries replace base entries with the
+// same key.
+func mergeSecrets(base, override *[]workspace.Secret) *[]workspace.Secret {
+	if base == nil && override == nil {
+		return nil
+	}
+
+	type sKey = struct{ typ, name string }
+	sMap := make(map[sKey]workspace.Secret)
+	var order []sKey
+
+	if base != nil {
+		for _, s := range *base {
+			key := secretKey(s)
+			sMap[key] = s
+			order = append(order, key)
+		}
+	}
+
+	if override != nil {
+		for _, s := range *override {
+			key := secretKey(s)
+			if _, exists := sMap[key]; !exists {
+				order = append(order, key)
+			}
+			sMap[key] = s
+		}
+	}
+
+	if len(sMap) == 0 {
+		return nil
+	}
+
+	result := make([]workspace.Secret, 0, len(order))
+	for _, key := range order {
+		result = append(result, deepCopySecret(sMap[key]))
 	}
 	return &result
 }
@@ -427,6 +507,15 @@ func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfi
 
 	// Copy MCP configuration
 	result.Mcp = copyMCP(cfg.Mcp)
+
+	// Copy secrets
+	if cfg.Secrets != nil {
+		secretsCopy := make([]workspace.Secret, len(*cfg.Secrets))
+		for i, s := range *cfg.Secrets {
+			secretsCopy[i] = deepCopySecret(s)
+		}
+		result.Secrets = &secretsCopy
+	}
 
 	return result
 }

@@ -1213,6 +1213,126 @@ func TestConfig_Load(t *testing.T) {
 	})
 }
 
+func TestConfig_Load_Secrets_Valid(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	workspaceJSON := `{
+  "secrets": [
+    {"type": "github", "value": "gh-token"},
+    {"type": "slack", "value": "slack-token"},
+    {"type": "other", "name": "api-key", "value": "my-key", "header": "Authorization", "headerTemplate": "Bearer {{value}}", "hosts": ["api.example.com"], "path": "/v1"}
+  ]
+}`
+	err := os.WriteFile(filepath.Join(configDir, WorkspaceConfigFile), []byte(workspaceJSON), 0644)
+	if err != nil {
+		t.Fatalf("os.WriteFile() failed: %v", err)
+	}
+
+	cfg, err := NewConfig(configDir)
+	if err != nil {
+		t.Fatalf("NewConfig() failed: %v", err)
+	}
+
+	workspaceCfg, err := cfg.Load()
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	if workspaceCfg.Secrets == nil || len(*workspaceCfg.Secrets) != 3 {
+		t.Errorf("Expected 3 secrets, got %v", workspaceCfg.Secrets)
+	}
+}
+
+func TestConfig_Load_Secrets_Invalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		json       string
+		wantErrMsg string
+	}{
+		{
+			name:       "secret with empty type",
+			json:       `{"secrets": [{"type": "", "value": "token"}]}`,
+			wantErrMsg: "secret at index 0 has empty type",
+		},
+		{
+			name:       "secret with empty value",
+			json:       `{"secrets": [{"type": "github", "value": ""}]}`,
+			wantErrMsg: "secret at index 0 has empty value",
+		},
+		{
+			name:       "duplicate secrets by type only",
+			json:       `{"secrets": [{"type": "github", "value": "token1"}, {"type": "github", "value": "token2"}]}`,
+			wantErrMsg: "secret with type \"github\" (index 1) is a duplicate of index 0",
+		},
+		{
+			name:       "duplicate secrets by type and name",
+			json:       `{"secrets": [{"type": "other", "name": "key", "value": "val1"}, {"type": "other", "name": "key", "value": "val2"}]}`,
+			wantErrMsg: "secret with type \"other\" and name \"key\" (index 1) is a duplicate of index 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			configDir := t.TempDir()
+			err := os.WriteFile(filepath.Join(configDir, WorkspaceConfigFile), []byte(tt.json), 0644)
+			if err != nil {
+				t.Fatalf("os.WriteFile() failed: %v", err)
+			}
+
+			cfg, err := NewConfig(configDir)
+			if err != nil {
+				t.Fatalf("NewConfig() failed: %v", err)
+			}
+
+			_, err = cfg.Load()
+			if err == nil {
+				t.Fatalf("Expected error containing %q, got nil", tt.wantErrMsg)
+			}
+			if !strings.Contains(err.Error(), tt.wantErrMsg) {
+				t.Errorf("Error %q does not contain %q", err.Error(), tt.wantErrMsg)
+			}
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("Expected ErrInvalidConfig, got %v", err)
+			}
+		})
+	}
+}
+
+func TestConfig_Load_Secrets_SameTypeDifferentNames(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	workspaceJSON := `{
+  "secrets": [
+    {"type": "other", "name": "key-a", "value": "val-a"},
+    {"type": "other", "name": "key-b", "value": "val-b"}
+  ]
+}`
+	err := os.WriteFile(filepath.Join(configDir, WorkspaceConfigFile), []byte(workspaceJSON), 0644)
+	if err != nil {
+		t.Fatalf("os.WriteFile() failed: %v", err)
+	}
+
+	cfg, err := NewConfig(configDir)
+	if err != nil {
+		t.Fatalf("NewConfig() failed: %v", err)
+	}
+
+	workspaceCfg, err := cfg.Load()
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	if workspaceCfg.Secrets == nil || len(*workspaceCfg.Secrets) != 2 {
+		t.Errorf("Expected 2 secrets with same type but different names, got %v", workspaceCfg.Secrets)
+	}
+}
+
 func TestConfig_Load_MCP_Valid(t *testing.T) {
 	t.Parallel()
 
