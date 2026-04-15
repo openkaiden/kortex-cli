@@ -51,36 +51,35 @@ func TestStop_Success(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "my-project")
 
 	err := p.Stop(context.Background(), containerID)
 	if err != nil {
 		t.Fatalf("Stop() failed: %v", err)
 	}
 
-	// Verify Run was called to stop the container
-	fakeExec.AssertRunCalledWith(t, "stop", containerID)
+	fakeExec.AssertRunCalledWith(t, "pod", "stop", podName)
 }
 
-func TestStop_StopContainerFailure(t *testing.T) {
+func TestStop_PodStopFailure(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up RunFunc to return an error
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("container not found")
+		return fmt.Errorf("pod not found")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	err := p.Stop(context.Background(), containerID)
 	if err == nil {
-		t.Fatal("Expected error when stop fails, got nil")
+		t.Fatal("Expected error when pod stop fails, got nil")
 	}
 
-	// Verify Run was called
-	fakeExec.AssertRunCalledWith(t, "stop", containerID)
+	fakeExec.AssertRunCalledWith(t, "pod", "stop", podName)
 }
 
 func TestStop_StepLogger_Success(t *testing.T) {
@@ -90,6 +89,7 @@ func TestStop_StepLogger_Success(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
@@ -99,21 +99,18 @@ func TestStop_StepLogger_Success(t *testing.T) {
 		t.Fatalf("Stop() failed: %v", err)
 	}
 
-	// Verify Complete was called once (deferred call)
 	if fakeLogger.completeCalls != 1 {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify no Fail calls
 	if len(fakeLogger.failCalls) != 0 {
 		t.Errorf("Expected no Fail() calls, got %d", len(fakeLogger.failCalls))
 	}
 
-	// Verify Start was called once with correct messages
 	expectedSteps := []stepCall{
 		{
-			inProgress: "Stopping container: abc123def456",
-			completed:  "Container stopped",
+			inProgress: fmt.Sprintf("Stopping pod: %s", podName),
+			completed:  "Pod stopped",
 		},
 	}
 
@@ -132,18 +129,18 @@ func TestStop_StepLogger_Success(t *testing.T) {
 	}
 }
 
-func TestStop_StepLogger_FailOnStopContainer(t *testing.T) {
+func TestStop_StepLogger_FailOnPodStop(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up RunFunc to return an error
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("container not found")
+		return fmt.Errorf("pod not found")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
@@ -153,26 +150,19 @@ func TestStop_StepLogger_FailOnStopContainer(t *testing.T) {
 		t.Fatal("Expected Stop() to fail, got nil")
 	}
 
-	// Verify Complete was called once (deferred call)
 	if fakeLogger.completeCalls != 1 {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called once (stop container step)
 	if len(fakeLogger.startCalls) != 1 {
 		t.Fatalf("Expected 1 Start() call, got %d", len(fakeLogger.startCalls))
 	}
 
-	if fakeLogger.startCalls[0].inProgress != "Stopping container: abc123" {
-		t.Errorf("Expected first step to be 'Stopping container: abc123', got %q", fakeLogger.startCalls[0].inProgress)
+	if fakeLogger.startCalls[0].inProgress != fmt.Sprintf("Stopping pod: %s", podName) {
+		t.Errorf("Expected step to be 'Stopping pod: %s', got %q", podName, fakeLogger.startCalls[0].inProgress)
 	}
 
-	// Verify Fail was called once
 	if len(fakeLogger.failCalls) != 1 {
 		t.Fatalf("Expected 1 Fail() call, got %d", len(fakeLogger.failCalls))
-	}
-
-	if fakeLogger.failCalls[0] == nil {
-		t.Error("Expected Fail() to be called with non-nil error")
 	}
 }

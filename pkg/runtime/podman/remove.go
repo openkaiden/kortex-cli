@@ -25,22 +25,21 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
-// Remove removes a Podman container and its associated resources.
+// Remove removes the workspace pod and all its containers.
 func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	stepLogger := steplogger.FromContext(ctx)
 	defer stepLogger.Complete()
 
-	// Validate the ID parameter
 	if id == "" {
 		return fmt.Errorf("%w: container ID is required", runtime.ErrInvalidParams)
 	}
 
-	// Check if the container exists and get its state
+	// Check if the workspace container exists and get its state
 	stepLogger.Start("Checking container state", "Container state checked")
 	info, err := p.getContainerInfo(ctx, id)
 	if err != nil {
-		// If the container doesn't exist, treat it as already removed (idempotent)
 		if isNotFoundError(err) {
+			p.cleanupPodFiles(id)
 			return nil
 		}
 		stepLogger.Fail(err)
@@ -54,22 +53,22 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 		return err
 	}
 
-	// Remove the container
-	stepLogger.Start(fmt.Sprintf("Removing container: %s", id), "Container removed")
-	if err := p.removeContainer(ctx, id); err != nil {
-		stepLogger.Fail(err)
-		return err
+	// Resolve the pod name
+	podName, err := p.readPodName(id)
+	if err != nil {
+		return fmt.Errorf("failed to resolve pod name: %w", err)
 	}
 
-	return nil
-}
-
-// removeContainer removes a podman container by ID.
-func (p *podmanRuntime) removeContainer(ctx context.Context, id string) error {
+	// Remove the entire pod and all its containers
+	stepLogger.Start(fmt.Sprintf("Removing pod: %s", podName), "Pod removed")
 	l := logger.FromContext(ctx)
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "rm", id); err != nil {
-		return fmt.Errorf("failed to remove podman container: %w", err)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "rm", "-f", podName); err != nil {
+		stepLogger.Fail(err)
+		return fmt.Errorf("failed to remove pod: %w", err)
 	}
+
+	p.cleanupPodFiles(id)
+
 	return nil
 }
 
@@ -79,7 +78,6 @@ func isNotFoundError(err error) bool {
 		return false
 	}
 	errMsg := err.Error()
-	// Check for podman-specific "not found" error messages
 	return strings.Contains(errMsg, "no such container") ||
 		strings.Contains(errMsg, "no such object") ||
 		strings.Contains(errMsg, "error getting container") ||

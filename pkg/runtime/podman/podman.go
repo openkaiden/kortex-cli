@@ -17,7 +17,9 @@ package podman
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
@@ -85,6 +87,59 @@ func (p *podmanRuntime) Initialize(storageDir string) error {
 	}
 
 	return nil
+}
+
+const (
+	podYAMLFile = "onecli-pod.yaml"
+	podNameFile = "podname"
+)
+
+// podDir returns the directory for storing pod metadata for a given container ID.
+func (p *podmanRuntime) podDir(containerID string) string {
+	return filepath.Join(p.storageDir, "pods", containerID)
+}
+
+// podYAMLPath returns the path to the pod YAML for a given container ID.
+func (p *podmanRuntime) podYAMLPath(containerID string) string {
+	return filepath.Join(p.podDir(containerID), podYAMLFile)
+}
+
+// podNamePath returns the path to the pod name file for a given container ID.
+func (p *podmanRuntime) podNamePath(containerID string) string {
+	return filepath.Join(p.podDir(containerID), podNameFile)
+}
+
+// writePodFiles writes the per-workspace pod YAML and pod name file.
+// The YAML is derived from the embedded template with the pod name set to the workspace name.
+func (p *podmanRuntime) writePodFiles(containerID, workspaceName string) error {
+	dir := p.podDir(containerID)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create pod directory: %w", err)
+	}
+
+	yamlContent := replaceYAMLPodName(workspaceName)
+
+	if err := os.WriteFile(p.podYAMLPath(containerID), yamlContent, 0644); err != nil {
+		return fmt.Errorf("failed to write pod YAML: %w", err)
+	}
+	if err := os.WriteFile(p.podNamePath(containerID), []byte(workspaceName), 0644); err != nil {
+		return fmt.Errorf("failed to write pod name file: %w", err)
+	}
+	return nil
+}
+
+// readPodName reads the pod name for a given container ID from the stored file.
+func (p *podmanRuntime) readPodName(containerID string) (string, error) {
+	data, err := os.ReadFile(p.podNamePath(containerID))
+	if err != nil {
+		return "", fmt.Errorf("failed to read pod name: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// cleanupPodFiles removes the pod metadata directory for a given container ID.
+func (p *podmanRuntime) cleanupPodFiles(containerID string) {
+	os.RemoveAll(p.podDir(containerID))
 }
 
 // ListAgents implements runtime.AgentLister.

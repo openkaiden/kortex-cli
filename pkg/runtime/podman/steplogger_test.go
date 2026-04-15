@@ -15,6 +15,8 @@
 package podman
 
 import (
+	"testing"
+
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
@@ -78,4 +80,17 @@ func (f *fakeConfig) ListAgents() ([]string, error) {
 
 func (f *fakeConfig) GenerateDefaults() error {
 	return nil
+}
+
+// setupPodFiles creates per-container pod files in a temporary storage directory for testing.
+// Returns the pod name that was written.
+func setupPodFiles(t *testing.T, p *podmanRuntime, containerID, workspaceName string) string {
+	t.Helper()
+	if p.storageDir == "" {
+		p.storageDir = t.TempDir()
+	}
+	if err := p.writePodFiles(containerID, workspaceName); err != nil {
+		t.Fatalf("failed to write pod files for test: %v", err)
+	}
+	return workspaceName
 }

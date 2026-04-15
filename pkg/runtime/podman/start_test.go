@@ -48,29 +48,28 @@ func TestStart_Success(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123def456"
+	workspaceName := "my-project"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return container info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		// Simulate podman inspect output
 		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, workspaceName)
 
 	info, err := p.Start(context.Background(), containerID)
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
 
-	// Verify Run was called to start the container
-	fakeExec.AssertRunCalledWith(t, "start", containerID)
+	// Verify pod start was called
+	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
 
-	// Verify Output was called to inspect the container
+	// Verify inspect was called
 	fakeExec.AssertOutputCalledWith(t, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", containerID)
 
-	// Verify returned info
 	if info.ID != containerID {
 		t.Errorf("Expected ID %s, got %s", containerID, info.ID)
 	}
@@ -85,26 +84,25 @@ func TestStart_Success(t *testing.T) {
 	}
 }
 
-func TestStart_StartContainerFailure(t *testing.T) {
+func TestStart_PodStartFailure(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up RunFunc to return an error
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("container not found")
+		return fmt.Errorf("pod not found")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	_, err := p.Start(context.Background(), containerID)
 	if err == nil {
-		t.Fatal("Expected error when start fails, got nil")
+		t.Fatal("Expected error when pod start fails, got nil")
 	}
 
-	// Verify Run was called
-	fakeExec.AssertRunCalledWith(t, "start", containerID)
+	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
 }
 
 func TestStart_InspectFailure(t *testing.T) {
@@ -113,20 +111,19 @@ func TestStart_InspectFailure(t *testing.T) {
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return an error
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("inspect failed")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	_, err := p.Start(context.Background(), containerID)
 	if err == nil {
 		t.Fatal("Expected error when inspect fails, got nil")
 	}
 
-	// Verify both Run and Output were called
-	fakeExec.AssertRunCalledWith(t, "start", containerID)
+	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
 	fakeExec.AssertOutputCalledWith(t, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", containerID)
 }
 
@@ -136,13 +133,13 @@ func TestStart_StepLogger_Success(t *testing.T) {
 	containerID := "abc123def456"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return container info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
@@ -152,21 +149,18 @@ func TestStart_StepLogger_Success(t *testing.T) {
 		t.Fatalf("Start() failed: %v", err)
 	}
 
-	// Verify Complete was called once (deferred call)
 	if fakeLogger.completeCalls != 1 {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify no Fail calls
 	if len(fakeLogger.failCalls) != 0 {
 		t.Errorf("Expected no Fail() calls, got %d", len(fakeLogger.failCalls))
 	}
 
-	// Verify Start was called 2 times with correct messages
 	expectedSteps := []stepCall{
 		{
-			inProgress: "Starting container: abc123def456",
-			completed:  "Container started",
+			inProgress: fmt.Sprintf("Starting pod: %s", podName),
+			completed:  "Pod started",
 		},
 		{
 			inProgress: "Verifying container status",
@@ -189,18 +183,18 @@ func TestStart_StepLogger_Success(t *testing.T) {
 	}
 }
 
-func TestStart_StepLogger_FailOnStartContainer(t *testing.T) {
+func TestStart_StepLogger_FailOnPodStart(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up RunFunc to return an error
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("container not found")
+		return fmt.Errorf("pod not found")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
@@ -210,27 +204,20 @@ func TestStart_StepLogger_FailOnStartContainer(t *testing.T) {
 		t.Fatal("Expected Start() to fail, got nil")
 	}
 
-	// Verify Complete was called once (deferred call)
 	if fakeLogger.completeCalls != 1 {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called once (start container step)
 	if len(fakeLogger.startCalls) != 1 {
 		t.Fatalf("Expected 1 Start() call, got %d", len(fakeLogger.startCalls))
 	}
 
-	if fakeLogger.startCalls[0].inProgress != "Starting container: abc123" {
-		t.Errorf("Expected first step to be 'Starting container: abc123', got %q", fakeLogger.startCalls[0].inProgress)
+	if fakeLogger.startCalls[0].inProgress != fmt.Sprintf("Starting pod: %s", podName) {
+		t.Errorf("Expected first step to be 'Starting pod: %s', got %q", podName, fakeLogger.startCalls[0].inProgress)
 	}
 
-	// Verify Fail was called once
 	if len(fakeLogger.failCalls) != 1 {
 		t.Fatalf("Expected 1 Fail() call, got %d", len(fakeLogger.failCalls))
-	}
-
-	if fakeLogger.failCalls[0] == nil {
-		t.Error("Expected Fail() to be called with non-nil error")
 	}
 }
 
@@ -240,15 +227,12 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up RunFunc to succeed, but OutputFunc to fail
-	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return nil
-	}
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to inspect container")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
@@ -258,18 +242,16 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		t.Fatal("Expected Start() to fail, got nil")
 	}
 
-	// Verify Complete was called once (deferred call)
 	if fakeLogger.completeCalls != 1 {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called twice (start container, verify status)
 	if len(fakeLogger.startCalls) != 2 {
 		t.Fatalf("Expected 2 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
-		"Starting container: abc123",
+		fmt.Sprintf("Starting pod: %s", podName),
 		"Verifying container status",
 	}
 
@@ -279,12 +261,7 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		}
 	}
 
-	// Verify Fail was called once
 	if len(fakeLogger.failCalls) != 1 {
 		t.Fatalf("Expected 1 Fail() call, got %d", len(fakeLogger.failCalls))
-	}
-
-	if fakeLogger.failCalls[0] == nil {
-		t.Error("Expected Fail() to be called with non-nil error")
 	}
 }

@@ -415,9 +415,10 @@ func TestBuildContainerArgs(t *testing.T) {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
 
-		// Verify basic structure
+		// Verify basic structure (includes --pod for single-pod architecture)
 		expectedArgs := []string{
 			"create",
+			"--pod", "test-workspace",
 			"--name", "test-workspace",
 			"-v", fmt.Sprintf("%s:/workspace/sources:Z", sourcePath),
 			"-w", "/workspace/sources",
@@ -696,7 +697,7 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 		t.Errorf("Expected no Fail() calls, got %d", len(fakeLogger.failCalls))
 	}
 
-	// Verify Start was called 4 times with correct messages
+	// Verify Start was called 5 times with correct messages
 	expectedSteps := []stepCall{
 		{
 			inProgress: "Creating temporary build directory",
@@ -711,8 +712,12 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 			completed:  "Container image built",
 		},
 		{
-			inProgress: "Creating container: test-workspace",
-			completed:  "Container created",
+			inProgress: "Creating onecli services",
+			completed:  "Onecli services created",
+		},
+		{
+			inProgress: "Creating workspace container: test-workspace",
+			completed:  "Workspace container created",
 		},
 	}
 
@@ -963,16 +968,17 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called 4 times (all steps)
-	if len(fakeLogger.startCalls) != 4 {
-		t.Fatalf("Expected 4 Start() calls, got %d", len(fakeLogger.startCalls))
+	// Verify Start was called 5 times (all steps through workspace container creation)
+	if len(fakeLogger.startCalls) != 5 {
+		t.Fatalf("Expected 5 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
 		"Creating temporary build directory",
 		"Generating Containerfile",
 		"Building container image: kdn-test-workspace",
-		"Creating container: test-workspace",
+		"Creating onecli services",
+		"Creating workspace container: test-workspace",
 	}
 
 	for i, expected := range expectedSteps {

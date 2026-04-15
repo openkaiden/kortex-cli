@@ -23,31 +23,28 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
-// Stop stops a Podman container.
+// Stop stops all containers in the workspace pod.
 func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
-	logger := steplogger.FromContext(ctx)
-	defer logger.Complete()
+	stepLogger := steplogger.FromContext(ctx)
+	defer stepLogger.Complete()
 
-	// Validate the ID parameter
 	if id == "" {
 		return fmt.Errorf("%w: container ID is required", runtime.ErrInvalidParams)
 	}
 
-	// Stop the container
-	logger.Start(fmt.Sprintf("Stopping container: %s", id), "Container stopped")
-	if err := p.stopContainer(ctx, id); err != nil {
-		logger.Fail(err)
-		return err
+	// Resolve the pod name from the stored mapping
+	podName, err := p.readPodName(id)
+	if err != nil {
+		return fmt.Errorf("failed to resolve pod name: %w", err)
 	}
 
-	return nil
-}
-
-// stopContainer stops a podman container by ID.
-func (p *podmanRuntime) stopContainer(ctx context.Context, id string) error {
+	// Stop the entire pod (all containers at once)
+	stepLogger.Start(fmt.Sprintf("Stopping pod: %s", podName), "Pod stopped")
 	l := logger.FromContext(ctx)
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "stop", id); err != nil {
-		return fmt.Errorf("failed to stop podman container: %w", err)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "stop", podName); err != nil {
+		stepLogger.Fail(err)
+		return fmt.Errorf("failed to stop pod: %w", err)
 	}
+
 	return nil
 }

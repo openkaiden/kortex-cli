@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
@@ -91,7 +92,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 		storageDir := t.TempDir()
 		rt := newWithDeps(system.New(), exec.New())
 
-		// Type assert to StorageAware to access Initialize method
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
@@ -102,19 +102,16 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Initialize() failed: %v", err)
 		}
 
-		// Verify config directory was created
 		configDir := filepath.Join(storageDir, "config")
 		if _, err := os.Stat(configDir); os.IsNotExist(err) {
 			t.Error("Config directory was not created")
 		}
 
-		// Verify default image config was created
 		imageConfigPath := filepath.Join(configDir, config.ImageConfigFileName)
 		if _, err := os.Stat(imageConfigPath); os.IsNotExist(err) {
 			t.Error("Default image config was not created")
 		}
 
-		// Verify default claude config was created
 		claudeConfigPath := filepath.Join(configDir, config.ClaudeConfigFileName)
 		if _, err := os.Stat(claudeConfigPath); os.IsNotExist(err) {
 			t.Error("Default claude config was not created")
@@ -126,7 +123,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 
 		rt := newWithDeps(system.New(), exec.New())
 
-		// Type assert to StorageAware to access Initialize method
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
@@ -144,19 +140,16 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 		storageDir := t.TempDir()
 		rt := newWithDeps(system.New(), exec.New())
 
-		// Type assert to StorageAware to access Initialize method
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
 		}
 
-		// Initialize once to create defaults
 		err := storageAware.Initialize(storageDir)
 		if err != nil {
 			t.Fatalf("First Initialize() failed: %v", err)
 		}
 
-		// Modify the image config
 		configDir := filepath.Join(storageDir, "config")
 		imageConfigPath := filepath.Join(configDir, config.ImageConfigFileName)
 		customContent := []byte(`{"version":"40","packages":[],"sudo":[],"run_commands":[]}`)
@@ -164,7 +157,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Failed to write custom config: %v", err)
 		}
 
-		// Initialize again
 		rt2 := newWithDeps(system.New(), exec.New())
 		storageAware2, ok := rt2.(interface{ Initialize(string) error })
 		if !ok {
@@ -176,7 +168,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Second Initialize() failed: %v", err)
 		}
 
-		// Verify custom config was not overwritten
 		content, err := os.ReadFile(imageConfigPath)
 		if err != nil {
 			t.Fatalf("Failed to read config: %v", err)
@@ -186,6 +177,119 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Error("Custom config was overwritten")
 		}
 	})
+}
+
+func TestWritePodFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates YAML with workspace-specific pod name", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+		containerID := "abc123"
+		workspaceName := "my-project"
+
+		err := p.writePodFiles(containerID, workspaceName)
+		if err != nil {
+			t.Fatalf("writePodFiles() failed: %v", err)
+		}
+
+		content, err := os.ReadFile(p.podYAMLPath(containerID))
+		if err != nil {
+			t.Fatalf("Failed to read pod YAML: %v", err)
+		}
+
+		if !strings.Contains(string(content), "  name: my-project\n") {
+			t.Error("Pod YAML should contain workspace-specific pod name 'my-project'")
+		}
+
+		// Container name within pod should remain unchanged
+		if !strings.Contains(string(content), "- name: onecli\n") {
+			t.Error("Container name within pod should remain 'onecli'")
+		}
+	})
+
+	t.Run("writes pod name file", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+		containerID := "def456"
+		workspaceName := "test-ws"
+
+		err := p.writePodFiles(containerID, workspaceName)
+		if err != nil {
+			t.Fatalf("writePodFiles() failed: %v", err)
+		}
+
+		name, err := p.readPodName(containerID)
+		if err != nil {
+			t.Fatalf("readPodName() failed: %v", err)
+		}
+
+		if name != "test-ws" {
+			t.Errorf("readPodName() = %q, want %q", name, "test-ws")
+		}
+	})
+
+	t.Run("returns error for missing pod name file", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+
+		_, err := p.readPodName("nonexistent")
+		if err == nil {
+			t.Error("Expected error for missing pod name file, got nil")
+		}
+	})
+}
+
+func TestCleanupPodFiles(t *testing.T) {
+	t.Parallel()
+
+	p := &podmanRuntime{storageDir: t.TempDir()}
+	containerID := "abc123"
+
+	if err := p.writePodFiles(containerID, "my-ws"); err != nil {
+		t.Fatalf("writePodFiles() failed: %v", err)
+	}
+
+	if _, err := os.Stat(p.podDir(containerID)); os.IsNotExist(err) {
+		t.Fatal("Pod directory should exist before cleanup")
+	}
+
+	p.cleanupPodFiles(containerID)
+
+	if _, err := os.Stat(p.podDir(containerID)); !os.IsNotExist(err) {
+		t.Error("Pod directory should be removed after cleanup")
+	}
+}
+
+func TestReplaceYAMLPodName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		workspace string
+		expected  string
+	}{
+		{"my-project", "  name: my-project\n"},
+		{"test", "  name: test\n"},
+		{"foo-bar-baz", "  name: foo-bar-baz\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.workspace, func(t *testing.T) {
+			t.Parallel()
+
+			result := replaceYAMLPodName(tt.workspace)
+			if !strings.Contains(string(result), tt.expected) {
+				t.Errorf("replaceYAMLPodName(%q) should contain %q", tt.workspace, tt.expected)
+			}
+			// The original "  name: onecli\n" should be replaced
+			if strings.Contains(string(result), "  name: onecli\n") {
+				t.Errorf("replaceYAMLPodName(%q) should not contain original 'onecli' pod name", tt.workspace)
+			}
+		})
+	}
 }
 
 func TestPodmanRuntime_WorkspaceSourcesPath(t *testing.T) {
@@ -198,7 +302,6 @@ func TestPodmanRuntime_WorkspaceSourcesPath(t *testing.T) {
 		t.Errorf("WorkspaceSourcesPath() = %q, want %q", path, "/workspace/sources")
 	}
 
-	// Verify it's consistent across calls
 	path2 := rt.WorkspaceSourcesPath()
 	if path != path2 {
 		t.Errorf("WorkspaceSourcesPath() inconsistent: %q != %q", path, path2)
@@ -254,7 +357,6 @@ func TestPodmanRuntime_ListAgents(t *testing.T) {
 			t.Fatalf("ListAgents() failed: %v", err)
 		}
 
-		// Default initialization creates config files for all default agents
 		expected := []string{"claude", "cursor", "goose", "opencode"}
 		if !slices.Equal(agents, expected) {
 			t.Errorf("Expected %v, got: %v", expected, agents)
