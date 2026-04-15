@@ -1,6 +1,6 @@
 ---
 name: working-with-config-system
-description: Guide to workspace configuration for environment variables, mount points, skills and MCP servers at multiple levels
+description: Guide to workspace configuration for environment variables, mount points, skills, MCP servers and network access at multiple levels
 argument-hint: ""
 ---
 
@@ -13,6 +13,7 @@ The config system manages **workspace configuration** for injecting environment 
 - Additional directories to mount, with explicit host and container paths
 - Skills directories to provide to agents inside the workspace
 - MCP servers to configure in the agent (command-based and URL-based)
+- Network access policies (allow all or deny with host/CIDR exceptions)
 
 **What this does NOT control:**
 - Runtime-specific settings (e.g., Podman container image, packages to install)
@@ -153,6 +154,11 @@ The `workspace.json` file controls what gets injected into the workspace:
         "headers": {"Authorization": "Bearer token123"}
       }
     ]
+  },
+  "network": {
+    "mode": "deny",
+    "hosts": ["api.github.com"],
+    "cidr": ["10.0.0.0/8"]
   }
 }
 ```
@@ -195,6 +201,10 @@ kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
     - `url` - SSE endpoint URL (required)
     - `headers` - HTTP headers to send with requests, e.g., for auth (optional)
   - Names must be globally unique across both `commands` and `servers` because agents flatten both lists into a single `mcpServers` map
+- `network` - Network access policy for the workspace (optional)
+  - `mode` - Access mode: `"allow"` (permit all) or `"deny"` (block all except listed hosts/CIDRs). Defaults to `"deny"`
+  - `hosts` - List of hostnames to allow in deny mode (optional, must not be set when mode is `"allow"`)
+  - `cidr` - List of CIDR ranges to allow in deny mode (optional, must not be set when mode is `"allow"`)
 
 ### Agent Configuration (`agents.json`)
 
@@ -345,6 +355,10 @@ The Manager's `Add()` method:
 - **Skills**: Deduplicated by path value (preserves order, base skills first then override)
 - **MCP servers**: Merged separately for commands and servers, each deduplicated by `name`
   - Higher-precedence configs override lower ones when the same name appears in both
+- **Network**: The base (lower-precedence) network policy is dominant
+  - If base has `allow` mode, the base configuration is used regardless of the override
+  - If base has `deny` and override has `allow`, the base configuration is used (overrides cannot loosen the policy)
+  - If both have `deny` mode, the hosts and CIDRs from both are merged (deduplicated, base entries first)
 
 **Example Merge Flow:**
 
@@ -408,6 +422,13 @@ The `Load()` method automatically validates the configuration and returns `ErrIn
 - Server `name` cannot be empty
 - Server `url` field cannot be empty
 - Names must be unique across **both** `commands` and `servers` combined — a command and a server cannot share the same name, since all entries map to the same flat `mcpServers` key in the agent settings
+
+### Network
+
+- If `mode` is set, it must be a valid value (`"allow"` or `"deny"`)
+- If `mode` is `"allow"`, `hosts` and `cidr` must not be set (they are meaningless in allow mode)
+- Host entries cannot be empty strings
+- CIDR entries cannot be empty strings
 
 ## Error Handling
 

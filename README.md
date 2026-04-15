@@ -21,6 +21,7 @@ The architecture is built around pluggable runtimes. The first supported runtime
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
 - Multi-level configuration: workspace, global, project-specific, and agent-specific settings
 - Inject environment variables and mount directories into workspaces at multiple scopes
+- Control network access with allow/deny policies per workspace
 - Connect to MCP servers and integrate with various LLM providers (including Vertex AI)
 - Consistent CLI interface across different agent types and runtimes
 
@@ -1472,6 +1473,11 @@ The `workspace.json` file uses a nested JSON structure:
         "headers": {"Authorization": "Bearer token123"}
       }
     ]
+  },
+  "network": {
+    "mode": "deny",
+    "hosts": ["api.github.com"],
+    "cidr": ["10.0.0.0/8"]
   }
 }
 ```
@@ -1642,6 +1648,38 @@ MCP server configuration is applied to agents that support it at workspace regis
 - `command` cannot be empty for command entries
 - `url` cannot be empty for server entries
 
+### Network Access
+
+Control network access for the workspace. By default, network access is denied (deny mode). You can allow all network access or restrict it to specific hosts and CIDR ranges.
+
+**Structure:**
+```json
+{
+  "network": {
+    "mode": "deny",
+    "hosts": ["example.com", "api.github.com"],
+    "cidr": ["10.0.0.0/8", "172.16.0.0/12"]
+  }
+}
+```
+
+**Fields:**
+- `mode` (optional) - Network access mode
+  - `"allow"` - Permits all network access (no restrictions)
+  - `"deny"` - Blocks all network access except the specified hosts and CIDRs (default)
+- `hosts` (optional) - List of hostnames to allow when in deny mode
+  - Only meaningful when mode is `"deny"`
+  - Each entry must be a non-empty string
+- `cidr` (optional) - List of CIDR ranges to allow when in deny mode
+  - Only meaningful when mode is `"deny"`
+  - Each entry must be a non-empty string
+
+**Validation Rules:**
+- If `mode` is set, it must be either `"allow"` or `"deny"`
+- If `mode` is `"allow"`, `hosts` and `cidr` must not be set (they are meaningless in allow mode)
+- Host entries cannot be empty strings
+- CIDR entries cannot be empty strings
+
 ### Configuration Validation
 
 When you register a workspace with `kdn init`, the configuration is automatically validated. If `workspace.json` exists and contains invalid data, the registration will fail with a descriptive error message.
@@ -1744,6 +1782,26 @@ mount at index 0 is missing host
 }
 ```
 
+**Network access - allow all:**
+```json
+{
+  "network": {
+    "mode": "allow"
+  }
+}
+```
+
+**Network access - deny with exceptions:**
+```json
+{
+  "network": {
+    "mode": "deny",
+    "hosts": ["api.github.com", "registry.npmjs.org"],
+    "cidr": ["10.0.0.0/8"]
+  }
+}
+```
+
 **Complete configuration:**
 ```json
 {
@@ -1776,6 +1834,11 @@ mount at index 0 is missing host
         "url": "https://api.example.com/mcp"
       }
     ]
+  },
+  "network": {
+    "mode": "deny",
+    "hosts": ["api.github.com"],
+    "cidr": ["10.0.0.0/8"]
   }
 }
 ```
@@ -1988,6 +2051,13 @@ kdn init --runtime podman --project my-custom-project --agent goose
 - Commands and servers are each merged by `name`
 - Later configurations override earlier ones with the same name
 - Example: If workspace defines an MCP command named `filesystem` and agent config also defines `filesystem`, the agent config's version is used
+
+**Network:**
+- The base (lower-precedence) network policy is dominant
+- If base has `allow` mode, the base configuration is used regardless of the override
+- If base has `deny` mode and override has `allow` mode, the base configuration is used (overrides cannot loosen the policy)
+- If both base and override have `deny` mode, the hosts and CIDRs from both are merged (deduplicated)
+- Example: If workspace config denies all except `api.github.com` and agent config allows all, the final result is deny with `api.github.com` allowed (workspace policy wins)
 
 ### Configuration Files Don't Exist?
 

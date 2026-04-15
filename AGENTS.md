@@ -204,7 +204,7 @@ type Logger interface {
 
 ### Config System
 
-The config system manages workspace configuration for **injecting environment variables, mounting directories, providing skills and configuring MCP servers** into workspaces (different from runtime-specific configuration).
+The config system manages workspace configuration for **injecting environment variables, mounting directories, providing skills, configuring MCP servers and controlling network access** into workspaces (different from runtime-specific configuration).
 
 **Multi-Level Configuration:**
 - **Workspace-level** (`.kaiden/workspace.json`) - Project configuration, set via `--workspace-configuration` flag
