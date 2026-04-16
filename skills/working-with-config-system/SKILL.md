@@ -13,7 +13,7 @@ The config system manages **workspace configuration** for injecting environment 
 - Additional directories to mount, with explicit host and container paths
 - Skills directories to provide to agents inside the workspace
 - MCP servers to configure in the agent (command-based and URL-based)
-- Network access policies (allow all or deny with host/CIDR exceptions)
+- Network access policies (allow all or deny with host exceptions)
 - Secrets to inject into the workspace (typed credentials with optional host/header bindings)
 
 **What this does NOT control:**
@@ -158,8 +158,7 @@ The `workspace.json` file controls what gets injected into the workspace:
   },
   "network": {
     "mode": "deny",
-    "hosts": ["api.github.com"],
-    "cidr": ["10.0.0.0/8"]
+    "hosts": ["api.github.com"]
   },
   "secrets": [
     {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
@@ -207,9 +206,8 @@ kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
     - `headers` - HTTP headers to send with requests, e.g., for auth (optional)
   - Names must be globally unique across both `commands` and `servers` because agents flatten both lists into a single `mcpServers` map
 - `network` - Network access policy for the workspace (optional)
-  - `mode` - Access mode: `"allow"` (permit all) or `"deny"` (block all except listed hosts/CIDRs). Defaults to `"deny"`
+  - `mode` - Access mode: `"allow"` (permit all) or `"deny"` (block all except listed hosts). Defaults to `"deny"`
   - `hosts` - List of hostnames to allow in deny mode (optional, must not be set when mode is `"allow"`)
-  - `cidr` - List of CIDR ranges to allow in deny mode (optional, must not be set when mode is `"allow"`)
 - `secrets` - List of secrets to inject into the workspace (optional)
   - `type` - Secret type identifier (required, e.g., `"github"`, `"slack"`, `"other"`)
   - `value` - The secret value or token (required)
@@ -372,7 +370,7 @@ The Manager's `Add()` method:
 - **Network**: The base (lower-precedence) network policy is dominant
   - If base has `allow` mode, the base configuration is used regardless of the override
   - If base has `deny` and override has `allow`, the base configuration is used (overrides cannot loosen the policy)
-  - If both have `deny` mode, the hosts and CIDRs from both are merged (deduplicated, base entries first)
+  - If both have `deny` mode, the hosts from both are merged (deduplicated, base entries first)
 - **Secrets**: Deduplicated by `(type, name)` tuple (override replaces base entries with the same key, order preserved: base first then new override entries)
 
 **Example Merge Flow:**
@@ -441,9 +439,8 @@ The `Load()` method automatically validates the configuration and returns `ErrIn
 ### Network
 
 - If `mode` is set, it must be a valid value (`"allow"` or `"deny"`)
-- If `mode` is `"allow"`, `hosts` and `cidr` must not be set (they are meaningless in allow mode)
+- If `mode` is `"allow"`, `hosts` must not be set (they are meaningless in allow mode)
 - Host entries cannot be empty strings
-- CIDR entries cannot be empty strings
 
 ### Secrets
 

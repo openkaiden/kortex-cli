@@ -250,20 +250,10 @@ func (c *config) validate(cfg *workspace.WorkspaceConfiguration) error {
 		if isAllow && cfg.Network.Hosts != nil {
 			return fmt.Errorf("%w: network hosts must not be set when mode is %q", ErrInvalidConfig, workspace.Allow)
 		}
-		if isAllow && cfg.Network.Cidr != nil {
-			return fmt.Errorf("%w: network cidr must not be set when mode is %q", ErrInvalidConfig, workspace.Allow)
-		}
 		if cfg.Network.Hosts != nil {
 			for i, h := range *cfg.Network.Hosts {
 				if h == "" {
 					return fmt.Errorf("%w: network host at index %d is empty", ErrInvalidConfig, i)
-				}
-			}
-		}
-		if cfg.Network.Cidr != nil {
-			for i, c := range *cfg.Network.Cidr {
-				if c == "" {
-					return fmt.Errorf("%w: network cidr at index %d is empty", ErrInvalidConfig, i)
 				}
 			}
 		}

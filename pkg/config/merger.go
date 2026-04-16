@@ -481,7 +481,7 @@ func copyMCP(mcp *workspace.McpConfiguration) *workspace.McpConfiguration {
 // The base network policy is dominant:
 //   - if base has mode "allow", use base configuration
 //   - if base has mode "deny" and override has mode "allow", use base configuration
-//   - if both base and override have mode "deny", merge hosts and CIDRs from both
+//   - if both base and override have mode "deny", merge hosts from both
 func mergeNetwork(base, override *workspace.NetworkConfiguration) *workspace.NetworkConfiguration {
 	if base == nil && override == nil {
 		return nil
@@ -503,12 +503,11 @@ func mergeNetwork(base, override *workspace.NetworkConfiguration) *workspace.Net
 		return copyNetwork(base)
 	}
 
-	// Both have "deny" mode: merge hosts and CIDRs
+	// Both have "deny" mode: merge hosts
 	result := &workspace.NetworkConfiguration{}
 	mode := workspace.Deny
 	result.Mode = &mode
 	result.Hosts = mergeStringSlices(base.Hosts, override.Hosts)
-	result.Cidr = mergeStringSlices(base.Cidr, override.Cidr)
 
 	return result
 }
@@ -554,11 +553,6 @@ func copyNetwork(net *workspace.NetworkConfiguration) *workspace.NetworkConfigur
 		hostsCopy := make([]string, len(*net.Hosts))
 		copy(hostsCopy, *net.Hosts)
 		result.Hosts = &hostsCopy
-	}
-	if net.Cidr != nil {
-		cidrCopy := make([]string, len(*net.Cidr))
-		copy(cidrCopy, *net.Cidr)
-		result.Cidr = &cidrCopy
 	}
 	return result
 }

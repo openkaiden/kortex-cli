@@ -1479,8 +1479,7 @@ The `workspace.json` file uses a nested JSON structure:
   },
   "network": {
     "mode": "deny",
-    "hosts": ["api.github.com"],
-    "cidr": ["10.0.0.0/8"]
+    "hosts": ["api.github.com"]
   },
   "secrets": [
     {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
@@ -1657,15 +1656,14 @@ MCP server configuration is applied to agents that support it at workspace regis
 
 ### Network Access
 
-Control network access for the workspace. By default, network access is denied (deny mode). You can allow all network access or restrict it to specific hosts and CIDR ranges.
+Control network access for the workspace. By default, network access is denied (deny mode). You can allow all network access or restrict it to specific hosts.
 
 **Structure:**
 ```json
 {
   "network": {
     "mode": "deny",
-    "hosts": ["example.com", "api.github.com"],
-    "cidr": ["10.0.0.0/8", "172.16.0.0/12"]
+    "hosts": ["example.com", "api.github.com"]
   }
 }
 ```
@@ -1673,19 +1671,15 @@ Control network access for the workspace. By default, network access is denied (
 **Fields:**
 - `mode` (optional) - Network access mode
   - `"allow"` - Permits all network access (no restrictions)
-  - `"deny"` - Blocks all network access except the specified hosts and CIDRs (default)
+  - `"deny"` - Blocks all network access except the specified hosts (default)
 - `hosts` (optional) - List of hostnames to allow when in deny mode
-  - Only meaningful when mode is `"deny"`
-  - Each entry must be a non-empty string
-- `cidr` (optional) - List of CIDR ranges to allow when in deny mode
   - Only meaningful when mode is `"deny"`
   - Each entry must be a non-empty string
 
 **Validation Rules:**
 - If `mode` is set, it must be either `"allow"` or `"deny"`
-- If `mode` is `"allow"`, `hosts` and `cidr` must not be set (they are meaningless in allow mode)
+- If `mode` is `"allow"`, `hosts` must not be set (they are meaningless in allow mode)
 - Host entries cannot be empty strings
-- CIDR entries cannot be empty strings
 
 ### Secrets
 
@@ -1841,8 +1835,7 @@ mount at index 0 is missing host
 {
   "network": {
     "mode": "deny",
-    "hosts": ["api.github.com", "registry.npmjs.org"],
-    "cidr": ["10.0.0.0/8"]
+    "hosts": ["api.github.com", "registry.npmjs.org"]
   }
 }
 ```
@@ -1898,8 +1891,7 @@ mount at index 0 is missing host
   },
   "network": {
     "mode": "deny",
-    "hosts": ["api.github.com"],
-    "cidr": ["10.0.0.0/8"]
+    "hosts": ["api.github.com"]
   },
   "secrets": [
     {"type": "github", "value": "ghp_xxxxxxxxxxxx"}
@@ -2120,7 +2112,7 @@ kdn init --runtime podman --project my-custom-project --agent goose
 - The base (lower-precedence) network policy is dominant
 - If base has `allow` mode, the base configuration is used regardless of the override
 - If base has `deny` mode and override has `allow` mode, the base configuration is used (overrides cannot loosen the policy)
-- If both base and override have `deny` mode, the hosts and CIDRs from both are merged (deduplicated)
+- If both base and override have `deny` mode, the hosts from both are merged (deduplicated)
 - Example: If workspace config denies all except `api.github.com` and agent config allows all, the final result is deny with `api.github.com` allowed (workspace policy wins)
 
 **Secrets:**

@@ -1340,7 +1340,6 @@ func TestMerger_Merge_Network_BaseOnly(t *testing.T) {
 		Network: &workspace.NetworkConfiguration{
 			Mode:  networkModePtr(workspace.Deny),
 			Hosts: &[]string{"example.com"},
-			Cidr:  &[]string{"10.0.0.0/8"},
 		},
 	}
 	override := &workspace.WorkspaceConfiguration{}
@@ -1354,9 +1353,6 @@ func TestMerger_Merge_Network_BaseOnly(t *testing.T) {
 	}
 	if result.Network.Hosts == nil || len(*result.Network.Hosts) != 1 || (*result.Network.Hosts)[0] != "example.com" {
 		t.Errorf("Expected hosts [example.com], got %v", result.Network.Hosts)
-	}
-	if result.Network.Cidr == nil || len(*result.Network.Cidr) != 1 || (*result.Network.Cidr)[0] != "10.0.0.0/8" {
-		t.Errorf("Expected cidr [10.0.0.0/8], got %v", result.Network.Cidr)
 	}
 }
 
@@ -1445,7 +1441,6 @@ func TestMerger_Merge_Network_BaseDenyOverrideAllow(t *testing.T) {
 		Network: &workspace.NetworkConfiguration{
 			Mode:  networkModePtr(workspace.Deny),
 			Hosts: &[]string{"allowed.com"},
-			Cidr:  &[]string{"192.168.0.0/16"},
 		},
 	}
 	override := &workspace.WorkspaceConfiguration{
@@ -1465,9 +1460,6 @@ func TestMerger_Merge_Network_BaseDenyOverrideAllow(t *testing.T) {
 	if result.Network.Hosts == nil || len(*result.Network.Hosts) != 1 || (*result.Network.Hosts)[0] != "allowed.com" {
 		t.Errorf("Expected base hosts to be preserved, got %v", result.Network.Hosts)
 	}
-	if result.Network.Cidr == nil || len(*result.Network.Cidr) != 1 || (*result.Network.Cidr)[0] != "192.168.0.0/16" {
-		t.Errorf("Expected base cidr to be preserved, got %v", result.Network.Cidr)
-	}
 }
 
 func TestMerger_Merge_Network_BothDenyMerged(t *testing.T) {
@@ -1475,21 +1467,19 @@ func TestMerger_Merge_Network_BothDenyMerged(t *testing.T) {
 
 	merger := NewMerger()
 
-	t.Run("hosts and cidrs merged", func(t *testing.T) {
+	t.Run("hosts merged", func(t *testing.T) {
 		t.Parallel()
 
 		base := &workspace.WorkspaceConfiguration{
 			Network: &workspace.NetworkConfiguration{
 				Mode:  networkModePtr(workspace.Deny),
 				Hosts: &[]string{"base.com", "shared.com"},
-				Cidr:  &[]string{"10.0.0.0/8"},
 			},
 		}
 		override := &workspace.WorkspaceConfiguration{
 			Network: &workspace.NetworkConfiguration{
 				Mode:  networkModePtr(workspace.Deny),
 				Hosts: &[]string{"override.com", "shared.com"},
-				Cidr:  &[]string{"172.16.0.0/12", "10.0.0.0/8"},
 			},
 		}
 
@@ -1508,43 +1498,6 @@ func TestMerger_Merge_Network_BothDenyMerged(t *testing.T) {
 		}
 		if hosts[0] != "base.com" || hosts[1] != "shared.com" || hosts[2] != "override.com" {
 			t.Errorf("Unexpected hosts order: %v", hosts)
-		}
-
-		// CIDRs: 10.0.0.0/8 (from base), 172.16.0.0/12 (new from override)
-		cidrs := *result.Network.Cidr
-		if len(cidrs) != 2 {
-			t.Fatalf("Expected 2 cidrs, got %d: %v", len(cidrs), cidrs)
-		}
-		if cidrs[0] != "10.0.0.0/8" || cidrs[1] != "172.16.0.0/12" {
-			t.Errorf("Unexpected cidrs order: %v", cidrs)
-		}
-	})
-
-	t.Run("base has hosts only override has cidrs only", func(t *testing.T) {
-		t.Parallel()
-
-		base := &workspace.WorkspaceConfiguration{
-			Network: &workspace.NetworkConfiguration{
-				Mode:  networkModePtr(workspace.Deny),
-				Hosts: &[]string{"base.com"},
-			},
-		}
-		override := &workspace.WorkspaceConfiguration{
-			Network: &workspace.NetworkConfiguration{
-				Mode: networkModePtr(workspace.Deny),
-				Cidr: &[]string{"10.0.0.0/8"},
-			},
-		}
-
-		result := merger.Merge(base, override)
-		if result.Network == nil {
-			t.Fatal("Expected non-nil Network")
-		}
-		if result.Network.Hosts == nil || len(*result.Network.Hosts) != 1 {
-			t.Errorf("Expected 1 host, got %v", result.Network.Hosts)
-		}
-		if result.Network.Cidr == nil || len(*result.Network.Cidr) != 1 {
-			t.Errorf("Expected 1 cidr, got %v", result.Network.Cidr)
 		}
 	})
 }
@@ -1572,27 +1525,6 @@ func TestMerger_Merge_Network_DeepCopy(t *testing.T) {
 		// Base must be unaffected
 		if (*base.Network.Hosts)[0] != "base.com" {
 			t.Error("Mutating merged network hosts affected the base input")
-		}
-	})
-
-	t.Run("mutating merged cidrs does not affect base", func(t *testing.T) {
-		t.Parallel()
-
-		base := &workspace.WorkspaceConfiguration{
-			Network: &workspace.NetworkConfiguration{
-				Mode: networkModePtr(workspace.Deny),
-				Cidr: &[]string{"10.0.0.0/8"},
-			},
-		}
-
-		result := merger.Merge(base, nil)
-
-		// Mutate the result
-		(*result.Network.Cidr)[0] = "0.0.0.0/0"
-
-		// Base must be unaffected
-		if (*base.Network.Cidr)[0] != "10.0.0.0/8" {
-			t.Error("Mutating merged network cidrs affected the base input")
 		}
 	})
 

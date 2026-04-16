@@ -1341,19 +1341,11 @@ func TestConfig_Load_Network_Valid(t *testing.T) {
 		json string
 	}{
 		{
-			name: "deny mode with hosts and cidr",
-			json: `{"network": {"mode": "deny", "hosts": ["example.com"], "cidr": ["10.0.0.0/8"]}}`,
-		},
-		{
 			name: "deny mode with hosts only",
 			json: `{"network": {"mode": "deny", "hosts": ["example.com"]}}`,
 		},
 		{
-			name: "deny mode with cidr only",
-			json: `{"network": {"mode": "deny", "cidr": ["10.0.0.0/8"]}}`,
-		},
-		{
-			name: "deny mode without hosts or cidr",
+			name: "deny mode without hosts",
 			json: `{"network": {"mode": "deny"}}`,
 		},
 		{
@@ -1412,19 +1404,9 @@ func TestConfig_Load_Network_Invalid(t *testing.T) {
 			wantErrMsg: `network hosts must not be set when mode is "allow"`,
 		},
 		{
-			name:       "allow mode with cidr",
-			json:       `{"network": {"mode": "allow", "cidr": ["10.0.0.0/8"]}}`,
-			wantErrMsg: `network cidr must not be set when mode is "allow"`,
-		},
-		{
 			name:       "empty host entry",
 			json:       `{"network": {"mode": "deny", "hosts": ["example.com", ""]}}`,
 			wantErrMsg: "network host at index 1 is empty",
-		},
-		{
-			name:       "empty cidr entry",
-			json:       `{"network": {"mode": "deny", "cidr": [""]}}`,
-			wantErrMsg: "network cidr at index 0 is empty",
 		},
 	}
 
