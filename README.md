@@ -3092,7 +3092,7 @@ kdn remove a1b2c3d4e5f6... --force
 
 - You can specify the workspace using either its name or ID (both can be obtained using the `workspace list` or `list` command)
 - The command always outputs the workspace ID, even when removed by name
-- Removing a workspace only unregisters it from kdn; it does not delete any files from the sources or configuration directories
+- Removing a workspace unregisters it from kdn and cleans up runtime resources (e.g. for the Podman runtime, the container and its image are deleted); it does not delete any files from the sources or configuration directories
 - If the workspace name or ID is not found, the command will fail with a helpful error message
 - Use `--force` to automatically stop a running workspace before removing it; without this flag, removing a running workspace will fail
 - Tab completion for this command suggests only non-running workspaces by default; when `--force` is specified, all workspaces are suggested

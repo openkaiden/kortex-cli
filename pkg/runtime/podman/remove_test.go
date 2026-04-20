@@ -73,6 +73,9 @@ func TestRemove_Success(t *testing.T) {
 	// Verify pod rm -f was called
 	fakeExec.AssertRunCalledWith(t, "pod", "rm", "-f", podName)
 
+	// Verify image rm was called
+	fakeExec.AssertRunCalledWith(t, "image", "rm", "kdn-test")
+
 	// Verify pod files were cleaned up
 	if _, err := os.Stat(p.podDir(containerID)); !os.IsNotExist(err) {
 		t.Error("Expected pod directory to be cleaned up after Remove")
@@ -168,6 +171,70 @@ func TestRemove_PodRemoveFailure(t *testing.T) {
 	}
 
 	fakeExec.AssertRunCalledWith(t, "pod", "rm", "-f", podName)
+}
+
+func TestRemove_ImageNotFound_GracefullyHandled(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 1 && args[0] == "inspect" {
+			return []byte(fmt.Sprintf("%s|stopped|kdn-test", containerID)), nil
+		}
+		return nil, fmt.Errorf("unexpected command: %v", args)
+	}
+
+	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+		if len(args) >= 2 && args[0] == "image" && args[1] == "rm" {
+			return fmt.Errorf("image not known")
+		}
+		return nil
+	}
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	setupPodFiles(t, p, containerID, "my-project")
+
+	err := p.Remove(context.Background(), containerID)
+	if err != nil {
+		t.Fatalf("Remove() should succeed when image is not found, got error: %v", err)
+	}
+
+	fakeExec.AssertRunCalledWith(t, "image", "rm", "kdn-test")
+}
+
+func TestRemove_ImageRemoveError(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 1 && args[0] == "inspect" {
+			return []byte(fmt.Sprintf("%s|stopped|kdn-test", containerID)), nil
+		}
+		return nil, fmt.Errorf("unexpected command: %v", args)
+	}
+
+	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+		if len(args) >= 2 && args[0] == "image" && args[1] == "rm" {
+			return fmt.Errorf("permission denied")
+		}
+		return nil
+	}
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	setupPodFiles(t, p, containerID, "my-project")
+
+	err := p.Remove(context.Background(), containerID)
+	if err == nil {
+		t.Fatal("Expected error when image rm fails, got nil")
+	}
+
+	if !contains(err.Error(), "failed to remove image") {
+		t.Errorf("Expected error message to contain 'failed to remove image', got: %v", err)
+	}
 }
 
 func TestIsNotFoundError(t *testing.T) {
@@ -279,6 +346,10 @@ func TestRemove_StepLogger_Success(t *testing.T) {
 		{
 			inProgress: fmt.Sprintf("Removing pod: %s", podName),
 			completed:  "Pod removed",
+		},
+		{
+			inProgress: "Removing image: kdn-test",
+			completed:  "Image removed",
 		},
 	}
 

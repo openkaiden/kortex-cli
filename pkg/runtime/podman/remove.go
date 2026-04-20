@@ -69,6 +69,16 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 
 	p.cleanupPodFiles(id)
 
+	// Remove the container image
+	imageName := info.Info["image_name"]
+	if imageName != "" {
+		stepLogger.Start(fmt.Sprintf("Removing image: %s", imageName), "Image removed")
+		if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "image", "rm", imageName); err != nil && !isImageNotFoundError(err) {
+			stepLogger.Fail(err)
+			return fmt.Errorf("failed to remove image: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -82,4 +92,14 @@ func isNotFoundError(err error) bool {
 		strings.Contains(errMsg, "no such object") ||
 		strings.Contains(errMsg, "error getting container") ||
 		strings.Contains(errMsg, "failed to inspect container")
+}
+
+// isImageNotFoundError checks if an error indicates that an image was not found.
+func isImageNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "image not known") ||
+		strings.Contains(errMsg, "no such image")
 }
