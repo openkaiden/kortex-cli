@@ -326,6 +326,8 @@ manager.Stop(ctx, id)
 manager.Terminal(ctx, id, []string{"bash"})
 ```
 
+**Workspace Name Sanitization:** The manager automatically sanitizes workspace names — whether auto-generated from the source directory basename or provided via `--name`. Names are lowercased and any run of invalid characters (spaces, `@`, etc.) is collapsed into a single hyphen. This ensures compatibility with runtimes like Podman that require lowercase image names.
+
 **For detailed manager API and project detection, use:** `/working-with-instances-manager`
 
 ### Cross-Platform Path Handling

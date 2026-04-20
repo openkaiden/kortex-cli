@@ -1786,6 +1786,37 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 	})
 }
 
+func TestSanitizeName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "valid name unchanged", input: "my-project", want: "my-project"},
+		{name: "spaces replaced with hyphens", input: "my project", want: "my-project"},
+		{name: "uppercase lowercased", input: "MyProject", want: "myproject"},
+		{name: "uppercase with spaces", input: "My Project", want: "my-project"},
+		{name: "name from issue 255", input: "Lemminx", want: "lemminx"},
+		{name: "consecutive invalid chars collapsed", input: "foo  bar", want: "foo-bar"},
+		{name: "leading and trailing hyphens trimmed", input: " -foo- ", want: "foo"},
+		{name: "all invalid chars returns workspace", input: "---", want: "workspace"},
+		{name: "empty string returns workspace", input: "", want: "workspace"},
+		{name: "dots and underscores preserved", input: "my.project_v2", want: "my.project_v2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := sanitizeName(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestManager_ensureUniqueName(t *testing.T) {
 	t.Parallel()
 
@@ -2015,12 +2046,46 @@ func TestManager_generateUniqueName(t *testing.T) {
 
 		// Get the current working directory
 		wd, _ := os.Getwd()
-		expectedName := filepath.Base(wd)
+		expectedName := sanitizeName(filepath.Base(wd))
 
 		result := mgr.generateUniqueName(wd, instances)
 
 		if result != expectedName {
 			t.Errorf("generateUniqueName() = %v, want %v", result, expectedName)
+		}
+	})
+
+	t.Run("sanitizes spaces in directory name", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), newFakeGitDetector())
+
+		mgr := m.(*manager)
+
+		instances := []Instance{}
+
+		result := mgr.generateUniqueName("/tmp/my project", instances)
+
+		if result != "my-project" {
+			t.Errorf("generateUniqueName() = %v, want my-project", result)
+		}
+	})
+
+	t.Run("sanitizes uppercase directory name", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), newFakeGitDetector())
+
+		mgr := m.(*manager)
+
+		instances := []Instance{}
+
+		result := mgr.generateUniqueName("/tmp/MyProject", instances)
+
+		if result != "myproject" {
+			t.Errorf("generateUniqueName() = %v, want myproject", result)
 		}
 	})
 }

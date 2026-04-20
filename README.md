@@ -2474,6 +2474,7 @@ kdn init --runtime podman --agent claude --show-logs
 #### Workspace Naming
 
 - If `--name` is not provided, the name is automatically generated from the last component of the sources directory path
+- Names are automatically sanitized: uppercased letters are lowercased and any run of characters that are not alphanumeric, hyphens, dots, or underscores (including spaces) is collapsed into a single hyphen
 - If a workspace with the same name already exists, kdn automatically appends an increment (`-2`, `-3`, etc.) to ensure uniqueness
 
 **Examples:**
@@ -2481,6 +2482,14 @@ kdn init --runtime podman --agent claude --show-logs
 # First workspace in /home/user/project
 kdn init /home/user/project --runtime podman --agent claude
 # Name: "project"
+
+# Directory with spaces in its name
+kdn init "/home/user/my project" --runtime podman --agent claude
+# Name: "my-project"
+
+# Custom name with uppercase letters
+kdn init /home/user/project --runtime podman --agent claude --name MyWork
+# Name: "mywork"
 
 # Second workspace with the same directory name
 kdn init /home/user/another-location/project --runtime podman --agent claude --name "project"

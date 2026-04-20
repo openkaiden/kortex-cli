@@ -41,6 +41,7 @@ Add a new workspace instance to the manager:
 instance, err := instances.NewInstance(instances.NewInstanceParams{
     SourceDir: sourceDir,
     ConfigDir: configDir,
+    Name:      name, // Optional: user-provided name, sanitized by manager
 })
 if err != nil {
     return fmt.Errorf("failed to create instance: %w", err)
@@ -60,15 +61,21 @@ if err != nil {
 ```
 
 The `Add()` method:
-1. Detects project ID (or uses custom override)
-2. Loads project config (global `""` + project-specific merged)
-3. Loads agent config (if agent name provided)
-4. Merges configs: workspace → global → project → agent
-5. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string][]byte`
-6. Calls agent's `SkipOnboarding()` method if agent is registered (e.g., Claude agent automatically sets onboarding flags)
-7. Calls agent's `SetModel()` method if model is specified (takes precedence over model in settings files)
-8. Calls agent's `SetMCPServers()` method if the merged config contains MCP servers (writes them into agent settings)
-9. Passes merged config and modified agent settings to runtime for injection into workspace
+1. Sanitizes and generates a unique workspace name:
+   - If `Name` is empty, it is derived from the source directory basename
+   - The name is sanitized: lowercased, spaces and invalid characters replaced with hyphens
+   - A numeric suffix (`-2`, `-3`, …) is appended if the name is already in use
+2. Detects project ID (or uses custom override)
+3. Loads project config (global `""` + project-specific merged)
+4. Loads agent config (if agent name provided)
+5. Merges configs: workspace → global → project → agent
+6. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string][]byte`
+7. Calls agent's `SkipOnboarding()` method if agent is registered (e.g., Claude agent automatically sets onboarding flags)
+8. Calls agent's `SetModel()` method if model is specified (takes precedence over model in settings files)
+9. Calls agent's `SetMCPServers()` method if the merged config contains MCP servers (writes them into agent settings)
+10. Passes merged config and modified agent settings to runtime for injection into workspace
+
+**Name sanitization rules:** valid characters are `[a-z0-9._-]`. Uppercase letters are lowercased; any run of invalid characters (spaces, `@`, `+`, etc.) is collapsed into a single hyphen; leading and trailing hyphens are stripped. An empty result falls back to `"workspace"`.
 
 ### List - Get All Instances
 

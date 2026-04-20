@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -206,8 +207,8 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 	if name == "" {
 		name = m.generateUniqueName(inst.GetSourceDir(), instances)
 	} else {
-		// Ensure the provided name is unique
-		name = m.ensureUniqueName(name, instances)
+		// Ensure the provided name is sanitized and unique
+		name = m.ensureUniqueName(sanitizeName(name), instances)
 	}
 
 	// Use custom project identifier if provided, otherwise auto-detect
@@ -653,12 +654,26 @@ func (m *manager) RegisterSecretService(service secretservice.SecretService) err
 	return m.secretServiceRegistry.Register(service)
 }
 
+var invalidNameChars = regexp.MustCompile(`[^a-z0-9._-]+`)
+
+// sanitizeName converts a name to a valid workspace name by lowercasing it
+// and replacing invalid characters with hyphens.
+func sanitizeName(name string) string {
+	name = strings.ToLower(name)
+	name = invalidNameChars.ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-")
+	if name == "" {
+		return "workspace"
+	}
+	return name
+}
+
 // generateUniqueName generates a unique name from the source directory
 // by extracting the last component of the path and adding an increment if needed
 func (m *manager) generateUniqueName(sourceDir string, instances []Instance) string {
 	// Extract the last component of the source directory
 	baseName := filepath.Base(sourceDir)
-	return m.ensureUniqueName(baseName, instances)
+	return m.ensureUniqueName(sanitizeName(baseName), instances)
 }
 
 // ensureUniqueName ensures the name is unique by adding an increment if needed
