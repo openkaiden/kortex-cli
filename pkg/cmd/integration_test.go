@@ -36,15 +36,81 @@ import (
 // containerSourcesPath is the mount point for project sources inside the container.
 const containerSourcesPath = "/workspace/sources"
 
+// warmupImages tracks images built during cache warmup for cleanup after tests.
+var warmupImages []string
+
+func TestMain(m *testing.M) {
+	if podmanAvailable() {
+		warmupBuildCache()
+	}
+	code := m.Run()
+	for _, img := range warmupImages {
+		_ = exec.Command("podman", "rmi", "-f", img).Run()
+	}
+	os.Exit(code)
+}
+
+func podmanAvailable() bool {
+	if _, err := exec.LookPath("podman"); err != nil {
+		return false
+	}
+	out, err := exec.Command("podman", "info", "--format", "{{.Host.OCIRuntime.Name}}").Output()
+	return err == nil && strings.TrimSpace(string(out)) != ""
+}
+
+// warmupBuildCache builds one image per agent type to populate Podman's layer cache.
+// Subsequent builds in parallel tests reuse cached layers and complete much faster.
+func warmupBuildCache() {
+	for _, agent := range []string{"claude", "goose"} {
+		storageDir, err := os.MkdirTemp("", "kdn-warmup-*")
+		if err != nil {
+			continue
+		}
+		sourcesDir, err := os.MkdirTemp("", "kdn-warmup-src-*")
+		if err != nil {
+			os.RemoveAll(storageDir)
+			continue
+		}
+
+		name := fmt.Sprintf("warmup-%s", agent)
+		imageName := fmt.Sprintf("kdn-%s", name)
+
+		rootCmd := NewRootCmd()
+		rootCmd.SetOut(new(bytes.Buffer))
+		rootCmd.SetErr(new(bytes.Buffer))
+		rootCmd.SetArgs([]string{
+			"--storage", storageDir,
+			"init", sourcesDir,
+			"--runtime", "podman",
+			"--agent", agent,
+			"-n", name,
+		})
+
+		if err := rootCmd.Execute(); err != nil {
+			fmt.Fprintf(os.Stderr, "warmup: build failed for agent %s: %v\n", agent, err)
+			os.RemoveAll(storageDir)
+			os.RemoveAll(sourcesDir)
+			continue
+		}
+
+		warmupImages = append(warmupImages, imageName)
+
+		cleanCmd := NewRootCmd()
+		cleanCmd.SetOut(new(bytes.Buffer))
+		cleanCmd.SetErr(new(bytes.Buffer))
+		cleanCmd.SilenceErrors = true
+		cleanCmd.SetArgs([]string{"--storage", storageDir, "remove", name, "--force"})
+		_ = cleanCmd.Execute()
+
+		os.RemoveAll(storageDir)
+		os.RemoveAll(sourcesDir)
+	}
+}
+
 func skipIfNoPodman(t *testing.T) {
 	t.Helper()
-	if _, err := exec.LookPath("podman"); err != nil {
+	if !podmanAvailable() {
 		t.Skip("podman not available, skipping integration test")
-	}
-	if out, err := exec.Command("podman", "info", "--format", "{{.Host.OCIRuntime.Name}}").Output(); err != nil {
-		t.Skipf("podman info failed: %v", err)
-	} else if strings.TrimSpace(string(out)) == "" {
-		t.Skip("podman has no OCI runtime configured")
 	}
 }
 
