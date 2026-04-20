@@ -629,6 +629,12 @@ func TestIntegration_AgentWritesAppearOnHost(t *testing.T) {
 	storageDir := t.TempDir()
 	sourcesDir := t.TempDir()
 
+	// Make sources dir world-writable so the container's agent user (UID 1000)
+	// can write to it even when the host runner has a different UID (e.g. 1001 on GHA).
+	if err := os.Chmod(sourcesDir, 0777); err != nil {
+		t.Fatalf("Failed to chmod sources dir: %v", err)
+	}
+
 	_, wsID := integrationInit(t, storageDir, sourcesDir, "agent-writes-on-host", "claude")
 
 	integrationExecCmd(t, "--storage", storageDir, "start", wsID, "--output", "json")
