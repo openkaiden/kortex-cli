@@ -562,6 +562,110 @@ Cursor finds this file on startup and uses the pre-configured model without prom
 - This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.cursor` directory is not exposed inside the container
 - Do not combine this approach with the `~/.cursor` mount from the previous section — the mounted directory would override the baked-in defaults at runtime
 
+### Using OpenCode with a Local Model
+
+OpenCode supports using locally-running models via providers like Ollama or RamaLama. This scenario demonstrates how to configure a kdn workspace to use a local model running on your host machine.
+
+**Prerequisites:**
+
+- A local model server running on your host (e.g., [Ollama](https://ollama.com) or [RamaLama](https://ramalama.ai))
+- The model you want to use downloaded to your local server
+
+**Step 1: Start a local model server on your host**
+
+For example, with Ollama:
+
+```bash
+# Pull a model
+ollama pull gemma3:12b
+
+# Ollama runs as a service on port 11434 by default
+```
+
+Or with RamaLama:
+
+```bash
+# Serve a model (runs on port 8080 by default)
+ramalama serve granite3.3:8b
+```
+
+**Step 2: Register the workspace with a local model**
+
+Use the `--model` flag with the `provider::model` format. kdn knows the default endpoints for `ollama` and `ramalama` and automatically configures them to be reachable from inside the container:
+
+```bash
+# Use Ollama with a specific model (default endpoint: host.containers.internal:11434/v1 for Podman)
+kdn init /path/to/project --runtime podman --agent opencode --model ollama::gemma3:12b
+
+# Use RamaLama with a specific model (default endpoint: host.containers.internal:8080/v1 for Podman)
+kdn init /path/to/project --runtime podman --agent opencode --model ramalama::granite3.3:8b
+```
+
+**Using a custom endpoint**
+
+If your model server runs on a non-default port or a remote host, specify the full endpoint as the third component:
+
+```bash
+# Custom port on localhost (localhost is auto-converted to host.containers.internal for Podman)
+kdn init /path/to/project --runtime podman --agent opencode --model ollama::gemma3:12b::http://localhost:8080/v1
+
+# Remote host
+kdn init /path/to/project --runtime podman --agent opencode --model ollama::gemma3:12b::http://192.168.1.50:11434/v1
+```
+
+When using the Podman runtime, localhost aliases (`localhost`, `127.0.0.1`, `0.0.0.0`, `::1`) in the base URL are automatically converted to `host.containers.internal` so the model server is reachable from inside the container.
+
+**Using a custom OpenAI-compatible provider**
+
+For any OpenAI-compatible model server not in the known provider list, use the three-part format with an explicit base URL:
+
+```bash
+kdn init /path/to/project --runtime podman --agent opencode --model myprovider::mymodel::http://localhost:9090/v1
+```
+
+**What kdn configures**
+
+When you specify a local model provider, kdn writes an `opencode.json` configuration file baked into the container image. For `ollama::gemma3:12b` with the Podman runtime, it produces:
+
+```json
+{
+  "model": "ollama/gemma3:12b",
+  "provider": {
+    "ollama": {
+      "name": "ollama",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://host.containers.internal:11434/v1"
+      },
+      "models": {
+        "gemma3:12b": {
+          "_launch": true,
+          "name": "gemma3:12b"
+        }
+      }
+    }
+  }
+}
+```
+
+**Step 3: Start and connect to the workspace**
+
+```bash
+# Start the workspace
+kdn start my-project
+
+# Connect — OpenCode starts using the local model automatically
+kdn terminal my-project
+```
+
+**Notes:**
+
+- The model server must be running on your host before connecting to the workspace
+- The `provider::model` format stores the model as `provider/model` in the configuration (e.g., `ollama/gemma3:12b`)
+- Known providers (`ollama`, `ramalama`) have preconfigured default base URLs; for other OpenAI-compatible providers, use the full `provider::model::baseURL` format
+- When using the Podman runtime, the default base URLs for known providers point to `host.containers.internal`, which is the standard way to reach the host from a Podman container
+- The settings are baked into the container image at `init` time — changes require re-registering the workspace: `kdn remove <workspace-id>` then `kdn init` again
+
 ### Sharing a GitHub Token
 
 This scenario demonstrates how to make a GitHub token available inside workspaces using the multi-level configuration system — either globally for all projects or scoped to a specific project.
