@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: help build test test-coverage fmt vet clean install check-fmt check-vet ci-checks all
+.PHONY: help build test test-integration test-coverage fmt vet clean install check-fmt check-vet ci-checks all
 
 # Binary name
 BINARY_NAME=kdn
@@ -49,6 +49,10 @@ install: ## Install the binary to GOPATH/bin
 test: ## Run all tests
 	@echo "Running tests..."
 	$(GO) test -v -race ./...
+
+test-integration: ## Run integration tests (requires Podman)
+	@echo "Running integration tests..."
+	$(GO) test -tags integration -timeout 30m -count=1 -v ./pkg/cmd/
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."

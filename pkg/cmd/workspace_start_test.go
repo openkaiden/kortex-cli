@@ -721,6 +721,68 @@ func TestWorkspaceStartCmd_E2E(t *testing.T) {
 	})
 }
 
+func TestWorkspaceStartCmd_E2E_ByName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("starts workspace by name", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+			Name:      "my-workspace",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instances.AddOptions{
+			Instance:    instance,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+		})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+		rootCmd.SetArgs([]string{"workspace", "start", "my-workspace", "--storage", storageDir})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		result := strings.TrimSpace(output.String())
+		if result != addedInstance.GetID() {
+			t.Errorf("Expected output to be '%s', got: '%s'", addedInstance.GetID(), result)
+		}
+
+		retrievedInstance, err := manager.Get(addedInstance.GetID())
+		if err != nil {
+			t.Fatalf("Failed to get instance: %v", err)
+		}
+
+		if retrievedInstance.GetRuntimeData().State != "running" {
+			t.Errorf("Expected state 'running', got: %s", retrievedInstance.GetRuntimeData().State)
+		}
+	})
+}
+
 func TestWorkspaceStartCmd_Examples(t *testing.T) {
 	t.Parallel()
 

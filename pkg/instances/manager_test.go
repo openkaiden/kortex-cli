@@ -1807,6 +1807,9 @@ func TestSanitizeName(t *testing.T) {
 		{name: "leading dot trimmed", input: ".foo", want: "foo"},
 		{name: "trailing underscore trimmed", input: "foo_", want: "foo"},
 		{name: "only separator chars returns workspace", input: "_", want: "workspace"},
+		{name: "unicode replaced", input: "café-project", want: "caf--project"},
+		{name: "emoji replaced", input: "my🚀project", want: "my-project"},
+		{name: "tabs replaced", input: "my\tproject", want: "my-project"},
 	}
 
 	for _, tt := range tests {

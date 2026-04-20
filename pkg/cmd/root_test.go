@@ -182,6 +182,70 @@ func TestRootCmd_StorageFlagMissingValue(t *testing.T) {
 	}
 }
 
+func TestRootCmd_UnknownCommand(t *testing.T) {
+	t.Parallel()
+
+	rootCmd := NewRootCmd()
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"foobar"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("Expected error for unknown command, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("Expected error to contain 'unknown command', got: %v", err)
+	}
+}
+
+func TestRootCmd_UnknownFlag(t *testing.T) {
+	t.Parallel()
+
+	rootCmd := NewRootCmd()
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"--unknown-flag"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("Expected error for unknown flag, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "unknown flag") {
+		t.Errorf("Expected error to contain 'unknown flag', got: %v", err)
+	}
+}
+
+func TestRootCmd_SubcommandHelp(t *testing.T) {
+	t.Parallel()
+
+	subcommands := []string{"init", "list", "start", "stop", "remove", "terminal", "info", "version", "workspace"}
+	for _, subcmd := range subcommands {
+		t.Run(subcmd+" --help", func(t *testing.T) {
+			t.Parallel()
+
+			rootCmd := NewRootCmd()
+			buf := new(bytes.Buffer)
+			rootCmd.SetOut(buf)
+			rootCmd.SetArgs([]string{subcmd, "--help"})
+
+			err := rootCmd.Execute()
+			if err != nil {
+				t.Fatalf("Expected %s --help to succeed, got: %v", subcmd, err)
+			}
+
+			output := buf.String()
+			if output == "" {
+				t.Errorf("Expected %s --help to produce output", subcmd)
+			}
+		})
+	}
+}
+
 func TestRootCmd_StorageEnvVariable(t *testing.T) {
 	t.Run("env variable sets default", func(t *testing.T) {
 		// Set the environment variable

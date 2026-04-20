@@ -288,6 +288,219 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		}
 	})
 
+	t.Run("init JSON has clean stderr", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rootCmd.SetOut(stdout)
+		rootCmd.SetErr(stderr)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", "--output", "json", sourcesDir})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if stderr.Len() != 0 {
+			t.Errorf("Expected clean stderr on JSON success, got: %q", stderr.String())
+		}
+	})
+
+	t.Run("list JSON has clean stderr", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rootCmd.SetOut(stdout)
+		rootCmd.SetErr(stderr)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "list", "--output", "json"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if stderr.Len() != 0 {
+			t.Errorf("Expected clean stderr on JSON success, got: %q", stderr.String())
+		}
+	})
+
+	t.Run("info JSON has clean stderr", func(t *testing.T) {
+		t.Parallel()
+
+		rootCmd := NewRootCmd()
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rootCmd.SetOut(stdout)
+		rootCmd.SetErr(stderr)
+		rootCmd.SetArgs([]string{"info", "--output", "json"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if stderr.Len() != 0 {
+			t.Errorf("Expected clean stderr on JSON success, got: %q", stderr.String())
+		}
+	})
+
+	t.Run("start JSON has clean stderr", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+		added, err := manager.Add(context.Background(), instances.AddOptions{
+			Instance:    instance,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+		})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rootCmd.SetOut(stdout)
+		rootCmd.SetErr(stderr)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "start", added.GetID(), "--output", "json"})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if stderr.Len() != 0 {
+			t.Errorf("Expected clean stderr on JSON success, got: %q", stderr.String())
+		}
+	})
+
+	t.Run("stop JSON has clean stderr", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+		added, err := manager.Add(context.Background(), instances.AddOptions{
+			Instance:    instance,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+		})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+		err = manager.Start(context.Background(), added.GetID())
+		if err != nil {
+			t.Fatalf("Failed to start instance: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rootCmd.SetOut(stdout)
+		rootCmd.SetErr(stderr)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "stop", added.GetID(), "--output", "json"})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if stderr.Len() != 0 {
+			t.Errorf("Expected clean stderr on JSON success, got: %q", stderr.String())
+		}
+	})
+
+	t.Run("remove JSON has clean stderr", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+		added, err := manager.Add(context.Background(), instances.AddOptions{
+			Instance:    instance,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+		})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		rootCmd.SetOut(stdout)
+		rootCmd.SetErr(stderr)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "remove", added.GetID(), "--output", "json"})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if stderr.Len() != 0 {
+			t.Errorf("Expected clean stderr on JSON success, got: %q", stderr.String())
+		}
+	})
+
 	t.Run("remove command outputs ID to stdout", func(t *testing.T) {
 		t.Parallel()
 

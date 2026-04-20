@@ -2466,6 +2466,45 @@ func TestInitCmd_MultiLevelConfig(t *testing.T) {
 	})
 }
 
+func TestInitCmd_E2E_SpacesInPathSanitizesName(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	sourcesDir := filepath.Join(t.TempDir(), "my project")
+	if err := os.MkdirAll(sourcesDir, 0755); err != nil {
+		t.Fatalf("Failed to create sources dir: %v", err)
+	}
+
+	rootCmd := NewRootCmd()
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir})
+
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("Execute() failed: %v", err)
+	}
+
+	manager, err := instances.NewManager(storageDir)
+	if err != nil {
+		t.Fatalf("Failed to create manager: %v", err)
+	}
+
+	instancesList, err := manager.List()
+	if err != nil {
+		t.Fatalf("Failed to list instances: %v", err)
+	}
+
+	if len(instancesList) != 1 {
+		t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+	}
+
+	name := instancesList[0].GetName()
+	if name != "my-project" {
+		t.Errorf("Expected sanitized name 'my-project', got '%s'", name)
+	}
+}
+
 func TestInitCmd_Examples(t *testing.T) {
 	t.Parallel()
 

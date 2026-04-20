@@ -55,6 +55,12 @@ make check-fmt
 
 Code should be formatted before committing. Run `make fmt` to ensure consistent style across the codebase.
 
+### Integration Tests
+```bash
+# Run integration tests (requires Podman)
+make test-integration
+```
+
 ### Additional Commands
 ```bash
 # Run go vet

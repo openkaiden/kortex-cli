@@ -846,6 +846,67 @@ func TestWorkspaceRemoveCmd_Force(t *testing.T) {
 	})
 }
 
+func TestWorkspaceRemoveCmd_E2E_ByName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes workspace by name", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+			Name:      "remove-by-name",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instances.AddOptions{
+			Instance:    instance,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+		})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+		rootCmd.SetArgs([]string{"workspace", "remove", "remove-by-name", "--storage", storageDir})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		result := strings.TrimSpace(output.String())
+		if result != addedInstance.GetID() {
+			t.Errorf("Expected output to be '%s', got: '%s'", addedInstance.GetID(), result)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 instances after removal, got %d", len(instancesList))
+		}
+	})
+}
+
 func TestWorkspaceRemoveCmd_Examples(t *testing.T) {
 	t.Parallel()
 

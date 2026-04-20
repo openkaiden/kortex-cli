@@ -700,7 +700,6 @@ func sanitizeName(name string) string {
 // generateUniqueName generates a unique name from the source directory
 // by extracting the last component of the path and adding an increment if needed
 func (m *manager) generateUniqueName(sourceDir string, instances []Instance) string {
-	// Extract the last component of the source directory
 	baseName := filepath.Base(sourceDir)
 	return m.ensureUniqueName(sanitizeName(baseName), instances)
 }
