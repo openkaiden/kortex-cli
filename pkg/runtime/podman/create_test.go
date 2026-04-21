@@ -410,7 +410,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildContainerArgs(params, imageName, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -464,7 +464,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildContainerArgs(params, imageName, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -513,7 +513,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildContainerArgs(params, imageName, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -550,7 +550,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildContainerArgs(params, imageName, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -572,6 +572,109 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		if !strings.Contains(argsStr, expectedGitconfig) {
 			t.Errorf("Expected .gitconfig config mount: %s", expectedGitconfig)
+		}
+	})
+
+	t.Run("with containerConfigArgs env vars and CA cert", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+		caFile := filepath.Join(t.TempDir(), "ca.pem")
+		if err := os.WriteFile(caFile, []byte("cert-data"), 0644); err != nil {
+			t.Fatalf("failed to write CA fixture: %v", err)
+		}
+
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+		}
+		imageName := "kdn-test-workspace"
+
+		ccArgs := &containerConfigArgs{
+			envVars: map[string]string{
+				"HTTP_PROXY":  "http://proxy:8080",
+				"HTTPS_PROXY": "https://proxy:8443",
+			},
+			caFilePath:      caFile,
+			caContainerPath: "/etc/ssl/certs/onecli-ca.pem",
+		}
+
+		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+
+		argsStr := strings.Join(args, " ")
+
+		// Verify OneCLI proxy env vars are present
+		if !strings.Contains(argsStr, "-e HTTP_PROXY=http://proxy:8080") {
+			t.Error("Expected HTTP_PROXY env var")
+		}
+		if !strings.Contains(argsStr, "-e HTTPS_PROXY=https://proxy:8443") {
+			t.Error("Expected HTTPS_PROXY env var")
+		}
+
+		// Verify CA cert volume mount
+		expectedMount := fmt.Sprintf("-v %s:/etc/ssl/certs/onecli-ca.pem:ro,Z", caFile)
+		if !strings.Contains(argsStr, expectedMount) {
+			t.Errorf("Expected CA cert mount %q in args: %s", expectedMount, argsStr)
+		}
+	})
+
+	t.Run("onecli env vars override workspace env vars", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+
+		proxyValue := "http://user-proxy:9090"
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Environment: &[]workspace.EnvironmentVariable{
+					{Name: "HTTP_PROXY", Value: &proxyValue},
+				},
+			},
+		}
+		imageName := "kdn-test-workspace"
+
+		ccArgs := &containerConfigArgs{
+			envVars: map[string]string{
+				"HTTP_PROXY": "http://onecli-proxy:8080",
+			},
+		}
+
+		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+
+		// Find the indices of both -e HTTP_PROXY entries
+		onecliIdx, wsIdx := -1, -1
+		for i, arg := range args {
+			if arg == "-e" && i+1 < len(args) {
+				if args[i+1] == "HTTP_PROXY=http://onecli-proxy:8080" {
+					onecliIdx = i
+				}
+				if args[i+1] == "HTTP_PROXY=http://user-proxy:9090" {
+					wsIdx = i
+				}
+			}
+		}
+
+		if onecliIdx == -1 {
+			t.Fatal("OneCLI HTTP_PROXY not found in args")
+		}
+		if wsIdx == -1 {
+			t.Fatal("Workspace HTTP_PROXY not found in args")
+		}
+		// OneCLI env var should come after workspace env var (later wins in podman)
+		if onecliIdx <= wsIdx {
+			t.Errorf("OneCLI HTTP_PROXY (index %d) should come after workspace HTTP_PROXY (index %d) for precedence", onecliIdx, wsIdx)
 		}
 	})
 
@@ -608,7 +711,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildContainerArgs(params, imageName, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -648,6 +751,77 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		if !strings.Contains(argsStr, "sleep infinity") {
 			t.Error("Expected sleep infinity command")
+		}
+	})
+
+	t.Run("with secret env vars", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+			SecretEnvVars: map[string]string{
+				"GH_TOKEN":     "placeholder",
+				"GITHUB_TOKEN": "placeholder",
+			},
+		}
+		imageName := "kdn-test-workspace"
+
+		args, err := p.buildContainerArgs(params, imageName, nil)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+
+		argsStr := strings.Join(args, " ")
+		if !strings.Contains(argsStr, "-e GH_TOKEN=placeholder") {
+			t.Error("Expected GH_TOKEN=placeholder environment variable")
+		}
+		if !strings.Contains(argsStr, "-e GITHUB_TOKEN=placeholder") {
+			t.Error("Expected GITHUB_TOKEN=placeholder environment variable")
+		}
+	})
+
+	t.Run("secret env vars skip workspace-defined vars", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+
+		customToken := "my-real-token"
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Environment: &[]workspace.EnvironmentVariable{
+					{Name: "GH_TOKEN", Value: &customToken},
+				},
+			},
+			SecretEnvVars: map[string]string{
+				"GH_TOKEN":     "placeholder",
+				"GITHUB_TOKEN": "placeholder",
+			},
+		}
+		imageName := "kdn-test-workspace"
+
+		args, err := p.buildContainerArgs(params, imageName, nil)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+
+		argsStr := strings.Join(args, " ")
+
+		if strings.Contains(argsStr, "GH_TOKEN=placeholder") {
+			t.Error("Secret env var GH_TOKEN should not override workspace-defined value")
+		}
+		if !strings.Contains(argsStr, "GH_TOKEN=my-real-token") {
+			t.Error("Expected workspace GH_TOKEN=my-real-token")
+		}
+		if !strings.Contains(argsStr, "GITHUB_TOKEN=placeholder") {
+			t.Error("Expected GITHUB_TOKEN=placeholder")
 		}
 	})
 }

@@ -22,6 +22,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/onecli"
 )
 
 // Runtime manages the lifecycle of workspace instances in a specific execution environment.
@@ -73,6 +74,17 @@ type CreateParams struct {
 	// forward slashes (e.g., ".claude/settings.json"), values are file contents.
 	// This map can be nil or empty if no default settings are configured.
 	AgentSettings map[string][]byte
+
+	// OnecliSecrets contains pre-mapped OneCLI secret definitions to provision
+	// when the workspace is first started. These are created by the manager from
+	// workspace configuration secrets. Can be nil or empty.
+	OnecliSecrets []onecli.CreateSecretInput
+
+	// SecretEnvVars maps environment variable names to placeholder values.
+	// These are derived from secret service definitions (e.g. GH_TOKEN, GITHUB_TOKEN
+	// for the "github" secret type) and injected into the workspace container so
+	// that CLI tools detect a configured credential. Real auth goes through OneCLI proxy.
+	SecretEnvVars map[string]string
 }
 
 // RuntimeInfo contains information about a runtime instance.

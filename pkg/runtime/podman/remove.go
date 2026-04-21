@@ -17,6 +17,8 @@ package podman
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
@@ -68,6 +70,7 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	}
 
 	p.cleanupPodFiles(id)
+	p.cleanupCerts(podName)
 
 	// Remove the container image
 	imageName := info.Info["image_name"]
@@ -80,6 +83,15 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+// cleanupCerts removes the CA certificate directory for a workspace.
+func (p *podmanRuntime) cleanupCerts(podName string) {
+	certsDir := filepath.Join(p.storageDir, "certs", podName)
+	if !strings.HasPrefix(filepath.Clean(certsDir), filepath.Join(p.storageDir, "certs")+string(filepath.Separator)) {
+		return
+	}
+	os.RemoveAll(certsDir)
 }
 
 // isNotFoundError checks if an error indicates that a container was not found.

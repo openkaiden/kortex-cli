@@ -26,6 +26,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/logger"
+	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/pods"
@@ -127,19 +128,50 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 	return nil
 }
 
+// containerConfigArgs holds optional OneCLI container configuration to inject into the workspace.
+type containerConfigArgs struct {
+	envVars         map[string]string
+	caFilePath      string
+	caContainerPath string
+}
+
 // buildContainerArgs builds the arguments for creating the workspace container inside the pod.
-func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string) ([]string, error) {
+func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
 	args := []string{"create", "--pod", params.Name, "--name", params.Name}
 
-	// Add environment variables from workspace config
+	// Collect workspace env var names for collision detection
+	workspaceEnvNames := make(map[string]bool)
 	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Environment != nil {
 		for _, env := range *params.WorkspaceConfig.Environment {
 			if env.Value != nil {
 				args = append(args, "-e", fmt.Sprintf("%s=%s", env.Name, *env.Value))
+				workspaceEnvNames[env.Name] = true
 			} else if env.Secret != nil {
 				secretArg := fmt.Sprintf("%s,type=env,target=%s", *env.Secret, env.Name)
 				args = append(args, "--secret", secretArg)
+				workspaceEnvNames[env.Name] = true
 			}
+		}
+	}
+
+	// Add OneCLI proxy env vars after workspace config (OneCLI takes precedence).
+	// Log collisions so users know their workspace values are being overridden.
+	if ccArgs != nil {
+		for k, v := range ccArgs.envVars {
+			if workspaceEnvNames[k] {
+				fmt.Fprintf(os.Stderr, "warning: OneCLI overrides workspace env var %q\n", k)
+			}
+			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+		}
+		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
+			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
+		}
+	}
+
+	// Add secret service env vars with placeholder values so CLI tools detect a configured credential.
+	for k, v := range params.SecretEnvVars {
+		if !workspaceEnvNames[k] {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 		}
 	}
 
@@ -285,12 +317,51 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create pod via kube play: %w", err)
 	}
 
-	// Add the workspace container to the pod
+	// Clean up the pod if any subsequent step fails.
+	// Use context.Background() so cleanup still runs if ctx is cancelled.
+	podCreatedOK := false
+	defer func() {
+		if !podCreatedOK {
+			_ = p.executor.Run(context.Background(), l.Stdout(), l.Stderr(), "pod", "rm", "-f", params.Name)
+		}
+	}()
+
+	// Start the pod so OneCLI can initialize and we can provision secrets + get proxy config
+	var ccArgs *containerConfigArgs
+	if len(params.OnecliSecrets) > 0 {
+		containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets)
+		if setupErr != nil {
+			return runtime.RuntimeInfo{}, setupErr
+		}
+		if containerConfig != nil {
+			ccArgs = &containerConfigArgs{
+				envVars: containerConfig.Env,
+			}
+			// Write CA certificate to a durable location for mounting into the workspace container.
+			// Use a shared certs directory under storageDir (not instanceDir which is cleaned up).
+			if containerConfig.CACertificate != "" && containerConfig.CACertificateContainerPath != "" {
+				certsDir := filepath.Join(p.storageDir, "certs", params.Name)
+				if mkErr := os.MkdirAll(certsDir, 0755); mkErr != nil {
+					return runtime.RuntimeInfo{}, fmt.Errorf("failed to create certs directory: %w", mkErr)
+				}
+				caPath := filepath.Join(certsDir, "onecli-ca.pem")
+				if writeErr := os.WriteFile(caPath, []byte(containerConfig.CACertificate), 0644); writeErr != nil {
+					return runtime.RuntimeInfo{}, fmt.Errorf("failed to write CA certificate: %w", writeErr)
+				}
+				ccArgs.caFilePath = caPath
+				ccArgs.caContainerPath = containerConfig.CACertificateContainerPath
+			}
+		}
+	}
+
+	// Build workspace container args with proxy env vars and CA cert mount from OneCLI
 	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", params.Name), "Workspace container created")
-	createArgs, err := p.buildContainerArgs(params, imageName)
+	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs)
 	if err != nil {
+		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
+
 	containerID, err := p.createContainer(ctx, createArgs)
 	if err != nil {
 		stepLogger.Fail(err)
@@ -301,13 +372,24 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	if err := p.writePodFiles(containerID, tmplData); err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to persist pod files: %w", err)
 	}
+	if ccArgs != nil && ccArgs.caContainerPath != "" {
+		if err := p.writeCAContainerPath(containerID, ccArgs.caContainerPath); err != nil {
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to persist CA container path: %w", err)
+		}
+	}
+
+	podCreatedOK = true
 
 	// Return RuntimeInfo
 	info := map[string]string{
-		"container_id": containerID,
-		"image_name":   imageName,
-		"source_path":  params.SourcePath,
-		"agent":        params.Agent,
+		"container_id":    containerID,
+		"image_name":      imageName,
+		"source_path":     params.SourcePath,
+		"agent":           params.Agent,
+		"onecli_web_port": fmt.Sprintf("%d", tmplData.OnecliWebPort),
+	}
+	if ccArgs != nil && ccArgs.caContainerPath != "" {
+		info["ca_container_path"] = ccArgs.caContainerPath
 	}
 
 	return runtime.RuntimeInfo{
@@ -315,6 +397,76 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		State: api.WorkspaceStateStopped,
 		Info:  info,
 	}, nil
+}
+
+// setupOnecli starts postgres, waits for it, then starts onecli to avoid migration race conditions.
+// After provisioning secrets and retrieving container config, it stops the pod.
+func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.StepLogger, l logger.Logger, podName string, tmplData podTemplateData, secrets []onecli.CreateSecretInput) (*onecli.ContainerConfig, error) {
+	postgresContainer := podName + "-postgres"
+	onecliContainer := podName + "-onecli"
+
+	// Start only the postgres container first
+	stepLogger.Start("Starting postgres", "Postgres started")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "start", postgresContainer); err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("failed to start postgres: %w", err)
+	}
+
+	// Wait for postgres to be ready before starting onecli
+	stepLogger.Start("Waiting for postgres readiness", "Postgres ready")
+	if err := p.waitForPostgres(ctx, podName); err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("postgres not ready: %w", err)
+	}
+
+	// Now start the onecli container (postgres is ready, migrations will succeed)
+	stepLogger.Start("Starting OneCLI", "OneCLI started")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "start", onecliContainer); err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("failed to start OneCLI: %w", err)
+	}
+
+	baseURL := fmt.Sprintf("http://localhost:%d", tmplData.OnecliWebPort)
+
+	stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
+	if err := waitForReady(ctx, baseURL); err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("OneCLI service not ready: %w", err)
+	}
+
+	// Get API key from OneCLI (bootstraps local user on first call)
+	creds := onecli.NewCredentialProvider(baseURL)
+	apiKey, err := creds.APIKey(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OneCLI API key: %w", err)
+	}
+
+	client := onecli.NewClient(baseURL, apiKey)
+
+	// Provision secrets
+	stepLogger.Start("Provisioning OneCLI secrets", "OneCLI secrets provisioned")
+	provisioner := onecli.NewSecretProvisioner(client)
+	if err := provisioner.ProvisionSecrets(ctx, secrets); err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("failed to provision OneCLI secrets: %w", err)
+	}
+
+	// Get container config (proxy env vars, CA cert, agent token)
+	stepLogger.Start("Retrieving OneCLI container config", "Container config retrieved")
+	containerConfig, err := client.GetContainerConfig(ctx)
+	if err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("failed to get container config: %w", err)
+	}
+
+	// Stop the pod before creating the workspace container
+	stepLogger.Start("Stopping OneCLI services", "OneCLI services stopped")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "stop", podName); err != nil {
+		stepLogger.Fail(err)
+		return nil, fmt.Errorf("failed to stop pod after OneCLI setup: %w", err)
+	}
+
+	return containerConfig, nil
 }
 
 // writePodYAMLFile renders and writes the pod YAML template to the given path.

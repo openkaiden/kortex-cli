@@ -33,6 +33,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/generator"
 	"github.com/openkaiden/kdn/pkg/git"
+	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/secretservice"
 )
@@ -287,6 +288,28 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		// If agent not found in registry, use settings as-is (not all agents may be implemented)
 	}
 
+	// Map workspace secrets to OneCLI secret definitions and collect env vars
+	var onecliSecrets []onecli.CreateSecretInput
+	secretEnvVars := make(map[string]string)
+	if mergedConfig != nil && mergedConfig.Secrets != nil && len(*mergedConfig.Secrets) > 0 {
+		mapper := onecli.NewSecretMapper(m.secretServiceRegistry)
+		for i, s := range *mergedConfig.Secrets {
+			input, err := mapper.Map(s)
+			if err != nil {
+				return nil, fmt.Errorf("failed to map secret at index %d: %w", i, err)
+			}
+			onecliSecrets = append(onecliSecrets, input)
+
+			if s.Type != "other" {
+				if svc, svcErr := m.secretServiceRegistry.Get(s.Type); svcErr == nil {
+					for _, envVar := range svc.EnvVars() {
+						secretEnvVars[envVar] = "placeholder"
+					}
+				}
+			}
+		}
+	}
+
 	// Create runtime instance with merged configuration
 	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{
 		Name:            name,
@@ -294,6 +317,8 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		WorkspaceConfig: mergedConfig,
 		Agent:           opts.Agent,
 		AgentSettings:   agentSettings,
+		OnecliSecrets:   onecliSecrets,
+		SecretEnvVars:   secretEnvVars,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
