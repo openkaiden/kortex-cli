@@ -17,10 +17,10 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-runewidth v0.0.21 h1:jJKAZiQH+2mIinzCJIaIG9Be1+0NR+5sz/lYEEjdM8w=
 github.com/mattn/go-runewidth v0.0.21/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
-github.com/openkaiden/kdn-api/cli/go v0.2.3 h1:m1nKUnJLp2OYYn8SkiXKw32hjMaRGVI9GXiC4qc+ZU4=
-github.com/openkaiden/kdn-api/cli/go v0.2.3/go.mod h1:shX38OALrjrGa6K54sBOGPqoOe45+YZDl8zpXbeQcdQ=
-github.com/openkaiden/kdn-api/workspace-configuration/go v0.2.3 h1:mNMnDNu6AWG20IHjESWjx4f99Qj5JitIcmf8q7KB80U=
-github.com/openkaiden/kdn-api/workspace-configuration/go v0.2.3/go.mod h1:kSN89iJaJ4q5Go99LamjtDBMXMp7vbyqWuL142yC4/E=
+github.com/openkaiden/kdn-api/cli/go v0.3.0 h1:2RuELs2lZPv/zTxBxjZ1H7ixvd1F5SMm1mlTIoFK9xA=
+github.com/openkaiden/kdn-api/cli/go v0.3.0/go.mod h1:shX38OALrjrGa6K54sBOGPqoOe45+YZDl8zpXbeQcdQ=
+github.com/openkaiden/kdn-api/workspace-configuration/go v0.3.0 h1:CVwBtTm06tdFD9CXCcWppjSrjMT3UlxjHdFT8iBWCsA=
+github.com/openkaiden/kdn-api/workspace-configuration/go v0.3.0/go.mod h1:kSN89iJaJ4q5Go99LamjtDBMXMp7vbyqWuL142yC4/E=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rodaine/table v1.3.1 h1:jBVgg1bEu5EzEdYSrwUUlQpayDtkvtTmgFS0FPAxOq8=
