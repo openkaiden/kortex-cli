@@ -16,6 +16,7 @@
 package podman
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -123,6 +124,14 @@ func (p *podmanRuntime) writePodFiles(containerID string, data podTemplateData) 
 	if err := os.WriteFile(p.podNamePath(containerID), []byte(data.Name), 0644); err != nil {
 		return fmt.Errorf("failed to write pod name file: %w", err)
 	}
+
+	tmplJSON, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod template data: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, podTemplateDataFile), tmplJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write pod template data: %w", err)
+	}
 	return nil
 }
 
@@ -138,6 +147,40 @@ func (p *podmanRuntime) readPodName(containerID string) (string, error) {
 // cleanupPodFiles removes the pod metadata directory for a given container ID.
 func (p *podmanRuntime) cleanupPodFiles(containerID string) {
 	os.RemoveAll(p.podDir(containerID))
+}
+
+const (
+	podTemplateDataFile = "pod-template-data.json"
+	caContainerPathFile = "ca-container-path"
+)
+
+// writeCAContainerPath persists the CA certificate container path for a workspace.
+func (p *podmanRuntime) writeCAContainerPath(containerID, caPath string) error {
+	return os.WriteFile(filepath.Join(p.podDir(containerID), caContainerPathFile), []byte(caPath), 0644)
+}
+
+// readCAContainerPath reads the persisted CA certificate container path.
+// Returns empty string if not set.
+func (p *podmanRuntime) readCAContainerPath(containerID string) string {
+	data, err := os.ReadFile(filepath.Join(p.podDir(containerID), caContainerPathFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// readPodTemplateData reads the persisted pod template data for a container.
+func (p *podmanRuntime) readPodTemplateData(containerID string) (podTemplateData, error) {
+	path := filepath.Join(p.podDir(containerID), podTemplateDataFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return podTemplateData{}, fmt.Errorf("failed to read pod template data: %w", err)
+	}
+	var tmplData podTemplateData
+	if err := json.Unmarshal(data, &tmplData); err != nil {
+		return podTemplateData{}, fmt.Errorf("failed to unmarshal pod template data: %w", err)
+	}
+	return tmplData, nil
 }
 
 // ListAgents implements runtime.AgentLister.

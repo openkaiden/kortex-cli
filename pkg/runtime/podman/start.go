@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/openkaiden/kdn/pkg/logger"
@@ -73,6 +74,15 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start pod: %w", err)
 	}
 
+	// Install OneCLI CA certificate into system trust store if present
+	if caPath := p.readCAContainerPath(id); caPath != "" {
+		stepLogger.Start("Installing CA certificate", "CA certificate installed")
+		if err := p.installCACert(ctx, id, caPath); err != nil {
+			stepLogger.Fail(err)
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to install CA certificate: %w", err)
+		}
+	}
+
 	// Verify workspace container status
 	stepLogger.Start("Verifying container status", "Container status verified")
 	info, err := p.getContainerInfo(ctx, id)
@@ -82,6 +92,25 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	}
 
 	return info, nil
+}
+
+const caTrustAnchorPath = "/etc/pki/ca-trust/source/anchors/onecli-ca.pem"
+
+// installCACert copies the OneCLI CA certificate into the system trust store
+// and runs update-ca-trust so all tools (gh, curl, etc.) trust the proxy.
+func (p *podmanRuntime) installCACert(ctx context.Context, containerID, caContainerPath string) error {
+	l := logger.FromContext(ctx)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(),
+		"exec", containerID, "sudo", "cp", caContainerPath, caTrustAnchorPath,
+	); err != nil {
+		return fmt.Errorf("failed to copy CA certificate: %w", err)
+	}
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(),
+		"exec", containerID, "sudo", "update-ca-trust",
+	); err != nil {
+		return fmt.Errorf("update-ca-trust failed: %w", err)
+	}
+	return nil
 }
 
 // waitForPostgres polls the postgres container inside the pod until pg_isready succeeds.
@@ -104,4 +133,37 @@ func (p *podmanRuntime) waitForPostgres(ctx context.Context, podName string) err
 		}
 	}
 	return fmt.Errorf("postgres not ready after %d retries: %w", postgresMaxRetries, lastErr)
+}
+
+const (
+	readinessTimeout  = 60 * time.Second
+	readinessInterval = 2 * time.Second
+)
+
+// waitForReady polls the OneCLI health endpoint until it responds or the timeout expires.
+func waitForReady(ctx context.Context, baseURL string) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
+	defer cancel()
+
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+
+	for {
+		req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, baseURL+"/api/health", nil)
+		if err != nil {
+			return err
+		}
+		resp, err := httpClient.Do(req)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				return nil
+			}
+		}
+
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("timed out after %s waiting for OneCLI at %s: %w", readinessTimeout, baseURL, timeoutCtx.Err())
+		case <-time.After(readinessInterval):
+		}
+	}
 }

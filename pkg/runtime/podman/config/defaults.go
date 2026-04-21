@@ -62,6 +62,8 @@ func defaultImageConfig() *ImageConfig {
 			"/bin/kill",
 			"/usr/bin/kill",
 			"/usr/bin/killall",
+			"/usr/bin/cp",
+			"/usr/bin/update-ca-trust",
 		},
 		RunCommands: []string{},
 	}
