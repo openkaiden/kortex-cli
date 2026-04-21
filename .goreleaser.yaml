@@ -66,6 +66,9 @@ changelog:
       - "^ci:"
       - "^chore:"
 
+checksum:
+  disable: true
+
 release:
   github:
     owner: openkaiden
