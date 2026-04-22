@@ -75,9 +75,14 @@ for i, feat := range ordered {
 
 **Version-stripped matching:** `installsAfter` values are always versionless per the spec (e.g. `ghcr.io/devcontainers/features/common-utils`). `Order` strips the version tag from registered feature IDs when resolving dependencies, so a feature registered as `…/common-utils:2` is correctly matched by an `installsAfter` entry of `…/common-utils`.
 
+**Soft-dependency semantics:** Per the Dev Container spec, `installsAfter` is a hint — not a hard requirement. An `installsAfter` value that refers to a feature not present in `feats` (e.g. a feature the user didn't select, or one from a different layer) is silently ignored. This is intentional and distinct from a _missing metadata entry_, which is always an error because it means `Download` was not called before `Order`.
+
 ```go
 ordered, err := features.Order(feats, metadata)
-// err is non-nil on cycle or missing metadata entry
+// err is non-nil on:
+//   - a cycle in installsAfter dependencies
+//   - a feature in feats with no corresponding metadata entry
+// installsAfter references to features not in feats are silently ignored
 ```
 
 ## FeatureOptions.Merge
@@ -166,7 +171,7 @@ For IDs beginning with `./` or `../`, `Download`:
 
 | Capability | Status |
 |---|---|
-| `installsAfter` soft-dependency ordering | ✅ implemented, with version-stripped ID matching |
+| `installsAfter` soft-dependency ordering | ✅ implemented, with version-stripped ID matching; references to features not in `feats` are silently ignored per spec |
 | Cycle detection | ✅ implemented |
 | `dependsOn` hard-dependency ordering | ❌ not implemented |
 | `overrideFeatureInstallOrder` priority-based sorting | ❌ not implemented |

@@ -604,7 +604,12 @@ func TestOrder_MultipleWithInstallsAfterChain(t *testing.T) {
 func TestOrder_InstallsAfterExternalFeatureIgnored(t *testing.T) {
 	t.Parallel()
 
-	// A.installsAfter references a feature not in feats — should be ignored.
+	// Per the Dev Container spec, installsAfter is a soft ordering hint.
+	// References to features not present in feats (e.g. features from a
+	// different layer or not selected by the user) must be silently ignored,
+	// not treated as errors. This is distinct from a missing metadata entry
+	// (which is always an error because it means a feature in feats was not
+	// downloaded before Order was called).
 	feats := []features.Feature{&fakeFeature{id: "A"}}
 	metadata := map[string]features.FeatureMetadata{
 		"A": &fakeMetadata{installsAfter: []string{"external-feature"}},
