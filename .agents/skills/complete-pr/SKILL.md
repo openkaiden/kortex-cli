@@ -71,7 +71,7 @@ Skills document reusable capabilities for AI agents. Update when:
 - [ ] A new repeatable workflow is introduced → create a new skill (`skills/<name>/SKILL.md`)
 - [ ] An existing skill references code that has changed (function names, file paths, flag names) → update the skill
 - [ ] Step counts, patterns, or examples in a skill are now outdated → refresh them
-- [ ] New skill created → symlink it in `.claude/skills/`: `ln -s ../../skills/<name> .claude/skills/<name>`
+- [ ] New skill created → no symlink needed; `.claude/skills` is already a symlink to `../.agents/skills`
 
 ### README.md
 

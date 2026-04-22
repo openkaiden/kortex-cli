@@ -218,7 +218,7 @@ kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
   - `mode` - Access mode: `"allow"` (permit all) or `"deny"` (block all except listed hosts). Defaults to `"deny"`
   - `hosts` - List of hostnames to allow in deny mode (optional, must not be set when mode is `"allow"`)
 - `secrets` - List of secrets to inject into the workspace (optional)
-  - `type` - Secret type identifier (required, e.g., `"github"`, `"slack"`, `"other"`)
+  - `type` - Secret type identifier (required); use a registered service name (e.g., `"github"`) or `"other"` for custom secrets
   - `value` - The secret value or token (required)
   - `name` - Optional name to distinguish multiple secrets of the same type
   - `header` - HTTP header name for injecting the secret (optional, only applicable when type is `"other"`)

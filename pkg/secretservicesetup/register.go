@@ -94,6 +94,22 @@ func RegisterAll(registrar SecretServiceRegistrar) error {
 	return registerAllWithFactories(registrar, availableSecretServices)
 }
 
+// ListAvailable returns the names of all available secret services.
+func ListAvailable() []string {
+	return listAvailableWithFactories(availableSecretServices)
+}
+
+// listAvailableWithFactories returns the names of secret services from the given factories.
+// This function is internal and used for testing with custom secret service lists.
+func listAvailableWithFactories(factories []secretServiceFactory) []string {
+	names := make([]string, 0, len(factories))
+	for _, factory := range factories {
+		svc := factory()
+		names = append(names, svc.Name())
+	}
+	return names
+}
+
 // registerAllWithFactories registers the given secret services to the registrar.
 // This function is internal and used for testing with custom secret service lists.
 func registerAllWithFactories(registrar SecretServiceRegistrar, factories []secretServiceFactory) error {
