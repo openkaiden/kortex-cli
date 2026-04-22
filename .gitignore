@@ -12,6 +12,9 @@
 *.out
 coverage.html
 
+# Test report artifacts
+integration-results.xml
+
 # Go workspace file
 go.work
 

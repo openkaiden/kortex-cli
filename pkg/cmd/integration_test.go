@@ -28,10 +28,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 )
+
+// initMu serializes "kdn init" calls so that only one podman build runs at a
+// time. Podman's rootless storage driver uses file locks that are unreliable
+// under concurrent builds, causing sporadic "exit status 125" failures.
+var initMu sync.Mutex
 
 // containerSourcesPath is the mount point for project sources inside the container.
 const containerSourcesPath = "/workspace/sources"
@@ -135,7 +141,10 @@ func integrationInit(t *testing.T, storageDir, sourcesDir, name, agent string, e
 	rootCmd.SetOut(stdout)
 	rootCmd.SetArgs(args)
 
-	if err := rootCmd.Execute(); err != nil {
+	initMu.Lock()
+	err := rootCmd.Execute()
+	initMu.Unlock()
+	if err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 
@@ -183,7 +192,10 @@ func integrationInitTextMode(t *testing.T, storageDir, sourcesDir, name, agent s
 	rootCmd.SetErr(stderrBuf)
 	rootCmd.SetArgs(args)
 
-	if err := rootCmd.Execute(); err != nil {
+	initMu.Lock()
+	err := rootCmd.Execute()
+	initMu.Unlock()
+	if err != nil {
 		t.Fatalf("init failed: %v\nStderr: %s", err, stderrBuf.String())
 	}
 

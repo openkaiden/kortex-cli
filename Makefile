@@ -52,7 +52,13 @@ test: ## Run all tests
 
 test-integration: ## Run integration tests (requires Podman)
 	@echo "Running integration tests..."
-	$(GO) test -tags integration -timeout 30m -count=1 -parallel 2 -v ./pkg/cmd/
+	$(GO) run gotest.tools/gotestsum@v1.13.0 \
+		--junitfile integration-results.xml \
+		--junitfile-project-name kdn \
+		--junitfile-testsuite-name short \
+		--junitfile-testcase-classname short \
+		--format testdox \
+		-- -tags integration -run TestIntegration_ -timeout 30m -count=1 -parallel 2 ./pkg/cmd/
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
@@ -90,5 +96,6 @@ clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
 	@rm -f $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_EXT)
 	@rm -f coverage.out coverage.html
+	@rm -f integration-results.xml
 	@rm -f *.test
 	@echo "Clean complete."

@@ -16,10 +16,13 @@
 package exec
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Executor provides an interface for executing podman commands.
@@ -51,19 +54,37 @@ func New() Executor {
 }
 
 // Run executes a podman command, writing stdout and stderr to the provided writers.
+// On failure, the error includes podman's stderr output for diagnostics,
+// even when the caller passes io.Discard as the stderr writer.
 func (e *executor) Run(ctx context.Context, stdout, stderr io.Writer, args ...string) error {
+	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, "podman", args...)
 	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	return cmd.Run()
+	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
+	if err := cmd.Run(); err != nil {
+		if msg := strings.TrimSpace(stderrBuf.String()); msg != "" {
+			return fmt.Errorf("%w\nPodman stderr:\n%s", err, msg)
+		}
+		return err
+	}
+	return nil
 }
 
 // Output executes a podman command and returns its standard output.
 // Stderr is written to the provided writer.
+// On failure, the error includes podman's stderr output for diagnostics.
 func (e *executor) Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error) {
+	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, "podman", args...)
-	cmd.Stderr = stderr
-	return cmd.Output()
+	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
+	out, err := cmd.Output()
+	if err != nil {
+		if msg := strings.TrimSpace(stderrBuf.String()); msg != "" {
+			return out, fmt.Errorf("%w\nPodman stderr:\n%s", err, msg)
+		}
+		return out, err
+	}
+	return out, nil
 }
 
 // RunInteractive executes a podman command with stdin/stdout/stderr connected to the terminal.

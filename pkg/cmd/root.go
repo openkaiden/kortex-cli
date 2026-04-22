@@ -63,6 +63,10 @@ func NewRootCmd() *cobra.Command {
 		ID:    "workspace",
 		Title: "Workspace Commands:",
 	})
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "secret",
+		Title: "Secret Commands:",
+	})
 
 	// Add subcommands with groups
 	initCmd := NewInitCmd()
@@ -92,6 +96,10 @@ func NewRootCmd() *cobra.Command {
 	workspaceCmd := NewWorkspaceCmd()
 	workspaceCmd.GroupID = "workspace"
 	rootCmd.AddCommand(workspaceCmd)
+
+	secretCmd := NewSecretCmd()
+	secretCmd.GroupID = "secret"
+	rootCmd.AddCommand(secretCmd)
 
 	// Commands without a group (will appear under "Additional Commands")
 	rootCmd.AddCommand(NewVersionCmd())
