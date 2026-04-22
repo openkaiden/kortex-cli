@@ -1794,7 +1794,6 @@ Configure secrets to inject into the workspace. Secrets are typed credentials (e
 {
   "secrets": [
     {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
-    {"type": "slack", "value": "xoxb-xxxxxxxxxxxx"},
     {
       "type": "other",
       "name": "api-key",
@@ -1809,7 +1808,7 @@ Configure secrets to inject into the workspace. Secrets are typed credentials (e
 ```
 
 **Fields:**
-- `type` (required) - Secret type identifier (e.g., `"github"`, `"slack"`, `"other"`)
+- `type` (required) - Secret type identifier; use a registered service name (e.g., `"github"`) or `"other"` for custom secrets
 - `value` (required) - The secret value or token
 - `name` (optional) - Name to distinguish multiple secrets of the same type
 - `header` (optional) - HTTP header name for injecting the secret (only applicable when type is `"other"`)

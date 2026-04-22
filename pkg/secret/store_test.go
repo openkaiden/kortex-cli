@@ -177,4 +177,3 @@ func TestStore_Create_KeychainError(t *testing.T) {
 		t.Fatal("expected error when keychain fails")
 	}
 }
-
