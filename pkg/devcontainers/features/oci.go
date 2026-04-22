@@ -301,8 +301,34 @@ func extractTar(r io.Reader, destDir string) error {
 	return extractTarEntries(tr, destDir)
 }
 
+// safeTarTarget resolves name relative to destDir and verifies the result
+// stays within destDir, preventing directory-traversal attacks.
+func safeTarTarget(destDir, name string) (string, error) {
+	cleanPath := filepath.Clean(filepath.FromSlash(name))
+	if cleanPath == "." || filepath.IsAbs(cleanPath) ||
+		cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid path in tar archive: %s", name)
+	}
+
+	target := filepath.Join(destDir, cleanPath)
+	absDest, err := filepath.Abs(destDir)
+	if err != nil {
+		return "", err
+	}
+	absTarget, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(absDest, absTarget)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("invalid path in tar archive: %s", name)
+	}
+	return target, nil
+}
+
 // extractTarEntries extracts all entries from a tar reader into destDir,
-// sanitizing paths to prevent directory traversal.
+// sanitizing paths to prevent directory traversal. Symlinks and hard links
+// are rejected to avoid escaping destDir via link chains.
 func extractTarEntries(tr *tar.Reader, destDir string) error {
 	for {
 		hdr, err := tr.Next()
@@ -313,12 +339,10 @@ func extractTarEntries(tr *tar.Reader, destDir string) error {
 			return fmt.Errorf("reading tar entry: %w", err)
 		}
 
-		cleanPath := filepath.Clean(hdr.Name)
-		if strings.HasPrefix(cleanPath, "..") {
-			return fmt.Errorf("invalid path in tar archive: %s", hdr.Name)
+		target, err := safeTarTarget(destDir, hdr.Name)
+		if err != nil {
+			return err
 		}
-
-		target := filepath.Join(destDir, cleanPath)
 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
@@ -338,13 +362,8 @@ func extractTarEntries(tr *tar.Reader, destDir string) error {
 				return err
 			}
 			f.Close()
-		case tar.TypeSymlink:
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return err
-			}
-			if err := os.Symlink(hdr.Linkname, target); err != nil && !os.IsExist(err) {
-				return err
-			}
+		case tar.TypeSymlink, tar.TypeLink:
+			return fmt.Errorf("unsupported link in tar archive: %s", hdr.Name)
 		}
 	}
 	return nil

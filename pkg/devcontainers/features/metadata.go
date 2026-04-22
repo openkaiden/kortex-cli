@@ -68,13 +68,54 @@ func normalizeKey(k string) string {
 	return nonAlphanumRE.ReplaceAllString(strings.ToUpper(k), "_")
 }
 
+func validateOptionValue(key string, spec featureOptionSpec, val interface{}) (string, error) {
+	switch spec.Type {
+	case "boolean":
+		switch v := val.(type) {
+		case bool:
+			if v {
+				return "true", nil
+			}
+			return "false", nil
+		case string:
+			s := strings.ToLower(v)
+			if s != "true" && s != "false" {
+				return "", fmt.Errorf("option %s: expected boolean, got %q", key, v)
+			}
+			return s, nil
+		default:
+			return "", fmt.Errorf("option %s: expected boolean, got %T", key, val)
+		}
+	case "string", "":
+		s, ok := val.(string)
+		if !ok {
+			return "", fmt.Errorf("option %s: expected string, got %T", key, val)
+		}
+		if len(spec.Enum) > 0 {
+			for _, e := range spec.Enum {
+				if e == s {
+					return s, nil
+				}
+			}
+			return "", fmt.Errorf("option %s: value %q is not in enum %v", key, s, spec.Enum)
+		}
+		return s, nil
+	default:
+		return "", fmt.Errorf("option %s: unsupported type %q", key, spec.Type)
+	}
+}
+
 func (o *featureOptions) Merge(userOptions map[string]interface{}) (map[string]string, error) {
 	result := make(map[string]string, len(o.specs))
 
 	// Apply defaults first.
 	for key, spec := range o.specs {
 		if spec.Default != nil {
-			result[normalizeKey(key)] = fmt.Sprintf("%v", spec.Default)
+			value, err := validateOptionValue(key, spec, spec.Default)
+			if err != nil {
+				return nil, fmt.Errorf("invalid default for option %s: %w", key, err)
+			}
+			result[normalizeKey(key)] = value
 		}
 	}
 
@@ -84,47 +125,11 @@ func (o *featureOptions) Merge(userOptions map[string]interface{}) (map[string]s
 		if !ok {
 			return nil, fmt.Errorf("unknown option: %s", key)
 		}
-		norm := normalizeKey(key)
-
-		switch spec.Type {
-		case "boolean":
-			switch v := val.(type) {
-			case bool:
-				if v {
-					result[norm] = "true"
-				} else {
-					result[norm] = "false"
-				}
-			case string:
-				s := strings.ToLower(v)
-				if s != "true" && s != "false" {
-					return nil, fmt.Errorf("option %s: expected boolean, got %q", key, v)
-				}
-				result[norm] = s
-			default:
-				return nil, fmt.Errorf("option %s: expected boolean, got %T", key, val)
-			}
-		case "string", "":
-			s, ok := val.(string)
-			if !ok {
-				return nil, fmt.Errorf("option %s: expected string, got %T", key, val)
-			}
-			if len(spec.Enum) > 0 {
-				valid := false
-				for _, e := range spec.Enum {
-					if e == s {
-						valid = true
-						break
-					}
-				}
-				if !valid {
-					return nil, fmt.Errorf("option %s: value %q is not in enum %v", key, s, spec.Enum)
-				}
-			}
-			result[norm] = s
-		default:
-			return nil, fmt.Errorf("option %s: unsupported type %q", key, spec.Type)
+		value, err := validateOptionValue(key, spec, val)
+		if err != nil {
+			return nil, err
 		}
+		result[normalizeKey(key)] = value
 	}
 
 	return result, nil

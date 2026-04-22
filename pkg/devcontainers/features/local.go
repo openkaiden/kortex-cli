@@ -57,6 +57,10 @@ func copyDir(src, dst string) error {
 			return err
 		}
 
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlinks are not supported in local features: %s", path)
+		}
+
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
@@ -66,6 +70,10 @@ func copyDir(src, dst string) error {
 
 		if d.IsDir() {
 			return os.MkdirAll(target, 0755)
+		}
+
+		if !d.Type().IsRegular() {
+			return fmt.Errorf("unsupported non-regular file in local feature: %s", path)
 		}
 
 		return copyFile(path, target)

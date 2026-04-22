@@ -74,7 +74,7 @@ func FromMap(m map[string]map[string]interface{}, workspaceConfigDir string) ([]
 		case strings.HasPrefix(id, "./") || strings.HasPrefix(id, "../"):
 			feats = append(feats, &localFeature{id: id, dir: workspaceConfigDir})
 		case strings.HasPrefix(id, "http://") || strings.HasPrefix(id, "https://"):
-			return nil, nil, fmt.Errorf("feature Tgz URI is not supported: %s", id)
+			return nil, nil, fmt.Errorf("direct HTTP(S) feature sources are not supported: %s", id)
 		default:
 			feats = append(feats, &ociFeature{id: id})
 		}
@@ -104,8 +104,11 @@ func featureBaseID(id string) string {
 
 // Order returns features in the correct installation order, respecting the
 // installsAfter fields read from each feature's devcontainer-feature.json.
-// metadata must contain an entry for every feature in feats.
-// Returns an error if a cycle is detected or a referenced feature is missing.
+// metadata must contain an entry for every feature in feats; an error is
+// returned if any entry is missing.
+// Per the Dev Container spec, installsAfter is a hint: references to IDs not
+// present in feats are silently ignored.
+// Returns an error if a cycle is detected.
 func Order(feats []Feature, metadata map[string]FeatureMetadata) ([]Feature, error) {
 	for _, f := range feats {
 		if _, ok := metadata[f.ID()]; !ok {

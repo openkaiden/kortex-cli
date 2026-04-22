@@ -84,7 +84,7 @@ ordered, err := features.Order(feats, metadata)
 
 Key normalisation: keys are uppercased and runs of non-alphanumeric characters replaced with `_`.
 
-```
+```text
 "install-tools" → "INSTALL_TOOLS"
 "go.version"    → "GO_VERSION"
 ```

@@ -598,15 +598,11 @@ func TestExtractTarEntries_DirectoryEntry(t *testing.T) {
 	}
 }
 
-func TestExtractTarEntries_SymlinkEntry(t *testing.T) {
+func TestExtractTarEntries_SymlinkEntryRejected(t *testing.T) {
 	t.Parallel()
 
-	// Create a target file first, then a symlink pointing at it.
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
-	content := []byte("target")
-	_ = tw.WriteHeader(&tar.Header{Name: "target.txt", Mode: 0644, Size: int64(len(content))})
-	_, _ = tw.Write(content)
 	_ = tw.WriteHeader(&tar.Header{
 		Typeflag: tar.TypeSymlink,
 		Name:     "link.txt",
@@ -615,15 +611,8 @@ func TestExtractTarEntries_SymlinkEntry(t *testing.T) {
 	tw.Close()
 
 	destDir := t.TempDir()
-	if err := extractTarEntries(tar.NewReader(&buf), destDir); err != nil {
-		t.Fatalf("extractTarEntries: %v", err)
-	}
-	fi, err := os.Lstat(filepath.Join(destDir, "link.txt"))
-	if err != nil {
-		t.Fatalf("link.txt not found: %v", err)
-	}
-	if fi.Mode()&os.ModeSymlink == 0 {
-		t.Error("link.txt is not a symlink")
+	if err := extractTarEntries(tar.NewReader(&buf), destDir); err == nil {
+		t.Fatal("expected error for symlink entry, got nil")
 	}
 }
 
