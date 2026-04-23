@@ -87,9 +87,10 @@ func NewSecretRemoveCmd() *cobra.Command {
 	c := &secretRemoveCmd{}
 
 	cmd := &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Remove a secret",
-		Long:  "Remove a secret from the system keychain and from the kdn storage directory.",
+		Use:     "remove <name>",
+		Aliases: []string{"rm"},
+		Short:   "Remove a secret",
+		Long:    "Remove a secret from the system keychain and from the kdn storage directory.",
 		Example: `# Remove a secret by name
 kdn secret remove my-github-token
 
