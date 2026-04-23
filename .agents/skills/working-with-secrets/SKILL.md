@@ -39,7 +39,7 @@ The keychain backend is platform-specific: GNOME Keyring on Linux, Keychain on m
 | Type | How descriptor fields are resolved |
 |------|------------------------------------|
 | Named (e.g. `github`) | Taken from the registered `SecretService` automatically |
-| `other` | Required: `--host`, `--header`, `--env`; optional: `--path`, `--headerTemplate` |
+| `other` | Required: `--host`, `--header`; optional: `--path`, `--headerTemplate`, `--env` |
 
 ## Using the Store
 

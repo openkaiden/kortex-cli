@@ -208,24 +208,10 @@ func TestSecretCreateCmd_PreRun(t *testing.T) {
 		}
 	})
 
-	t.Run("other without --env", func(t *testing.T) {
+	t.Run("other with only required flags succeeds", func(t *testing.T) {
 		t.Parallel()
 
 		c := &secretCreateCmd{secretType: "other", value: "v", hosts: []string{"example.com"}, validTypes: testValidTypes}
-		cmd := buildPreRunCmd(t.TempDir())
-		if err := cmd.Flags().Set("header", "Authorization"); err != nil {
-			t.Fatal(err)
-		}
-		err := c.preRun(cmd, []string{"name"})
-		if err == nil || !strings.Contains(err.Error(), "--env is required when --type=other") {
-			t.Errorf("expected '--env is required' error, got: %v", err)
-		}
-	})
-
-	t.Run("other without --path and --headerTemplate succeeds", func(t *testing.T) {
-		t.Parallel()
-
-		c := &secretCreateCmd{secretType: "other", value: "v", hosts: []string{"example.com"}, envs: []string{"MY_KEY"}, validTypes: testValidTypes}
 		cmd := buildPreRunCmd(t.TempDir())
 		if err := cmd.Flags().Set("header", "Authorization"); err != nil {
 			t.Fatal(err)

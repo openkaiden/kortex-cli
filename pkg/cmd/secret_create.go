@@ -69,9 +69,6 @@ func (s *secretCreateCmd) preRun(cmd *cobra.Command, args []string) error {
 		if !cmd.Flags().Changed("header") {
 			return fmt.Errorf("--header is required when --type=%s", secret.TypeOther)
 		}
-		if len(s.envs) == 0 {
-			return fmt.Errorf("--env is required when --type=%s", secret.TypeOther)
-		}
 	} else {
 		// Descriptor flags are not valid for named types
 		if len(s.hosts) > 0 {
@@ -145,8 +142,8 @@ hosts, path, header template, envs) is persisted in the kdn storage directory.
 
 Accepted types: %s.
 
-When --type=other, the flags --host, --header, and --env are required; --path
-and --headerTemplate are optional. For any other type, these flags must not be
+When --type=other, --host and --header are required; --path, --headerTemplate,
+and --env are optional. For any other type, these flags must not be
 specified.`, typesStr),
 		Example: `# Create a GitHub token secret
 kdn secret create my-github-token --type github --value ghp_mytoken
@@ -154,8 +151,8 @@ kdn secret create my-github-token --type github --value ghp_mytoken
 # Create a custom secret (type=other) with all descriptor flags
 kdn secret create my-api-key --type other --value secret123 --host api.example.com --host dev.example.com --path /api/v1 --header Authorization --headerTemplate "Bearer ${value}" --env MY_API_KEY --env API_KEY
 
-# Create a custom secret (type=other) without optional flags
-kdn secret create my-api-key --type other --value secret123 --host api.example.com --header Authorization --env MY_API_KEY`,
+# Create a custom secret (type=other) with only required flags
+kdn secret create my-api-key --type other --value secret123 --host api.example.com --header Authorization`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: c.preRun,
 		RunE:    c.run,
@@ -171,7 +168,7 @@ kdn secret create my-api-key --type other --value secret123 --host api.example.c
 	cmd.Flags().StringVar(&c.path, "path", "", "URL path restriction (optional for --type=other)")
 	cmd.Flags().StringVar(&c.header, "header", "", "HTTP header name (required for --type=other)")
 	cmd.Flags().StringVar(&c.headerTemplate, "headerTemplate", "", "HTTP header value template using ${value} as placeholder (optional for --type=other)")
-	cmd.Flags().StringArrayVar(&c.envs, "env", nil, "Environment variable name to expose the secret value (required for --type=other, can be specified multiple times)")
+	cmd.Flags().StringArrayVar(&c.envs, "env", nil, "Environment variable name to expose the secret value (optional for --type=other, can be specified multiple times)")
 
 	return cmd
 }
