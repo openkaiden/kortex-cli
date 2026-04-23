@@ -709,6 +709,37 @@ func TestCompleteSecretName(t *testing.T) {
 			t.Errorf("expected 0 completions, got %d: %v", len(completions), completions)
 		}
 	})
+
+	t.Run("returns error directive when storage flag is not registered", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		// Intentionally omit registering the "storage" flag so GetString returns an error.
+
+		_, directive := completeSecretName(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("expected ShellCompDirectiveError, got %v", directive)
+		}
+	})
+
+	t.Run("returns error directive when secrets.json is corrupt", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(storageDir, "secrets.json"), []byte("not-json"), 0600); err != nil {
+			t.Fatalf("failed to write corrupt secrets.json: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		_, directive := completeSecretName(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("expected ShellCompDirectiveError, got %v", directive)
+		}
+	})
 }
 
 func TestCompleteRuntimeFlag(t *testing.T) {
