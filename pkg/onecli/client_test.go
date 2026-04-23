@@ -204,3 +204,121 @@ func TestGetContainerConfig(t *testing.T) {
 		t.Error("CACertificate should not be empty")
 	}
 }
+
+func TestCreateRule(t *testing.T) {
+	t.Parallel()
+
+	want := Rule{
+		ID:          "rule-1",
+		Name:        "allow-api.github.com",
+		HostPattern: "api.github.com",
+		Action:      "rate_limit",
+		Enabled:     true,
+	}
+
+	var gotInput CreateRuleInput
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/rules" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-key" {
+			t.Errorf("unexpected auth header: %s", r.Header.Get("Authorization"))
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotInput); err != nil {
+			t.Fatalf("decoding request body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(want)
+	}))
+	defer server.Close()
+
+	input := CreateRuleInput{
+		Name:            "allow-api.github.com",
+		HostPattern:     "api.github.com",
+		Action:          "rate_limit",
+		Enabled:         true,
+		RateLimit:       65535,
+		RateLimitWindow: "minute",
+	}
+
+	c := NewClient(server.URL, "test-key")
+	got, err := c.CreateRule(context.Background(), input)
+	if err != nil {
+		t.Fatalf("CreateRule() error: %v", err)
+	}
+	if got.ID != want.ID {
+		t.Errorf("got ID %q, want %q", got.ID, want.ID)
+	}
+	if gotInput.HostPattern != input.HostPattern {
+		t.Errorf("got HostPattern %q, want %q", gotInput.HostPattern, input.HostPattern)
+	}
+	if gotInput.RateLimit != input.RateLimit {
+		t.Errorf("got RateLimit %d, want %d", gotInput.RateLimit, input.RateLimit)
+	}
+}
+
+func TestListRules(t *testing.T) {
+	t.Parallel()
+
+	want := []Rule{
+		{ID: "rule-1", Name: "allow-github", HostPattern: "api.github.com", Action: "rate_limit", Enabled: true},
+		{ID: "rule-2", Name: "block-all", HostPattern: "*", Action: "block", Enabled: true},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/rules" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(want)
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-key")
+	got, err := c.ListRules(context.Background())
+	if err != nil {
+		t.Fatalf("ListRules() error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d rules, want 2", len(got))
+	}
+	if got[0].ID != "rule-1" || got[1].ID != "rule-2" {
+		t.Errorf("unexpected rules: %+v", got)
+	}
+}
+
+func TestDeleteRule(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/rules/rule-1" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-key")
+	if err := c.DeleteRule(context.Background(), "rule-1"); err != nil {
+		t.Fatalf("DeleteRule() error: %v", err)
+	}
+}
+
+func TestCreateRule_AuthFailure(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "bad-key")
+	_, err := c.CreateRule(context.Background(), CreateRuleInput{Name: "x", HostPattern: "x", Action: "block", Enabled: true})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Errorf("expected APIError, got %T: %v", err, err)
+	}
+}

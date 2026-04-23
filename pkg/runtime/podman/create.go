@@ -41,6 +41,8 @@ type podTemplateData struct {
 	Name          string
 	OnecliWebPort int
 	OnecliVersion string
+	SourcePath    string
+	ProjectID     string
 }
 
 // validateCreateParams validates the create parameters.
@@ -383,6 +385,8 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		Name:          params.Name,
 		OnecliWebPort: freePorts[0],
 		OnecliVersion: defaultOnecliVersion,
+		SourcePath:    params.SourcePath,
+		ProjectID:     params.ProjectID,
 	}
 
 	tmpPodDir := filepath.Join(instanceDir, "pod")

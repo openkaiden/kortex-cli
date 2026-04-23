@@ -90,6 +90,10 @@ type CreateParams struct {
 	// Used to resolve relative paths for local devcontainer features (e.g. "./my-feature").
 	// Can be empty if no workspace configuration exists.
 	WorkspaceConfigDir string
+
+	// ProjectID is the project identifier used to load per-project workspace
+	// configuration (e.g. network policy) during subsequent Start() calls.
+	ProjectID string
 }
 
 // RuntimeInfo contains information about a runtime instance.

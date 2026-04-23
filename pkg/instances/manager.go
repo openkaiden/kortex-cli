@@ -340,6 +340,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		AgentSettings:      agentSettings,
 		OnecliSecrets:      onecliSecrets,
 		SecretEnvVars:      secretEnvVars,
+		ProjectID:          project,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)

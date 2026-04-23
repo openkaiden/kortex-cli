@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"time"
 
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -80,6 +81,41 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		if err := p.installCACert(ctx, id, caPath); err != nil {
 			stepLogger.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to install CA certificate: %w", err)
+		}
+	}
+
+	// Configure OneCLI networking rules when deny mode is active.
+	// The network policy is read fresh from projects.json on each start so that
+	// edits take effect without recreating the workspace.
+	tmplData, err := p.readPodTemplateData(id)
+	if err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to read pod template data: %w", err)
+	}
+	if tmplData.SourcePath != "" {
+		wsCfg, _ := loadNetworkConfig(tmplData.SourcePath, p.storageDir, tmplData.ProjectID)
+		if wsCfg != nil &&
+			wsCfg.Network != nil &&
+			wsCfg.Network.Mode != nil &&
+			*wsCfg.Network.Mode == workspace.Deny {
+
+			onecliBaseURL := fmt.Sprintf("http://localhost:%d", tmplData.OnecliWebPort)
+
+			stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
+			if err := waitForReady(ctx, onecliBaseURL); err != nil {
+				stepLogger.Fail(err)
+				return runtime.RuntimeInfo{}, fmt.Errorf("OneCLI not ready: %w", err)
+			}
+
+			hosts := []string{}
+			if wsCfg.Network.Hosts != nil {
+				hosts = *wsCfg.Network.Hosts
+			}
+
+			stepLogger.Start("Configuring network rules", "Network rules configured")
+			if err := p.configureNetworking(ctx, podName, onecliBaseURL, hosts); err != nil {
+				stepLogger.Fail(err)
+				return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
+			}
 		}
 	}
 

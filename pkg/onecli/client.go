@@ -37,6 +37,9 @@ type Client interface {
 	ListSecrets(ctx context.Context) ([]Secret, error)
 	DeleteSecret(ctx context.Context, id string) error
 	GetContainerConfig(ctx context.Context) (*ContainerConfig, error)
+	CreateRule(ctx context.Context, input CreateRuleInput) (*Rule, error)
+	ListRules(ctx context.Context) ([]Rule, error)
+	DeleteRule(ctx context.Context, id string) error
 }
 
 // UpdateSecretInput is the request body for updating a secret.
@@ -80,6 +83,27 @@ type CreateSecretInput struct {
 	HostPattern     string           `json:"hostPattern"`
 	PathPattern     string           `json:"pathPattern,omitempty"`
 	InjectionConfig *InjectionConfig `json:"injectionConfig,omitempty"`
+}
+
+// CreateRuleInput is the request body for creating a networking rule.
+type CreateRuleInput struct {
+	Name            string `json:"name"`
+	HostPattern     string `json:"hostPattern"`
+	PathPattern     string `json:"pathPattern,omitempty"`
+	Action          string `json:"action"`
+	Enabled         bool   `json:"enabled"`
+	AgentID         string `json:"agentId,omitempty"`
+	RateLimit       int    `json:"rateLimit,omitempty"`
+	RateLimitWindow string `json:"rateLimitWindow,omitempty"`
+}
+
+// Rule represents a networking rule returned by the OneCLI API.
+type Rule struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	HostPattern string `json:"hostPattern"`
+	Action      string `json:"action"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // APIError represents an error response from the OneCLI API.
@@ -153,6 +177,32 @@ func (c *client) GetContainerConfig(ctx context.Context) (*ContainerConfig, erro
 		return nil, fmt.Errorf("getting container config: %w", err)
 	}
 	return &cfg, nil
+}
+
+// CreateRule creates a new networking rule in OneCLI.
+func (c *client) CreateRule(ctx context.Context, input CreateRuleInput) (*Rule, error) {
+	var rule Rule
+	if err := c.do(ctx, http.MethodPost, "/api/rules", input, &rule); err != nil {
+		return nil, fmt.Errorf("creating rule: %w", err)
+	}
+	return &rule, nil
+}
+
+// ListRules returns all networking rules for the authenticated user.
+func (c *client) ListRules(ctx context.Context) ([]Rule, error) {
+	var rules []Rule
+	if err := c.do(ctx, http.MethodGet, "/api/rules", nil, &rules); err != nil {
+		return nil, fmt.Errorf("listing rules: %w", err)
+	}
+	return rules, nil
+}
+
+// DeleteRule deletes a networking rule by ID.
+func (c *client) DeleteRule(ctx context.Context, id string) error {
+	if err := c.do(ctx, http.MethodDelete, "/api/rules/"+id, nil, nil); err != nil {
+		return fmt.Errorf("deleting rule: %w", err)
+	}
+	return nil
 }
 
 func (c *client) do(ctx context.Context, method, path string, body any, result any) error {

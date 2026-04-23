@@ -62,6 +62,18 @@ func (f *fakeClient) GetContainerConfig(_ context.Context) (*ContainerConfig, er
 	return &ContainerConfig{Env: map[string]string{}}, nil
 }
 
+func (f *fakeClient) CreateRule(_ context.Context, _ CreateRuleInput) (*Rule, error) {
+	return &Rule{}, nil
+}
+
+func (f *fakeClient) ListRules(_ context.Context) ([]Rule, error) {
+	return nil, nil
+}
+
+func (f *fakeClient) DeleteRule(_ context.Context, _ string) error {
+	return nil
+}
+
 func TestProvisioner_AllSecretsCreated(t *testing.T) {
 	t.Parallel()
 
