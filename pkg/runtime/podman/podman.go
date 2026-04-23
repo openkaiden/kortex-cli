@@ -30,10 +30,19 @@ import (
 
 // podmanRuntime implements the runtime.Runtime interface for Podman.
 type podmanRuntime struct {
-	system     system.System
-	executor   exec.Executor
-	storageDir string        // Directory for storing runtime-specific data
-	config     config.Config // Configuration manager for runtime settings
+	system          system.System
+	executor        exec.Executor
+	storageDir      string        // Directory for storing runtime-specific data
+	config          config.Config // Configuration manager for runtime settings
+	onecliBaseURLFn func(port int) string // overridable in tests; nil uses default http://localhost:<port>
+}
+
+// onecliURL returns the base URL for the OneCLI service on the given port.
+func (p *podmanRuntime) onecliURL(port int) string {
+	if p.onecliBaseURLFn != nil {
+		return p.onecliBaseURLFn(port)
+	}
+	return fmt.Sprintf("http://localhost:%d", port)
 }
 
 // Ensure podmanRuntime implements runtime.Runtime at compile time.

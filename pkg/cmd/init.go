@@ -282,6 +282,10 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(out, addedInstance.GetID())
 	}
 
+	if port, ok := addedInstance.GetRuntimeData().Info["onecli_web_port"]; ok {
+		fmt.Fprintf(out, "OneCLI dashboard: http://localhost:%s\n", port)
+	}
+
 	return nil
 }
 

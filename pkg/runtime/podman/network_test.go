@@ -17,70 +17,12 @@ package podman
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/onecli"
-	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
-	"github.com/openkaiden/kdn/pkg/system"
 )
-
-func TestGetAPIKeyFromPostgres(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns key from psql output", func(t *testing.T) {
-		t.Parallel()
-
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return []byte("oc_testkey123\n"), nil
-		}
-
-		key, err := getAPIKeyFromPostgres(context.Background(), "mypod", fakeExec)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if key != "oc_testkey123" {
-			t.Errorf("got key %q, want %q", key, "oc_testkey123")
-		}
-
-		fakeExec.AssertOutputCalledWith(t,
-			"exec", "mypod-postgres",
-			"psql", "-U", "onecli", "-d", "onecli", "-t", "-A",
-			"-c", "select key from api_keys limit 1",
-		)
-	})
-
-	t.Run("returns error when output is empty", func(t *testing.T) {
-		t.Parallel()
-
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return []byte("  \n"), nil
-		}
-
-		_, err := getAPIKeyFromPostgres(context.Background(), "mypod", fakeExec)
-		if err == nil {
-			t.Fatal("expected error for empty key, got nil")
-		}
-	})
-
-	t.Run("returns error when psql fails", func(t *testing.T) {
-		t.Parallel()
-
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return nil, errors.New("exec failed")
-		}
-
-		_, err := getAPIKeyFromPostgres(context.Background(), "mypod", fakeExec)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-}
 
 func TestConfigureNetworking(t *testing.T) {
 	t.Parallel()
@@ -92,6 +34,8 @@ func TestConfigureNetworking(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+				_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
 			case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
 				_ = json.NewEncoder(w).Encode([]onecli.Rule{})
 			case r.Method == http.MethodPost && r.URL.Path == "/api/rules":
@@ -108,15 +52,10 @@ func TestConfigureNetworking(t *testing.T) {
 		}))
 		defer server.Close()
 
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return []byte("oc_testkey\n"), nil
-		}
-
-		rt := &podmanRuntime{executor: fakeExec, system: system.New()}
+		rt := &podmanRuntime{}
 
 		hosts := []string{"api.github.com", "registry.npmjs.org"}
-		err := rt.configureNetworking(context.Background(), "mypod", server.URL, hosts)
+		err := rt.configureNetworking(context.Background(), server.URL, hosts)
 		if err != nil {
 			t.Fatalf("configureNetworking() error: %v", err)
 		}
@@ -142,8 +81,8 @@ func TestConfigureNetworking(t *testing.T) {
 		}
 
 		last := createdRules[2]
-		if last.HostPattern != "=*" {
-			t.Errorf("block-all HostPattern = %q, want %q", last.HostPattern, "=*")
+		if last.HostPattern != "*" {
+			t.Errorf("block-all HostPattern = %q, want %q", last.HostPattern, "*")
 		}
 		if last.Action != "block" {
 			t.Errorf("block-all Action = %q, want %q", last.Action, "block")
@@ -157,6 +96,8 @@ func TestConfigureNetworking(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+				_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
 			case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
 				existing := []onecli.Rule{
 					{ID: "old-1", Name: "old-rule-1", HostPattern: "old.example.com", Action: "rate_limit"},
@@ -176,13 +117,8 @@ func TestConfigureNetworking(t *testing.T) {
 		}))
 		defer server.Close()
 
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return []byte("oc_testkey\n"), nil
-		}
-
-		rt := &podmanRuntime{executor: fakeExec, system: system.New()}
-		err := rt.configureNetworking(context.Background(), "mypod", server.URL, []string{"api.github.com"})
+		rt := &podmanRuntime{}
+		err := rt.configureNetworking(context.Background(), server.URL, []string{"api.github.com"})
 		if err != nil {
 			t.Fatalf("configureNetworking() error: %v", err)
 		}
@@ -199,6 +135,8 @@ func TestConfigureNetworking(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+				_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
 			case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
 				_ = json.NewEncoder(w).Encode([]onecli.Rule{})
 			case r.Method == http.MethodPost && r.URL.Path == "/api/rules":
@@ -212,13 +150,8 @@ func TestConfigureNetworking(t *testing.T) {
 		}))
 		defer server.Close()
 
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return []byte("oc_testkey\n"), nil
-		}
-
-		rt := &podmanRuntime{executor: fakeExec, system: system.New()}
-		err := rt.configureNetworking(context.Background(), "mypod", server.URL, []string{})
+		rt := &podmanRuntime{}
+		err := rt.configureNetworking(context.Background(), server.URL, []string{})
 		if err != nil {
 			t.Fatalf("configureNetworking() error: %v", err)
 		}
@@ -226,21 +159,21 @@ func TestConfigureNetworking(t *testing.T) {
 		if len(createdRules) != 1 {
 			t.Fatalf("got %d rules, want 1 (block-all)", len(createdRules))
 		}
-		if createdRules[0].HostPattern != "=*" || createdRules[0].Action != "block" {
+		if createdRules[0].HostPattern != "*" || createdRules[0].Action != "block" {
 			t.Errorf("expected block-all rule, got %+v", createdRules[0])
 		}
 	})
 
-	t.Run("returns error when postgres key retrieval fails", func(t *testing.T) {
+	t.Run("returns error when API key retrieval fails", func(t *testing.T) {
 		t.Parallel()
 
-		fakeExec := exec.NewFake()
-		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
-			return nil, errors.New("container not found")
-		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
 
-		rt := &podmanRuntime{executor: fakeExec, system: system.New()}
-		err := rt.configureNetworking(context.Background(), "mypod", "http://localhost:9999", []string{})
+		rt := &podmanRuntime{}
+		err := rt.configureNetworking(context.Background(), server.URL, []string{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}

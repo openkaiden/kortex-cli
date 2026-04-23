@@ -16,14 +16,41 @@ package podman
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
+
+// newOnecliStartTestServer starts an httptest server that handles the OneCLI endpoints
+// invoked during Start() (health, api-key, rules). Use together with
+// podmanRuntime.onecliBaseURLFn to avoid dialling a real localhost port in tests.
+func newOnecliStartTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode([]any{})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "new-rule"})
+		default:
+			t.Errorf("unexpected OneCLI request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
 
 func TestStart_ValidatesID(t *testing.T) {
 	t.Parallel()
@@ -59,7 +86,9 @@ func TestStart_Success(t *testing.T) {
 		return []byte(output), nil
 	}
 
+	onecliServer := newOnecliStartTestServer(t)
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return onecliServer.URL }
 	podName := setupPodFiles(t, p, containerID, workspaceName)
 
 	info, err := p.Start(context.Background(), containerID)
@@ -159,7 +188,9 @@ func TestStart_InspectFailure(t *testing.T) {
 		return nil, fmt.Errorf("inspect failed")
 	}
 
+	onecliServer := newOnecliStartTestServer(t)
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return onecliServer.URL }
 	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	_, err := p.Start(context.Background(), containerID)
@@ -210,7 +241,9 @@ func TestStart_StepLogger_Success(t *testing.T) {
 		return []byte(output), nil
 	}
 
+	onecliServer := newOnecliStartTestServer(t)
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return onecliServer.URL }
 	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
@@ -241,6 +274,14 @@ func TestStart_StepLogger_Success(t *testing.T) {
 		{
 			inProgress: fmt.Sprintf("Starting pod: %s", podName),
 			completed:  "Pod started",
+		},
+		{
+			inProgress: "Waiting for OneCLI readiness",
+			completed:  "OneCLI ready",
+		},
+		{
+			inProgress: "Configuring network rules",
+			completed:  "Network rules configured",
 		},
 		{
 			inProgress: "Verifying container status",
@@ -314,7 +355,9 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		return nil, fmt.Errorf("failed to inspect container")
 	}
 
+	onecliServer := newOnecliStartTestServer(t)
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return onecliServer.URL }
 	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	fakeLogger := &fakeStepLogger{}
@@ -329,14 +372,16 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	if len(fakeLogger.startCalls) != 4 {
-		t.Fatalf("Expected 4 Start() calls, got %d", len(fakeLogger.startCalls))
+	if len(fakeLogger.startCalls) != 6 {
+		t.Fatalf("Expected 6 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
 		"Starting postgres",
 		"Waiting for postgres to be ready",
 		fmt.Sprintf("Starting pod: %s", podName),
+		"Waiting for OneCLI readiness",
+		"Configuring network rules",
 		"Verifying container status",
 	}
 

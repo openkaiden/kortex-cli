@@ -84,38 +84,43 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		}
 	}
 
-	// Configure OneCLI networking rules when deny mode is active.
-	// The network policy is read fresh from projects.json on each start so that
-	// edits take effect without recreating the workspace.
+	// Configure OneCLI networking rules. Deny is the default — rules are applied
+	// unless the network mode is explicitly set to allow in the workspace config.
+	// The policy is read fresh from projects.json on each start so edits take effect
+	// without recreating the workspace.
 	tmplData, err := p.readPodTemplateData(id)
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to read pod template data: %w", err)
 	}
-	if tmplData.SourcePath != "" {
-		wsCfg, _ := loadNetworkConfig(tmplData.SourcePath, p.storageDir, tmplData.ProjectID)
-		if wsCfg != nil &&
-			wsCfg.Network != nil &&
-			wsCfg.Network.Mode != nil &&
-			*wsCfg.Network.Mode == workspace.Deny {
+	wsCfg, loadErr := loadNetworkConfig(tmplData.SourcePath, p.storageDir, tmplData.ProjectID)
+	if loadErr != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load network config: %w", loadErr)
+	}
 
-			onecliBaseURL := fmt.Sprintf("http://localhost:%d", tmplData.OnecliWebPort)
+	// Deny mode is the default. Only skip networking rules when mode is explicitly set to allow.
+	isAllow := wsCfg != nil &&
+		wsCfg.Network != nil &&
+		wsCfg.Network.Mode != nil &&
+		*wsCfg.Network.Mode == workspace.Allow
 
-			stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
-			if err := waitForReady(ctx, onecliBaseURL); err != nil {
-				stepLogger.Fail(err)
-				return runtime.RuntimeInfo{}, fmt.Errorf("OneCLI not ready: %w", err)
-			}
+	if !isAllow {
+		onecliBaseURL := p.onecliURL(tmplData.OnecliWebPort)
 
-			hosts := []string{}
-			if wsCfg.Network.Hosts != nil {
-				hosts = *wsCfg.Network.Hosts
-			}
+		stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
+		if err := waitForReady(ctx, onecliBaseURL); err != nil {
+			stepLogger.Fail(err)
+			return runtime.RuntimeInfo{}, fmt.Errorf("OneCLI not ready: %w", err)
+		}
 
-			stepLogger.Start("Configuring network rules", "Network rules configured")
-			if err := p.configureNetworking(ctx, podName, onecliBaseURL, hosts); err != nil {
-				stepLogger.Fail(err)
-				return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
-			}
+		hosts := []string{}
+		if wsCfg != nil && wsCfg.Network != nil && wsCfg.Network.Hosts != nil {
+			hosts = *wsCfg.Network.Hosts
+		}
+
+		stepLogger.Start("Configuring network rules", "Network rules configured")
+		if err := p.configureNetworking(ctx, onecliBaseURL, hosts); err != nil {
+			stepLogger.Fail(err)
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
 		}
 	}
 

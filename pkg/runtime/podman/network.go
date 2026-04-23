@@ -17,14 +17,11 @@ package podman
 import (
 	"context"
 	"fmt"
-	"io"
 	"path/filepath"
-	"strings"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/onecli"
-	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 )
 
 // loadNetworkConfig reads the merged workspace configuration for a project by
@@ -55,31 +52,14 @@ func loadNetworkConfig(sourcePath, storageDir, projectID string) (*workspace.Wor
 	return merged, nil
 }
 
-// getAPIKeyFromPostgres queries the postgres container for the OneCLI API key
-// by running a psql command inside the pod's postgres container.
-func getAPIKeyFromPostgres(ctx context.Context, podName string, executor exec.Executor) (string, error) {
-	output, err := executor.Output(ctx, io.Discard,
-		"exec", podName+"-postgres",
-		"psql", "-U", "onecli", "-d", "onecli", "-t", "-A",
-		"-c", "select key from api_keys limit 1",
-	)
-	if err != nil {
-		return "", fmt.Errorf("querying postgres for API key: %w", err)
-	}
-	key := strings.TrimSpace(string(output))
-	if key == "" {
-		return "", fmt.Errorf("no API key found in database")
-	}
-	return key, nil
-}
-
 // configureNetworking applies deny-mode network rules to the OneCLI gateway.
 // It first deletes any existing rules (ensuring idempotency across restarts),
 // then creates a rate_limit rule for each allowed host and a catch-all block rule.
-func (p *podmanRuntime) configureNetworking(ctx context.Context, podName, onecliBaseURL string, hosts []string) error {
-	apiKey, err := getAPIKeyFromPostgres(ctx, podName, p.executor)
+func (p *podmanRuntime) configureNetworking(ctx context.Context, onecliBaseURL string, hosts []string) error {
+	creds := onecli.NewCredentialProvider(onecliBaseURL)
+	apiKey, err := creds.APIKey(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get OneCLI API key: %w", err)
 	}
 
 	client := onecli.NewClient(onecliBaseURL, apiKey)
@@ -109,7 +89,7 @@ func (p *podmanRuntime) configureNetworking(ctx context.Context, podName, onecli
 
 	if _, err := client.CreateRule(ctx, onecli.CreateRuleInput{
 		Name:        "block-all",
-		HostPattern: "=*",
+		HostPattern: "*",
 		Action:      "block",
 		Enabled:     true,
 	}); err != nil {

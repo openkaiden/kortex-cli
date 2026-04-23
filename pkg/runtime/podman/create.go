@@ -415,31 +415,32 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		}
 	}()
 
-	// Start the pod so OneCLI can initialize and we can provision secrets + get proxy config
+	// Always start OneCLI to inject proxy env vars and the CA cert into the workspace container.
+	// Without HTTP_PROXY/HTTPS_PROXY pointing at the OneCLI gateway, deny-mode networking rules
+	// have no effect because workspace traffic bypasses the proxy entirely.
+	// Secrets are provisioned if any were provided.
+	containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets)
+	if setupErr != nil {
+		return runtime.RuntimeInfo{}, setupErr
+	}
 	var ccArgs *containerConfigArgs
-	if len(params.OnecliSecrets) > 0 {
-		containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets)
-		if setupErr != nil {
-			return runtime.RuntimeInfo{}, setupErr
+	if containerConfig != nil {
+		ccArgs = &containerConfigArgs{
+			envVars: containerConfig.Env,
 		}
-		if containerConfig != nil {
-			ccArgs = &containerConfigArgs{
-				envVars: containerConfig.Env,
+		// Write CA certificate to a durable location for mounting into the workspace container.
+		// Use a shared certs directory under storageDir (not instanceDir which is cleaned up).
+		if containerConfig.CACertificate != "" && containerConfig.CACertificateContainerPath != "" {
+			certsDir := filepath.Join(p.storageDir, "certs", params.Name)
+			if mkErr := os.MkdirAll(certsDir, 0755); mkErr != nil {
+				return runtime.RuntimeInfo{}, fmt.Errorf("failed to create certs directory: %w", mkErr)
 			}
-			// Write CA certificate to a durable location for mounting into the workspace container.
-			// Use a shared certs directory under storageDir (not instanceDir which is cleaned up).
-			if containerConfig.CACertificate != "" && containerConfig.CACertificateContainerPath != "" {
-				certsDir := filepath.Join(p.storageDir, "certs", params.Name)
-				if mkErr := os.MkdirAll(certsDir, 0755); mkErr != nil {
-					return runtime.RuntimeInfo{}, fmt.Errorf("failed to create certs directory: %w", mkErr)
-				}
-				caPath := filepath.Join(certsDir, "onecli-ca.pem")
-				if writeErr := os.WriteFile(caPath, []byte(containerConfig.CACertificate), 0644); writeErr != nil {
-					return runtime.RuntimeInfo{}, fmt.Errorf("failed to write CA certificate: %w", writeErr)
-				}
-				ccArgs.caFilePath = caPath
-				ccArgs.caContainerPath = containerConfig.CACertificateContainerPath
+			caPath := filepath.Join(certsDir, "onecli-ca.pem")
+			if writeErr := os.WriteFile(caPath, []byte(containerConfig.CACertificate), 0644); writeErr != nil {
+				return runtime.RuntimeInfo{}, fmt.Errorf("failed to write CA certificate: %w", writeErr)
 			}
+			ccArgs.caFilePath = caPath
+			ccArgs.caContainerPath = containerConfig.CACertificateContainerPath
 		}
 	}
 
@@ -515,7 +516,7 @@ func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.S
 		return nil, fmt.Errorf("failed to start OneCLI: %w", err)
 	}
 
-	baseURL := fmt.Sprintf("http://localhost:%d", tmplData.OnecliWebPort)
+	baseURL := p.onecliURL(tmplData.OnecliWebPort)
 
 	stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
 	if err := waitForReady(ctx, baseURL); err != nil {
@@ -532,12 +533,14 @@ func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.S
 
 	client := onecli.NewClient(baseURL, apiKey)
 
-	// Provision secrets
-	stepLogger.Start("Provisioning OneCLI secrets", "OneCLI secrets provisioned")
-	provisioner := onecli.NewSecretProvisioner(client)
-	if err := provisioner.ProvisionSecrets(ctx, secrets); err != nil {
-		stepLogger.Fail(err)
-		return nil, fmt.Errorf("failed to provision OneCLI secrets: %w", err)
+	// Provision secrets (skipped when none are configured)
+	if len(secrets) > 0 {
+		stepLogger.Start("Provisioning OneCLI secrets", "OneCLI secrets provisioned")
+		provisioner := onecli.NewSecretProvisioner(client)
+		if err := provisioner.ProvisionSecrets(ctx, secrets); err != nil {
+			stepLogger.Fail(err)
+			return nil, fmt.Errorf("failed to provision OneCLI secrets: %w", err)
+		}
 	}
 
 	// Get container config (proxy env vars, CA cert, agent token)
