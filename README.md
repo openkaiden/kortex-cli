@@ -134,7 +134,7 @@ Create or edit `~/.kdn/config/agents.json` to add the required environment varia
 
 - `CLAUDE_CODE_USE_VERTEX` - Set to `1` to instruct Claude Code to use Vertex AI instead of the Anthropic API
 - `ANTHROPIC_VERTEX_PROJECT_ID` - Your Google Cloud project ID where Vertex AI is configured
-- `CLOUD_ML_REGION` - The region where Claude is available on Vertex AI (e.g., `us-east5`)
+- `CLOUD_ML_REGION` - The region where Claude is available on Vertex AI
 - `$HOME/.config/gcloud` mounted read-only - Provides the workspace access to your application default credentials
 
 **Step 2: Register and start the workspace**
