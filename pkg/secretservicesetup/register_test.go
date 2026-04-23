@@ -75,12 +75,16 @@ func TestRegisterAll(t *testing.T) {
 			t.Errorf("RegisterAll() error = %v, want nil", err)
 		}
 
-		if len(registrar.registered) != 1 {
-			t.Errorf("registered %d secret services, want 1", len(registrar.registered))
+		if len(registrar.registered) != 2 {
+			t.Errorf("registered %d secret services, want 2", len(registrar.registered))
 		}
 
 		if _, exists := registrar.registered["github"]; !exists {
 			t.Error("github secret service was not registered")
+		}
+
+		if _, exists := registrar.registered["gemini"]; !exists {
+			t.Error("gemini secret service was not registered")
 		}
 	})
 }
@@ -168,8 +172,8 @@ func TestRegisterAllWithFactories(t *testing.T) {
 func TestAvailableSecretServicesLoaded(t *testing.T) {
 	t.Parallel()
 
-	if len(availableSecretServices) != 1 {
-		t.Errorf("availableSecretServices should have 1 entry, got %d", len(availableSecretServices))
+	if len(availableSecretServices) != 2 {
+		t.Errorf("availableSecretServices should have 2 entries, got %d", len(availableSecretServices))
 	}
 }
 
@@ -213,6 +217,46 @@ func TestAvailableSecretServicesContainGitHub(t *testing.T) {
 	}
 }
 
+func TestAvailableSecretServicesContainGemini(t *testing.T) {
+	t.Parallel()
+
+	if len(availableSecretServices) < 2 {
+		t.Fatal("availableSecretServices has fewer than 2 entries")
+	}
+
+	svc := availableSecretServices[1]()
+	if svc == nil {
+		t.Fatal("factory returned nil")
+	}
+
+	if svc.Name() != "gemini" {
+		t.Errorf("Name() = %q, want %q", svc.Name(), "gemini")
+	}
+	if svc.HostPattern() != "generativelanguage.googleapis.com" {
+		t.Errorf("HostPattern() = %q, want %q", svc.HostPattern(), "generativelanguage.googleapis.com")
+	}
+	if svc.Path() != "" {
+		t.Errorf("Path() = %q, want empty string", svc.Path())
+	}
+	if svc.HeaderName() != "x-goog-api-key" {
+		t.Errorf("HeaderName() = %q, want %q", svc.HeaderName(), "x-goog-api-key")
+	}
+	if svc.HeaderTemplate() != "${value}" {
+		t.Errorf("HeaderTemplate() = %q, want %q", svc.HeaderTemplate(), "${value}")
+	}
+
+	envVars := svc.EnvVars()
+	if len(envVars) != 2 {
+		t.Fatalf("EnvVars() has %d entries, want 2", len(envVars))
+	}
+	if envVars[0] != "GEMINI_API_KEY" {
+		t.Errorf("EnvVars()[0] = %q, want %q", envVars[0], "GEMINI_API_KEY")
+	}
+	if envVars[1] != "GOOGLE_API_KEY" {
+		t.Errorf("EnvVars()[1] = %q, want %q", envVars[1], "GOOGLE_API_KEY")
+	}
+}
+
 func TestLoadSecretServices(t *testing.T) {
 	t.Parallel()
 
@@ -221,8 +265,8 @@ func TestLoadSecretServices(t *testing.T) {
 		t.Fatalf("loadSecretServices() error = %v", err)
 	}
 
-	if len(factories) != 1 {
-		t.Fatalf("loadSecretServices() returned %d factories, want 1", len(factories))
+	if len(factories) != 2 {
+		t.Fatalf("loadSecretServices() returned %d factories, want 2", len(factories))
 	}
 
 	svc := factories[0]()
