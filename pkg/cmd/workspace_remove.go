@@ -175,10 +175,8 @@ func NewWorkspaceRemoveCmd() *cobra.Command {
 	c := &workspaceRemoveCmd{}
 
 	cmd := &cobra.Command{
-		Use: "remove NAME|ID",
-		Aliases: []string{
-			"rm",
-		},
+		Use:     "remove NAME|ID",
+		Aliases: []string{"rm"},
 		Short: "Remove a workspace",
 		Long:  "Remove a workspace by its name or ID",
 		Example: `# Remove workspace by ID
