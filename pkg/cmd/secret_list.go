@@ -96,9 +96,11 @@ func (s *secretListCmd) outputJSON(cmd *cobra.Command, items []secret.ListItem) 
 	secrets := make([]api.SecretInfo, 0, len(items))
 	for _, item := range items {
 		info := api.SecretInfo{
-			Name:        item.Name,
-			Type:        item.Type,
-			Description: item.Description,
+			Name: item.Name,
+			Type: item.Type,
+		}
+		if item.Description != "" {
+			info.Description = &item.Description
 		}
 		if len(item.Hosts) > 0 {
 			hosts := item.Hosts
