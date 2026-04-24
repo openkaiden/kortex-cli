@@ -1229,12 +1229,12 @@ func TestMerger_Merge_Network_OverrideOnly(t *testing.T) {
 	}
 }
 
-func TestMerger_Merge_Network_BaseAllowWins(t *testing.T) {
+func TestMerger_Merge_Network_OverrideModeWins(t *testing.T) {
 	t.Parallel()
 
 	merger := NewMerger()
 
-	t.Run("base allow override deny", func(t *testing.T) {
+	t.Run("override deny beats base allow", func(t *testing.T) {
 		t.Parallel()
 
 		base := &workspace.WorkspaceConfiguration{
@@ -1253,15 +1253,43 @@ func TestMerger_Merge_Network_BaseAllowWins(t *testing.T) {
 		if result.Network == nil {
 			t.Fatal("Expected non-nil Network")
 		}
-		if result.Network.Mode == nil || *result.Network.Mode != workspace.Allow {
-			t.Errorf("Expected base allow mode to win, got %v", result.Network.Mode)
+		if result.Network.Mode == nil || *result.Network.Mode != workspace.Deny {
+			t.Errorf("Expected override deny mode to win, got %v", result.Network.Mode)
 		}
-		if result.Network.Hosts != nil {
-			t.Error("Expected hosts to be nil when base allow wins")
+		if result.Network.Hosts == nil || len(*result.Network.Hosts) != 1 || (*result.Network.Hosts)[0] != "restricted.com" {
+			t.Errorf("Expected merged hosts, got %v", result.Network.Hosts)
 		}
 	})
 
-	t.Run("base allow override allow", func(t *testing.T) {
+	t.Run("override allow beats base deny", func(t *testing.T) {
+		t.Parallel()
+
+		base := &workspace.WorkspaceConfiguration{
+			Network: &workspace.NetworkConfiguration{
+				Mode:  networkModePtr(workspace.Deny),
+				Hosts: &[]string{"allowed.com"},
+			},
+		}
+		override := &workspace.WorkspaceConfiguration{
+			Network: &workspace.NetworkConfiguration{
+				Mode: networkModePtr(workspace.Allow),
+			},
+		}
+
+		result := merger.Merge(base, override)
+		if result.Network == nil {
+			t.Fatal("Expected non-nil Network")
+		}
+		if result.Network.Mode == nil || *result.Network.Mode != workspace.Allow {
+			t.Errorf("Expected override allow mode to win, got %v", result.Network.Mode)
+		}
+		// Hosts from base are still present in the union, but runtime ignores them in allow mode.
+		if result.Network.Hosts == nil || len(*result.Network.Hosts) != 1 || (*result.Network.Hosts)[0] != "allowed.com" {
+			t.Errorf("Expected base hosts preserved in union, got %v", result.Network.Hosts)
+		}
+	})
+
+	t.Run("both allow", func(t *testing.T) {
 		t.Parallel()
 
 		base := &workspace.WorkspaceConfiguration{
@@ -1283,35 +1311,6 @@ func TestMerger_Merge_Network_BaseAllowWins(t *testing.T) {
 			t.Errorf("Expected allow mode, got %v", result.Network.Mode)
 		}
 	})
-}
-
-func TestMerger_Merge_Network_BaseDenyOverrideAllow(t *testing.T) {
-	t.Parallel()
-
-	merger := NewMerger()
-	base := &workspace.WorkspaceConfiguration{
-		Network: &workspace.NetworkConfiguration{
-			Mode:  networkModePtr(workspace.Deny),
-			Hosts: &[]string{"allowed.com"},
-		},
-	}
-	override := &workspace.WorkspaceConfiguration{
-		Network: &workspace.NetworkConfiguration{
-			Mode: networkModePtr(workspace.Allow),
-		},
-	}
-
-	result := merger.Merge(base, override)
-	if result.Network == nil {
-		t.Fatal("Expected non-nil Network")
-	}
-	// Base deny should win over override allow
-	if result.Network.Mode == nil || *result.Network.Mode != workspace.Deny {
-		t.Errorf("Expected base deny mode to win, got %v", result.Network.Mode)
-	}
-	if result.Network.Hosts == nil || len(*result.Network.Hosts) != 1 || (*result.Network.Hosts)[0] != "allowed.com" {
-		t.Errorf("Expected base hosts to be preserved, got %v", result.Network.Hosts)
-	}
 }
 
 func TestMerger_Merge_Network_BothDenyMerged(t *testing.T) {

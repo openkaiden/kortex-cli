@@ -15,6 +15,8 @@
 package podman
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
@@ -89,10 +91,18 @@ func setupPodFiles(t *testing.T, p *podmanRuntime, containerID, workspaceName st
 	if p.storageDir == "" {
 		p.storageDir = t.TempDir()
 	}
+	if p.globalStorageDir == "" {
+		p.globalStorageDir = t.TempDir()
+	}
+	approvalDir := filepath.Join(p.storageDir, "approval-handler", workspaceName)
+	if err := os.MkdirAll(approvalDir, 0755); err != nil {
+		t.Fatalf("failed to create approval handler dir: %v", err)
+	}
 	data := podTemplateData{
-		Name:          workspaceName,
-		OnecliWebPort: 20254,
-		OnecliVersion: defaultOnecliVersion,
+		Name:               workspaceName,
+		OnecliWebPort:      20254,
+		OnecliVersion:      defaultOnecliVersion,
+		ApprovalHandlerDir: approvalDir,
 	}
 	if err := p.writePodFiles(containerID, data); err != nil {
 		t.Fatalf("failed to write pod files for test: %v", err)

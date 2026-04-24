@@ -91,6 +91,18 @@ func (f *FakeExecutor) AssertRunCalledWith(t interface {
 	t.Errorf("Expected Run to be called with %v, but it was called with: %v", expectedArgs, f.RunCalls)
 }
 
+// AssertRunNotCalledWith checks that Run was never called with the expected arguments.
+func (f *FakeExecutor) AssertRunNotCalledWith(t interface {
+	Errorf(format string, args ...interface{})
+}, expectedArgs ...string) {
+	for _, call := range f.RunCalls {
+		if argsEqual(call, expectedArgs) {
+			t.Errorf("Expected Run NOT to be called with %v, but it was", expectedArgs)
+			return
+		}
+	}
+}
+
 // AssertOutputCalledWith checks if Output was called with the expected arguments.
 func (f *FakeExecutor) AssertOutputCalledWith(t interface {
 	Errorf(format string, args ...interface{})

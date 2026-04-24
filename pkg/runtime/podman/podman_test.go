@@ -295,9 +295,10 @@ func TestRenderPodYAML(t *testing.T) {
 		t.Parallel()
 
 		data := podTemplateData{
-			Name:          "my-project",
-			OnecliWebPort: 32101,
-			OnecliVersion: "1.17",
+			Name:               "my-project",
+			OnecliWebPort:      32101,
+			OnecliVersion:      "1.17",
+			ApprovalHandlerDir: "/tmp/approval-handler/my-project",
 		}
 
 		result, err := renderPodYAML(data)
@@ -316,11 +317,14 @@ func TestRenderPodYAML(t *testing.T) {
 		if !strings.Contains(yamlStr, "ghcr.io/onecli/onecli:1.17") {
 			t.Error("Expected rendered YAML to contain versioned onecli image")
 		}
-		if strings.Contains(yamlStr, "volumeMounts") {
-			t.Error("Expected rendered YAML to NOT contain volumeMounts")
+		if !strings.Contains(yamlStr, "approval-handler") {
+			t.Error("Expected rendered YAML to contain approval-handler container")
 		}
-		if strings.Contains(yamlStr, "volumes:") {
-			t.Error("Expected rendered YAML to NOT contain volumes section")
+		if !strings.Contains(yamlStr, "/tmp/approval-handler/my-project") {
+			t.Error("Expected rendered YAML to contain approval handler hostPath")
+		}
+		if !strings.Contains(yamlStr, "volumeMounts") {
+			t.Error("Expected rendered YAML to contain volumeMounts for approval-handler")
 		}
 
 		// Postgres (5432) and proxy (10255) ports should NOT have hostPort mappings
@@ -336,9 +340,10 @@ func TestRenderPodYAML(t *testing.T) {
 		t.Parallel()
 
 		data := podTemplateData{
-			Name:          "test",
-			OnecliWebPort: 10001,
-			OnecliVersion: "2.0",
+			Name:               "test",
+			OnecliWebPort:      10001,
+			OnecliVersion:      "2.0",
+			ApprovalHandlerDir: "/tmp/approval-handler/test",
 		}
 
 		result, err := renderPodYAML(data)

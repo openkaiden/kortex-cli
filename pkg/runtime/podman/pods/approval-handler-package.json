@@ -1,0 +1,8 @@
+{
+  "name": "approval-handler",
+  "private": true,
+  "dependencies": {
+    "@onecli-sh/sdk": "latest",
+    "tsx": "latest"
+  }
+}

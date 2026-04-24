@@ -16,7 +16,9 @@ package podman
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
@@ -35,15 +37,16 @@ func loadNetworkConfig(sourcePath, storageDir, projectID string) (*workspace.Wor
 	var merged *workspace.WorkspaceConfiguration
 
 	wsCfgLoader, err := config.NewConfig(filepath.Join(sourcePath, ".kaiden"))
-	if err == nil {
-		if wc, loadErr := wsCfgLoader.Load(); loadErr == nil {
-			merged = wc
-		}
+	if err != nil {
+		return nil, fmt.Errorf("initializing workspace config loader: %w", err)
+	}
+	if wc, loadErr := wsCfgLoader.Load(); loadErr == nil {
+		merged = wc
 	}
 
 	projectLoader, err := config.NewProjectConfigLoader(storageDir)
 	if err != nil {
-		return merged, nil
+		return nil, fmt.Errorf("initializing project config loader: %w", err)
 	}
 	if pc, loadErr := projectLoader.Load(projectID); loadErr == nil {
 		merged = merger.Merge(merged, pc)
@@ -52,10 +55,44 @@ func loadNetworkConfig(sourcePath, storageDir, projectID string) (*workspace.Wor
 	return merged, nil
 }
 
-// configureNetworking applies deny-mode network rules to the OneCLI gateway.
-// It first deletes any existing rules (ensuring idempotency across restarts),
-// then creates a rate_limit rule for each allowed host and a catch-all block rule.
-func (p *podmanRuntime) configureNetworking(ctx context.Context, onecliBaseURL string, hosts []string) error {
+// approvalHandlerConfig is serialized to config.json in the approval-handler
+// directory so the Node.js sidecar can connect to OneCLI and make decisions.
+type approvalHandlerConfig struct {
+	OnecliURL  string   `json:"onecliUrl"`
+	GatewayURL string   `json:"gatewayUrl"`
+	APIKey     string   `json:"apiKey"`
+	Hosts      []string `json:"hosts"`
+}
+
+// clearNetworkingRules removes all existing networking rules from OneCLI.
+// Called when switching to allow mode so that no leftover manual_approval or
+// block rules from a previous deny-mode start remain active.
+func (p *podmanRuntime) clearNetworkingRules(ctx context.Context, onecliBaseURL string) error {
+	creds := onecli.NewCredentialProvider(onecliBaseURL)
+	apiKey, err := creds.APIKey(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get OneCLI API key: %w", err)
+	}
+
+	client := onecli.NewClient(onecliBaseURL, apiKey)
+
+	rules, err := client.ListRules(ctx)
+	if err != nil {
+		return fmt.Errorf("listing existing rules: %w", err)
+	}
+	for _, r := range rules {
+		if delErr := client.DeleteRule(ctx, r.ID); delErr != nil {
+			return fmt.Errorf("deleting rule %s: %w", r.ID, delErr)
+		}
+	}
+	return nil
+}
+
+// configureNetworking applies deny-mode networking via the OneCLI manual
+// approval mechanism. It deletes any existing rules, creates a single
+// manual_approval rule for all hosts, and writes config.json so the
+// approval-handler sidecar knows which hosts to approve.
+func (p *podmanRuntime) configureNetworking(ctx context.Context, onecliBaseURL string, hosts []string, approvalHandlerDir string) error {
 	creds := onecli.NewCredentialProvider(onecliBaseURL)
 	apiKey, err := creds.APIKey(ctx)
 	if err != nil {
@@ -74,26 +111,32 @@ func (p *podmanRuntime) configureNetworking(ctx context.Context, onecliBaseURL s
 		}
 	}
 
-	for _, host := range hosts {
-		if _, createErr := client.CreateRule(ctx, onecli.CreateRuleInput{
-			Name:            "allow-" + host,
-			HostPattern:     host,
-			Action:          "rate_limit",
-			Enabled:         true,
-			RateLimit:       65535,
-			RateLimitWindow: "minute",
-		}); createErr != nil {
-			return fmt.Errorf("creating rule for %s: %w", host, createErr)
-		}
-	}
-
 	if _, err := client.CreateRule(ctx, onecli.CreateRuleInput{
-		Name:        "block-all",
+		Name:        "manual-approval-all",
 		HostPattern: "*",
-		Action:      "block",
+		Action:      "manual_approval",
 		Enabled:     true,
 	}); err != nil {
-		return fmt.Errorf("creating block-all rule: %w", err)
+		return fmt.Errorf("creating manual_approval rule: %w", err)
+	}
+
+	// The sidecar runs inside the pod and shares the network namespace with
+	// OneCLI, so it must use the internal container ports, not the host-mapped
+	// ports that the Go CLI uses from outside the pod.
+	// API (10254) is used for rule management; gateway (10255) is used for
+	// manual approval long-polling.
+	cfg := approvalHandlerConfig{
+		OnecliURL:  "http://localhost:10254",
+		GatewayURL: "http://localhost:10255",
+		APIKey:     apiKey,
+		Hosts:      hosts,
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling approval handler config: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(approvalHandlerDir, "config.json"), data, 0644); err != nil {
+		return fmt.Errorf("writing approval handler config: %w", err)
 	}
 
 	return nil

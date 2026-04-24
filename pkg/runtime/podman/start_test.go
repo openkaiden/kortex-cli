@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/runtime"
@@ -163,7 +165,9 @@ func TestStart_PodStartFailure(t *testing.T) {
 		return []byte("accepting connections\n"), nil
 	}
 
+	onecliServer := newOnecliStartTestServer(t)
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return onecliServer.URL }
 	podName := setupPodFiles(t, p, containerID, "test-ws")
 
 	_, err := p.Start(context.Background(), containerID)
@@ -172,6 +176,7 @@ func TestStart_PodStartFailure(t *testing.T) {
 	}
 
 	fakeExec.AssertRunCalledWith(t, "start", podName+"-postgres")
+	fakeExec.AssertRunCalledWith(t, "start", podName+"-onecli")
 	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
 }
 
@@ -272,16 +277,20 @@ func TestStart_StepLogger_Success(t *testing.T) {
 			completed:  "Postgres is ready",
 		},
 		{
-			inProgress: fmt.Sprintf("Starting pod: %s", podName),
-			completed:  "Pod started",
+			inProgress: "Starting OneCLI",
+			completed:  "OneCLI started",
 		},
 		{
 			inProgress: "Waiting for OneCLI readiness",
 			completed:  "OneCLI ready",
 		},
 		{
-			inProgress: "Configuring network rules",
-			completed:  "Network rules configured",
+			inProgress: "Clearing network rules",
+			completed:  "Network rules cleared",
+		},
+		{
+			inProgress: fmt.Sprintf("Starting pod: %s", podName),
+			completed:  "Pod started",
 		},
 		{
 			inProgress: "Verifying container status",
@@ -372,16 +381,17 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	if len(fakeLogger.startCalls) != 6 {
-		t.Fatalf("Expected 6 Start() calls, got %d", len(fakeLogger.startCalls))
+	if len(fakeLogger.startCalls) != 7 {
+		t.Fatalf("Expected 7 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
 		"Starting postgres",
 		"Waiting for postgres to be ready",
-		fmt.Sprintf("Starting pod: %s", podName),
+		"Starting OneCLI",
 		"Waiting for OneCLI readiness",
-		"Configuring network rules",
+		"Clearing network rules",
+		fmt.Sprintf("Starting pod: %s", podName),
 		"Verifying container status",
 	}
 
@@ -393,5 +403,165 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 
 	if len(fakeLogger.failCalls) != 1 {
 		t.Fatalf("Expected 1 Fail() call, got %d", len(fakeLogger.failCalls))
+	}
+}
+
+// setupPodFilesWithSource is like setupPodFiles but writes a workspace.json at
+// sourceDir/.kaiden/workspace.json so loadNetworkConfig picks it up.
+func setupPodFilesWithSource(t *testing.T, p *podmanRuntime, containerID, workspaceName, workspaceJSON string) string {
+	t.Helper()
+	if p.storageDir == "" {
+		p.storageDir = t.TempDir()
+	}
+	if p.globalStorageDir == "" {
+		p.globalStorageDir = t.TempDir()
+	}
+
+	sourceDir := t.TempDir()
+	kaidenDir := filepath.Join(sourceDir, ".kaiden")
+	if err := os.MkdirAll(kaidenDir, 0755); err != nil {
+		t.Fatalf("failed to create .kaiden dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(kaidenDir, "workspace.json"), []byte(workspaceJSON), 0644); err != nil {
+		t.Fatalf("failed to write workspace.json: %v", err)
+	}
+
+	approvalDir := filepath.Join(p.storageDir, "approval-handler", workspaceName)
+	if err := os.MkdirAll(approvalDir, 0755); err != nil {
+		t.Fatalf("failed to create approval handler dir: %v", err)
+	}
+	data := podTemplateData{
+		Name:               workspaceName,
+		OnecliWebPort:      20254,
+		OnecliVersion:      defaultOnecliVersion,
+		SourcePath:         sourceDir,
+		ApprovalHandlerDir: approvalDir,
+	}
+	if err := p.writePodFiles(containerID, data); err != nil {
+		t.Fatalf("failed to write pod files for test: %v", err)
+	}
+	return workspaceName
+}
+
+func TestStart_AllowMode_ClearsRules(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "exec" {
+			return []byte("accepting connections\n"), nil
+		}
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
+		return []byte(output), nil
+	}
+
+	deletedIDs := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
+			existing := []map[string]string{
+				{"id": "stale-rule-1"},
+				{"id": "stale-rule-2"},
+			}
+			_ = json.NewEncoder(w).Encode(existing)
+		case r.Method == http.MethodDelete:
+			deletedIDs = append(deletedIDs, r.URL.Path[len("/api/rules/"):])
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected OneCLI request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return server.URL }
+	setupPodFilesWithSource(t, p, containerID, "test-ws", `{"network":{"mode":"allow"}}`)
+
+	_, err := p.Start(context.Background(), containerID)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+
+	// Stale rules from a previous deny-mode start must be deleted.
+	if len(deletedIDs) != 2 {
+		t.Fatalf("expected 2 deletions, got %d: %v", len(deletedIDs), deletedIDs)
+	}
+	if deletedIDs[0] != "stale-rule-1" || deletedIDs[1] != "stale-rule-2" {
+		t.Errorf("deleted IDs = %v, want [stale-rule-1 stale-rule-2]", deletedIDs)
+	}
+
+	// Approval handler must NOT be started individually in allow mode.
+	fakeExec.AssertRunNotCalledWith(t, "start", "test-ws-approval-handler")
+
+	// Pod start must still be called.
+	fakeExec.AssertRunCalledWith(t, "pod", "start", "test-ws")
+}
+
+func TestStart_AllowMode_StepLogger(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "exec" {
+			return []byte("accepting connections\n"), nil
+		}
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
+		return []byte(output), nil
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode([]any{})
+		default:
+			t.Errorf("unexpected OneCLI request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return server.URL }
+	podName := setupPodFilesWithSource(t, p, containerID, "test-ws", `{"network":{"mode":"allow"}}`)
+
+	fakeLogger := &fakeStepLogger{}
+	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
+
+	_, err := p.Start(ctx, containerID)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+
+	expectedSteps := []stepCall{
+		{"Starting postgres", "Postgres started"},
+		{"Waiting for postgres to be ready", "Postgres is ready"},
+		{"Starting OneCLI", "OneCLI started"},
+		{"Waiting for OneCLI readiness", "OneCLI ready"},
+		{"Clearing network rules", "Network rules cleared"},
+		{fmt.Sprintf("Starting pod: %s", podName), "Pod started"},
+		{"Verifying container status", "Container status verified"},
+	}
+
+	if len(fakeLogger.startCalls) != len(expectedSteps) {
+		t.Fatalf("expected %d steps, got %d: %v", len(expectedSteps), len(fakeLogger.startCalls), fakeLogger.startCalls)
+	}
+	for i, want := range expectedSteps {
+		got := fakeLogger.startCalls[i]
+		if got.inProgress != want.inProgress || got.completed != want.completed {
+			t.Errorf("step %d: got {%q, %q}, want {%q, %q}", i, got.inProgress, got.completed, want.inProgress, want.completed)
+		}
 	}
 }

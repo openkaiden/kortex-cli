@@ -32,8 +32,9 @@ import (
 type podmanRuntime struct {
 	system          system.System
 	executor        exec.Executor
-	storageDir      string        // Directory for storing runtime-specific data
-	config          config.Config // Configuration manager for runtime settings
+	storageDir      string                // Runtime-specific storage: <globalStorageDir>/runtimes/podman
+	globalStorageDir string               // Top-level kdn storage dir: where config/projects.json lives
+	config          config.Config         // Configuration manager for runtime settings
 	onecliBaseURLFn func(port int) string // overridable in tests; nil uses default http://localhost:<port>
 }
 
@@ -80,6 +81,8 @@ func (p *podmanRuntime) Initialize(storageDir string) error {
 		return fmt.Errorf("storage directory cannot be empty")
 	}
 	p.storageDir = storageDir
+	// storageDir is <globalStorageDir>/runtimes/podman; the global dir is two levels up.
+	p.globalStorageDir = filepath.Dir(filepath.Dir(storageDir))
 
 	// Create config directory
 	configDir := filepath.Join(storageDir, "config")
