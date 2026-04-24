@@ -5,7 +5,7 @@
 
 kdn is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
 
-The architecture is built around pluggable runtimes. The first supported runtime is **Podman**, which creates container-based workspaces using a custom Fedora image. Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
+The architecture is built around pluggable runtimes. Supported runtimes include **Podman** (container-based workspaces using a custom Fedora image) and **OpenShell VM** (sandbox-based workspaces using NVIDIA OpenShell). Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
 
 **Supported Agents**
 
@@ -17,7 +17,7 @@ The architecture is built around pluggable runtimes. The first supported runtime
 **Key Features**
 
 - Isolated workspaces per project, each running in its own runtime instance
-- Pluggable runtime system — Podman is the default, with support for adding other runtimes
+- Pluggable runtime system — Podman and OpenShell VM are built-in, with support for adding other runtimes
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
 - Multi-level configuration: workspace, global, project-specific, and agent-specific settings
 - Inject environment variables and mount directories into workspaces at multiple scopes
@@ -80,7 +80,7 @@ The underlying AI model that powers the agents. Examples include Claude (by Anth
 A standardized protocol for connecting AI agents to external data sources and tools. MCP servers provide agents with additional capabilities like database access, API integrations, or file system operations.
 
 ### Runtime
-The environment where workspaces run. kdn supports multiple runtimes (e.g., Podman containers), allowing workspaces to be hosted on different backends depending on your needs.
+The environment where workspaces run. kdn supports multiple runtimes (e.g., Podman containers, OpenShell VM sandboxes), allowing workspaces to be hosted on different backends depending on your needs.
 
 ### Service
 A secret service definition that describes how to inject credentials into workspace HTTP requests. Each service specifies a host pattern to match, the HTTP header to set, and which environment variables hold the credential value.
@@ -1538,6 +1538,41 @@ Configuration changes take effect when you **register a new workspace with `init
 - To rebuild a workspace with new config, remove and re-register it
 - Validation errors in config files will cause workspace registration to fail with a descriptive message
 - The generated Containerfile is automatically copied to `/home/agent/Containerfile` inside the container for reference
+
+## OpenShell VM Runtime
+
+The OpenShell VM runtime provides sandbox-based workspaces using [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell). It runs a local virtual machine that hosts lightweight sandboxes where agents operate.
+
+### Prerequisites
+
+No manual installation is required. The OpenShell VM runtime automatically downloads the `openshell-vm` and `openshell` binaries from GitHub releases on first use.
+
+### How It Works
+
+When you register a workspace with the OpenShell VM runtime:
+
+1. The VM is started if not already running (with gateway readiness polling)
+2. A sandbox is created from the `base` image
+3. Your project source code is uploaded into the sandbox at `/sandbox/workspace/sources`
+4. Agent settings files are uploaded to `/sandbox`
+5. Environment variables are written to `/sandbox/.kdn-env`
+
+### Stop and Start Behavior
+
+OpenShell sandboxes cannot be paused or stopped. When you run `kdn stop`, the runtime records a virtual "stopped" state locally. The sandbox continues running in the background. Running `kdn start` clears this state override.
+
+### Example Usage
+
+```bash
+# Register a workspace with the OpenShell VM runtime
+kdn init /path/to/project --runtime openshell-vm --agent claude
+
+# Start the workspace
+kdn start my-project
+
+# Connect to the workspace
+kdn terminal my-project
+```
 
 ## Workspace Configuration
 

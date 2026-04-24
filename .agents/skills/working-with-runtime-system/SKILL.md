@@ -6,7 +6,7 @@ argument-hint: ""
 
 # Working with the Runtime System
 
-The runtime system provides a pluggable architecture for managing workspaces on different container/VM platforms (Podman, MicroVM, Kubernetes, etc.). This skill provides detailed guidance on understanding and working with the runtime system.
+The runtime system provides a pluggable architecture for managing workspaces on different container/VM platforms (Podman, OpenShell VM, MicroVM, Kubernetes, etc.). This skill provides detailed guidance on understanding and working with the runtime system.
 
 ## Overview
 
@@ -16,7 +16,7 @@ The runtime system enables kdn to support multiple backend platforms through a c
 
 - **Runtime Interface** (`pkg/runtime/runtime.go`): Contract all runtimes must implement
 - **Registry** (`pkg/runtime/registry.go`): Manages runtime registration and discovery
-- **Runtime Implementations** (`pkg/runtime/<runtime-name>/`): Platform-specific packages (e.g., `fake`)
+- **Runtime Implementations** (`pkg/runtime/<runtime-name>/`): Platform-specific packages (e.g., `fake`, `podman`, `openshellvm`)
 - **Centralized Registration** (`pkg/runtimesetup/register.go`): Automatically registers all available runtimes
 
 ## Runtime Registration in Commands
@@ -310,3 +310,4 @@ Use the `/add-runtime` skill which provides step-by-step instructions for creati
 - **Registration**: `pkg/runtimesetup/register.go`
 - **Reference Implementation**: `pkg/runtime/fake/`
 - **Podman Implementation**: `pkg/runtime/podman/`
+- **OpenShell VM Implementation**: `pkg/runtime/openshellvm/`

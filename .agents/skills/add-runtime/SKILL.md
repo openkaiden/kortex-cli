@@ -12,6 +12,7 @@ This skill guides you through adding a new runtime implementation to the kdn run
 
 Runtimes provide the execution environment for workspaces on different container/VM platforms:
 - **Podman**: Container-based workspaces
+- **OpenShell VM** (`openshell-vm`): Sandbox-based workspaces using NVIDIA OpenShell
 - **MicroVM**: Lightweight VM-based workspaces
 - **Kubernetes**: Kubernetes pod-based workspaces
 - **fake**: Test runtime for development

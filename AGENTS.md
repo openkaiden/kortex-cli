@@ -160,12 +160,12 @@ When designing JSON storage structures for persistent data, use **nested objects
 
 ### Runtime System
 
-The runtime system provides a pluggable architecture for managing workspaces on different container/VM platforms (Podman, MicroVM, Kubernetes, etc.).
+The runtime system provides a pluggable architecture for managing workspaces on different container/VM platforms (Podman, OpenShell VM, MicroVM, Kubernetes, etc.).
 
 **Key Components:**
 - **Runtime Interface** (`pkg/runtime/runtime.go`): Contract all runtimes must implement
 - **Registry** (`pkg/runtime/registry.go`): Manages runtime registration and discovery
-- **Runtime Implementations** (`pkg/runtime/<runtime-name>/`): Platform-specific packages (e.g., `fake`, `podman`)
+- **Runtime Implementations** (`pkg/runtime/<runtime-name>/`): Platform-specific packages (e.g., `fake`, `podman`, `openshellvm`)
 - **Centralized Registration** (`pkg/runtimesetup/register.go`): Automatically registers all available runtimes
 
 **Optional Interfaces:**
@@ -299,6 +299,26 @@ The Podman runtime supports runtime-specific configuration for **building and co
 - `<storage-dir>/runtimes/podman/config/opencode.json` - OpenCode agent configuration
 
 **For Podman runtime configuration details, use:** `/working-with-podman-runtime-config`
+
+### OpenShell VM Runtime
+
+The OpenShell VM runtime (`openshell-vm`) provides sandbox-based workspaces using NVIDIA OpenShell. Unlike Podman, it does not build images — it creates sandboxes from a base image and uploads sources into them.
+
+**Key Differences from Podman:**
+- **Binaries are auto-downloaded**: `openshell-vm` and `openshell` are downloaded from NVIDIA/OpenShell GitHub releases on first use. `Available()` always returns `true`
+- **Sources are uploaded, not mounted**: The `Create` method uploads the source directory into the sandbox at `/sandbox/workspace/sources`
+- **Stop is virtual**: OpenShell sandboxes cannot be paused. `Stop` records a local state override in `state-overrides.json`; `Start` clears it. The sandbox continues running in the background
+- **No runtime-specific config**: Unlike Podman, there are no `image.json` or agent config files. The runtime uses a fixed base sandbox image (`base`)
+- **No AgentLister**: The runtime does not implement `AgentLister` since it has no agent-specific configuration files to enumerate
+- **Environment variables**: Written to a `$HOME/.kdn-env` file inside the sandbox and sourced at terminal connect time, rather than passed as container environment variables
+
+**Storage Structure:**
+- `<storage-dir>/runtimes/openshell-vm/bin/` — Downloaded `openshell` and `openshell-vm` binaries
+- `<storage-dir>/runtimes/openshell-vm/state-overrides.json` — Virtual stop/start state tracking
+
+**Workspace Paths:**
+- Container home: `/sandbox`
+- Sources path: `/sandbox/workspace/sources`
 
 ### Skills System
 

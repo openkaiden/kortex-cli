@@ -20,6 +20,7 @@ import (
 
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/fake"
+	"github.com/openkaiden/kdn/pkg/runtime/openshellvm"
 	"github.com/openkaiden/kdn/pkg/runtime/podman"
 )
 
@@ -59,6 +60,7 @@ type runtimeFactory func() runtime.Runtime
 // Add new runtimes here to make them available for automatic registration.
 var availableRuntimes = []runtimeFactory{
 	fake.New,
+	openshellvm.New,
 	podman.New,
 }
 
