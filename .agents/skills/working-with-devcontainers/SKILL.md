@@ -41,7 +41,7 @@ feats, userOptions, err := features.FromMap(cfg.Features, workspaceConfigDir)
 // Phase 2 – download each feature into the build context.
 metadata := make(map[string]features.FeatureMetadata, len(feats))
 for i, feat := range feats {
-    destDir := filepath.Join(buildContextDir, "features", strconv.Itoa(i))
+    destDir := filepath.Join(buildContextDir, "features", fmt.Sprintf("feature-%d", i))
     meta, err := feat.Download(ctx, destDir)
     metadata[feat.ID()] = meta
 }

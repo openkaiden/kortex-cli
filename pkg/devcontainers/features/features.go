@@ -123,7 +123,11 @@ func Order(feats []Feature, metadata map[string]FeatureMetadata) ([]Feature, err
 	featByBase := make(map[string]Feature, len(feats))
 	for _, f := range feats {
 		featMap[f.ID()] = f
-		featByBase[featureBaseID(f.ID())] = f
+		base := featureBaseID(f.ID())
+		if existing, ok := featByBase[base]; ok {
+			return nil, fmt.Errorf("features %q and %q share base ID %q; declare only one variant", existing.ID(), f.ID(), base)
+		}
+		featByBase[base] = f
 	}
 
 	// Kahn's topological sort.

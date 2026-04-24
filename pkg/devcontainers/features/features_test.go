@@ -415,7 +415,7 @@ func TestFeatureOptions_Merge_UnsupportedTypeReturnsError(t *testing.T) {
 		"count": "3",
 	})
 	if err == nil {
-		t.Error("expected error for unsupported option type, got nil")
+		t.Fatal("expected error for unsupported option type, got nil")
 	}
 	if !strings.Contains(err.Error(), "unsupported type") {
 		t.Errorf("error = %q, want to contain 'unsupported type'", err.Error())
@@ -514,7 +514,7 @@ func TestLocalFeature_Download_InvalidJSON(t *testing.T) {
 
 	_, err = feats[0].Download(context.Background(), t.TempDir())
 	if err == nil {
-		t.Error("expected error for invalid JSON, got nil")
+		t.Fatal("expected error for invalid JSON, got nil")
 	}
 	if !strings.Contains(err.Error(), "parsing") {
 		t.Errorf("error = %q, want to contain 'parsing'", err.Error())
