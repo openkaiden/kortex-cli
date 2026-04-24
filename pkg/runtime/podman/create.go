@@ -27,6 +27,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/devcontainers/features"
+	"github.com/openkaiden/kdn/pkg/googleauth"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
@@ -37,7 +38,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
-const defaultOnecliVersion = "1.17"
+const defaultOnecliVersion = "1.20.0"
 
 // podTemplateData holds the values used to render the pod YAML template
 // and is also persisted as per-pod metadata (pod-template-data.json) so
@@ -216,13 +217,20 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 
 // containerConfigArgs holds optional OneCLI container configuration to inject into the workspace.
 type containerConfigArgs struct {
-	envVars         map[string]string
-	caFilePath      string
-	caContainerPath string
+	envVars             map[string]string
+	caFilePath          string
+	caContainerPath     string
+	googleCredsHostPath string            // host path to fake ADC JSON file
+	googleEnvVars       map[string]string // Google-auth env vars derived from host
 }
 
+// gcloudContainerADCPath is the standard path for application default credentials inside the container.
+const gcloudContainerADCPath = "/home/agent/.config/gcloud/application_default_credentials.json"
+
 // buildContainerArgs builds the arguments for creating the workspace container inside the pod.
-func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
+// gm, if non-nil, identifies a gcloud config mount that has been intercepted and should be
+// skipped — the fake ADC file is mounted instead via ccArgs.googleCredsHostPath.
+func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs, gm *googleauth.GcloudMount) ([]string, error) {
 	args := []string{"create", "--pod", params.Name, "--name", params.Name, "--device", "/dev/fuse"}
 
 	// Collect workspace env var names for collision detection
@@ -262,6 +270,12 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
 		}
+		if ccArgs.googleCredsHostPath != "" {
+			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.googleCredsHostPath, gcloudContainerADCPath))
+		}
+		for k, v := range ccArgs.googleEnvVars {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	// Add secret service env vars with placeholder values so CLI tools detect a configured credential.
@@ -281,6 +295,9 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 			return nil, fmt.Errorf("failed to get home directory: %w", err)
 		}
 		for _, m := range *params.WorkspaceConfig.Mounts {
+			if gm != nil && m.Host == gm.Mount.Host && m.Target == gm.Mount.Target {
+				continue // intercepted — fake ADC mounted via ccArgs.googleCredsHostPath
+			}
 			args = append(args, "-v", mountVolumeArg(m, params.SourcePath, homeDir))
 		}
 	}
@@ -457,11 +474,36 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		}
 	}()
 
+	// Detect a gcloud config mount declared in the workspace config. When present,
+	// kdn intercepts the mount (substituting a fake ADC file) and configures
+	// OneCLI Vertex AI using the real credentials from the host ADC file.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	var gm *googleauth.GcloudMount
+	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Mounts != nil {
+		gm = googleauth.FindGcloudMount(*params.WorkspaceConfig.Mounts, homeDir)
+	}
+
+	var adc *googleauth.ADCCredentials
+	if gm != nil {
+		var adcErr error
+		adc, adcErr = googleauth.LoadFrom(gm.ADCFilePath)
+		if adcErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to load ADC from %s: %v\n", gm.ADCFilePath, adcErr)
+		}
+		if adc == nil {
+			fmt.Fprintf(os.Stderr, "warning: gcloud mount declared but %s not found; skipping Vertex AI setup\n", gm.ADCFilePath)
+			gm = nil // don't intercept the mount if we can't read credentials
+		}
+	}
+
 	// Always start OneCLI to inject proxy env vars and the CA cert into the workspace container.
 	// Without HTTP_PROXY/HTTPS_PROXY pointing at the OneCLI gateway, deny-mode networking rules
 	// have no effect because workspace traffic bypasses the proxy entirely.
-	// Secrets are provisioned if any were provided.
-	containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets)
+	// Secrets are provisioned if any were provided; ADC credentials configure Vertex AI if present.
+	containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets, adc)
 	if setupErr != nil {
 		return runtime.RuntimeInfo{}, setupErr
 	}
@@ -485,10 +527,26 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 			ccArgs.caContainerPath = containerConfig.CACertificateContainerPath
 		}
 	}
+	// Write fake ADC file and inject Google env vars when host credentials exist
+	if adc != nil {
+		if ccArgs == nil {
+			ccArgs = &containerConfigArgs{}
+		}
+		certsDir := filepath.Join(p.storageDir, "certs", params.Name)
+		if mkErr := os.MkdirAll(certsDir, 0755); mkErr != nil {
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to create certs directory: %w", mkErr)
+		}
+		fakecredsPath := filepath.Join(certsDir, "gcloud-adc.json")
+		if writeErr := os.WriteFile(fakecredsPath, googleauth.FakeADCJSON(), 0644); writeErr != nil {
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to write fake ADC credentials: %w", writeErr)
+		}
+		ccArgs.googleCredsHostPath = fakecredsPath
+		ccArgs.googleEnvVars = googleauth.HostEnvVars()
+	}
 
 	// Build workspace container args with proxy env vars and CA cert mount from OneCLI
 	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", params.Name), "Workspace container created")
-	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs)
+	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs, gm)
 	if err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
@@ -561,7 +619,7 @@ func (p *podmanRuntime) buildForwards(params runtime.CreateParams) ([]api.Worksp
 
 // setupOnecli starts postgres, waits for it, then starts onecli to avoid migration race conditions.
 // After provisioning secrets and retrieving container config, it stops the pod.
-func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.StepLogger, l logger.Logger, podName string, tmplData podTemplateData, secrets []onecli.CreateSecretInput) (*onecli.ContainerConfig, error) {
+func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.StepLogger, l logger.Logger, podName string, tmplData podTemplateData, secrets []onecli.CreateSecretInput, adc *googleauth.ADCCredentials) (*onecli.ContainerConfig, error) {
 	postgresContainer := podName + "-postgres"
 	onecliContainer := podName + "-onecli"
 
@@ -610,6 +668,15 @@ func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.S
 		if err := provisioner.ProvisionSecrets(ctx, secrets); err != nil {
 			stepLogger.Fail(err)
 			return nil, fmt.Errorf("failed to provision OneCLI secrets: %w", err)
+		}
+	}
+
+	// Configure Vertex AI if application default credentials are available on the host
+	if adc != nil {
+		stepLogger.Start("Configuring OneCLI Vertex AI app", "Vertex AI configured")
+		if err := client.ConnectApp(ctx, "vertex-ai", adc.VertexAIFields()); err != nil {
+			stepLogger.Fail(err)
+			return nil, fmt.Errorf("failed to configure Vertex AI: %w", err)
 		}
 	}
 

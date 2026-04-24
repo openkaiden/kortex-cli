@@ -74,6 +74,10 @@ func (f *fakeClient) DeleteRule(_ context.Context, _ string) error {
 	return nil
 }
 
+func (f *fakeClient) ConnectApp(_ context.Context, _ string, _ map[string]string) error {
+	return nil
+}
+
 func TestProvisioner_AllSecretsCreated(t *testing.T) {
 	t.Parallel()
 

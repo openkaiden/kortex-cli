@@ -414,7 +414,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -469,7 +469,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -518,7 +518,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -555,7 +555,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -606,7 +606,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			caContainerPath: "/etc/ssl/certs/onecli-ca.pem",
 		}
 
-		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		args, err := p.buildContainerArgs(params, imageName, ccArgs, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -656,7 +656,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			},
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -693,7 +693,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			envVars: map[string]string{"HTTP_PROXY": "http://proxy:8080"},
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -719,7 +719,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			Agent:      "test_agent",
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", nil)
+		args, err := p.buildContainerArgs(params, "kdn-test", nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -755,7 +755,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			},
 		}
 
-		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		args, err := p.buildContainerArgs(params, imageName, ccArgs, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -818,7 +818,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -877,7 +877,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -914,7 +914,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}

@@ -19,9 +19,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/googleauth"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -147,6 +150,14 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	}
 
 	if shouldConfigureNetworking {
+		// When Vertex AI was configured at Create time (indicated by the fake ADC
+		// file), allow the Google auth and Vertex AI endpoints through the proxy
+		// without manual approval so the workspace can reach them transparently.
+		fakeADCPath := filepath.Join(p.storageDir, "certs", tmplData.Name, "gcloud-adc.json")
+		if _, err := os.Stat(fakeADCPath); err == nil {
+			allHosts = append(allHosts, googleauth.VertexAIHosts...)
+		}
+
 		stepLogger.Start("Configuring network rules", "Network rules configured")
 		if err := p.configureNetworking(ctx, onecliBaseURL, allHosts, tmplData.ApprovalHandlerDir); err != nil {
 			stepLogger.Fail(err)

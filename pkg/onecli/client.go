@@ -40,6 +40,8 @@ type Client interface {
 	CreateRule(ctx context.Context, input CreateRuleInput) (*Rule, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	DeleteRule(ctx context.Context, id string) error
+	// ConnectApp connects an app provider using the given credential fields.
+	ConnectApp(ctx context.Context, provider string, fields map[string]string) error
 }
 
 // UpdateSecretInput is the request body for updating a secret.
@@ -201,6 +203,17 @@ func (c *client) ListRules(ctx context.Context) ([]Rule, error) {
 func (c *client) DeleteRule(ctx context.Context, id string) error {
 	if err := c.do(ctx, http.MethodDelete, "/api/rules/"+id, nil, nil); err != nil {
 		return fmt.Errorf("deleting rule: %w", err)
+	}
+	return nil
+}
+
+// ConnectApp connects an app provider using the given credential fields.
+func (c *client) ConnectApp(ctx context.Context, provider string, fields map[string]string) error {
+	body := struct {
+		Fields map[string]string `json:"fields"`
+	}{Fields: fields}
+	if err := c.do(ctx, http.MethodPost, "/api/apps/"+provider+"/connect", body, nil); err != nil {
+		return fmt.Errorf("connecting %s: %w", provider, err)
 	}
 	return nil
 }
