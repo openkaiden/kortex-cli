@@ -139,6 +139,9 @@ func TestWorkspaceDashboardCmd_E2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}
+		if err := manager.Start(context.Background(), added.GetID()); err != nil {
+			t.Fatalf("Failed to start instance: %v", err)
+		}
 
 		// rootCmd creates its own manager via runtimesetup.RegisterAll, which also
 		// registers fake.New() (without Dashboard). The command will fail at the Dashboard check.
@@ -186,6 +189,9 @@ func TestWorkspaceDashboardCmd_E2E(t *testing.T) {
 		added, err := manager.Add(context.Background(), instances.AddOptions{Instance: inst, RuntimeType: "fake"})
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
+		}
+		if err := manager.Start(context.Background(), added.GetID()); err != nil {
+			t.Fatalf("Failed to start instance: %v", err)
 		}
 
 		// Inject the dashboard-capable manager directly into the command struct,

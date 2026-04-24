@@ -26,8 +26,8 @@ import (
 var _ runtime.Dashboard = (*podmanRuntime)(nil)
 
 // GetURL implements runtime.Dashboard.
-// It returns the dashboard URL for the given workspace container.
-// Returns an error if the container is not running or the URL cannot be determined.
+// It performs a live container inspection to confirm the actual runtime state
+// before reading the stored port, guarding against stale persisted state.
 func (p *podmanRuntime) GetURL(ctx context.Context, instanceID string) (string, error) {
 	info, err := p.getContainerInfo(ctx, instanceID)
 	if err != nil {

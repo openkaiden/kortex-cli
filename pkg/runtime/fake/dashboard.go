@@ -33,11 +33,8 @@ var _ runtime.Dashboard = (*runtimeWithDashboard)(nil)
 // The url parameter is returned by GetURL for all instances.
 func NewWithDashboard(url string) runtime.Runtime {
 	return &runtimeWithDashboard{
-		fakeRuntime: &fakeRuntime{
-			instances: make(map[string]*instanceState),
-			nextID:    1,
-		},
-		url: url,
+		fakeRuntime: New().(*fakeRuntime),
+		url:         url,
 	}
 }
 

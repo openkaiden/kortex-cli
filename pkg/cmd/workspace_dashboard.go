@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -34,7 +35,7 @@ import (
 type workspaceDashboardCmd struct {
 	manager     instances.Manager
 	nameOrID    string
-	openBrowser func(url string) error
+	openBrowser func(ctx context.Context, url string) error
 }
 
 // preRun validates the parameters and flags
@@ -79,24 +80,24 @@ func (w *workspaceDashboardCmd) run(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintln(cmd.OutOrStdout(), url)
 	if w.openBrowser != nil {
-		_ = w.openBrowser(url)
+		_ = w.openBrowser(cmd.Context(), url)
 	}
 	return nil
 }
 
 // openBrowser attempts to open the URL in the user's default browser.
-// Errors are silently ignored since this is a best-effort operation.
-func openBrowser(url string) error {
+// Start is used instead of Run so the browser process is launched non-blocking.
+func openBrowser(ctx context.Context, url string) error {
 	var browserCmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		browserCmd = exec.Command("open", url)
+		browserCmd = exec.CommandContext(ctx, "open", url)
 	case "windows":
-		browserCmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		browserCmd = exec.CommandContext(ctx, "rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		browserCmd = exec.Command("xdg-open", url)
+		browserCmd = exec.CommandContext(ctx, "xdg-open", url)
 	}
-	return browserCmd.Run()
+	return browserCmd.Start()
 }
 
 func NewWorkspaceDashboardCmd() *cobra.Command {

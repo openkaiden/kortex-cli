@@ -733,6 +733,10 @@ func (m *manager) GetDashboardURL(ctx context.Context, nameOrID string) (string,
 	}
 
 	runtimeData := instance.GetRuntimeData()
+	if runtimeData.State != api.WorkspaceStateRunning {
+		return "", fmt.Errorf("workspace is not running (state: %s)", runtimeData.State)
+	}
+
 	rt, err := m.runtimeRegistry.Get(runtimeData.Type)
 	if err != nil {
 		return "", fmt.Errorf("failed to get runtime: %w", err)

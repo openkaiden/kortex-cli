@@ -4544,6 +4544,9 @@ func TestManager_GetDashboardURL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Add() error = %v", err)
 		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
 
 		url, err := manager.GetDashboardURL(ctx, added.GetID())
 		if err != nil {
@@ -4551,6 +4554,42 @@ func TestManager_GetDashboardURL(t *testing.T) {
 		}
 		if url != dashboardURL {
 			t.Errorf("GetDashboardURL() = %q, want %q", url, dashboardURL)
+		}
+	})
+
+	t.Run("returns error when instance is not running", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		const dashboardURL = "http://localhost:8080"
+		runtimesDir := filepath.Join(tmpDir, RuntimesSubdirectory)
+		reg, err := runtime.NewRegistry(runtimesDir)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		_, err = manager.GetDashboardURL(ctx, added.GetID())
+		if err == nil {
+			t.Fatal("GetDashboardURL() error = nil, want error for stopped instance")
+		}
+		if !strings.Contains(err.Error(), "workspace is not running") {
+			t.Errorf("GetDashboardURL() error = %v, want 'workspace is not running'", err)
 		}
 	})
 
@@ -4570,6 +4609,9 @@ func TestManager_GetDashboardURL(t *testing.T) {
 		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
 		if err != nil {
 			t.Fatalf("Add() error = %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() error = %v", err)
 		}
 
 		_, err = manager.GetDashboardURL(ctx, added.GetID())
@@ -4614,8 +4656,12 @@ func TestManager_GetDashboardURL(t *testing.T) {
 			Accessible: true,
 			Name:       "my-workspace",
 		})
-		if _, err = manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"}); err != nil {
+		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
 			t.Fatalf("Add() error = %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() error = %v", err)
 		}
 
 		url, err := manager.GetDashboardURL(ctx, "my-workspace")
