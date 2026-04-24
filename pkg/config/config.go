@@ -234,10 +234,6 @@ func (c *config) validate(cfg *workspace.WorkspaceConfiguration) error {
 		if cfg.Network.Mode != nil && !cfg.Network.Mode.Valid() {
 			return fmt.Errorf("%w: network mode %q is invalid (must be %q or %q)", ErrInvalidConfig, *cfg.Network.Mode, workspace.Allow, workspace.Deny)
 		}
-		isAllow := cfg.Network.Mode != nil && *cfg.Network.Mode == workspace.Allow
-		if isAllow && cfg.Network.Hosts != nil {
-			return fmt.Errorf("%w: network hosts must not be set when mode is %q", ErrInvalidConfig, workspace.Allow)
-		}
 		if cfg.Network.Hosts != nil {
 			for i, h := range *cfg.Network.Hosts {
 				if h == "" {

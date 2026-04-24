@@ -18,3 +18,9 @@ import _ "embed"
 
 //go:embed onecli-pod.yaml
 var OnecliPodYAML []byte
+
+//go:embed approval-handler.ts
+var ApprovalHandlerTS []byte
+
+//go:embed approval-handler-package.json
+var ApprovalHandlerPackageJSON []byte

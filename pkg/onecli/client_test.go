@@ -319,6 +319,9 @@ func TestCreateRule_AuthFailure(t *testing.T) {
 	}
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) {
-		t.Errorf("expected APIError, got %T: %v", err, err)
+		t.Fatalf("expected APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusUnauthorized {
+		t.Errorf("got status %d, want %d", apiErr.StatusCode, http.StatusUnauthorized)
 	}
 }

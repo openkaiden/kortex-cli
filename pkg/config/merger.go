@@ -431,10 +431,9 @@ func copyMCP(mcp *workspace.McpConfiguration) *workspace.McpConfiguration {
 }
 
 // mergeNetwork merges two NetworkConfiguration objects.
-// The base network policy is dominant:
-//   - if base has mode "allow", use base configuration
-//   - if base has mode "deny" and override has mode "allow", use base configuration
-//   - if both base and override have mode "deny", merge hosts from both
+// Override takes precedence, consistent with the rest of the merger:
+//   - override mode wins; fall back to base mode when override has none
+//   - hosts are the union of both (base entries first, override entries appended)
 func mergeNetwork(base, override *workspace.NetworkConfiguration) *workspace.NetworkConfiguration {
 	if base == nil && override == nil {
 		return nil
@@ -446,20 +445,16 @@ func mergeNetwork(base, override *workspace.NetworkConfiguration) *workspace.Net
 		return copyNetwork(base)
 	}
 
-	// Base with "allow" mode always wins, regardless of override
-	if base.Mode != nil && *base.Mode == workspace.Allow {
-		return copyNetwork(base)
-	}
-
-	// Base has "deny" (or default deny) and override has "allow": base wins
-	if override.Mode != nil && *override.Mode == workspace.Allow {
-		return copyNetwork(base)
-	}
-
-	// Both have "deny" mode: merge hosts
 	result := &workspace.NetworkConfiguration{}
-	mode := workspace.Deny
-	result.Mode = &mode
+
+	if override.Mode != nil {
+		modeCopy := *override.Mode
+		result.Mode = &modeCopy
+	} else if base.Mode != nil {
+		modeCopy := *base.Mode
+		result.Mode = &modeCopy
+	}
+
 	result.Hosts = mergeStringSlices(base.Hosts, override.Hosts)
 
 	return result

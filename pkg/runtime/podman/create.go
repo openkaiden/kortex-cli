@@ -36,13 +36,17 @@ import (
 
 const defaultOnecliVersion = "1.17"
 
-// podTemplateData holds the values used to render the pod YAML template.
+// podTemplateData holds the values used to render the pod YAML template
+// and is also persisted as per-pod metadata (pod-template-data.json) so
+// that Start() can recover SourcePath, ProjectID and ApprovalHandlerDir
+// without re-reading the original CreateParams.
 type podTemplateData struct {
-	Name          string
-	OnecliWebPort int
-	OnecliVersion string
-	SourcePath    string
-	ProjectID     string
+	Name               string
+	OnecliWebPort      int
+	OnecliVersion      string
+	SourcePath         string
+	ProjectID          string
+	ApprovalHandlerDir string
 }
 
 // validateCreateParams validates the create parameters.
@@ -380,13 +384,21 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to allocate free ports: %w", err)
 	}
 
+	// Prepare the approval-handler directory with the embedded Node.js script
+	// so it is available as a hostPath volume when the pod is created.
+	approvalHandlerDir := filepath.Join(p.storageDir, "approval-handler", params.Name)
+	if err := writeApprovalHandlerFiles(approvalHandlerDir); err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to write approval handler files: %w", err)
+	}
+
 	// Render the pod YAML template
 	tmplData := podTemplateData{
-		Name:          params.Name,
-		OnecliWebPort: freePorts[0],
-		OnecliVersion: defaultOnecliVersion,
-		SourcePath:    params.SourcePath,
-		ProjectID:     params.ProjectID,
+		Name:               params.Name,
+		OnecliWebPort:      freePorts[0],
+		OnecliVersion:      defaultOnecliVersion,
+		SourcePath:         params.SourcePath,
+		ProjectID:          params.ProjectID,
+		ApprovalHandlerDir: approvalHandlerDir,
 	}
 
 	tmpPodDir := filepath.Join(instanceDir, "pod")
@@ -559,6 +571,27 @@ func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.S
 	}
 
 	return containerConfig, nil
+}
+
+// writeApprovalHandlerFiles writes the embedded Node.js approval handler
+// script and package.json into the given directory so it can be mounted
+// as a hostPath volume into the approval-handler sidecar container.
+func writeApprovalHandlerFiles(dir string) error {
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		return fmt.Errorf("failed to create approval handler directory: %w", err)
+	}
+	// MkdirAll is subject to umask, so explicitly set permissions to allow
+	// the non-root container user (UID 1001) to write node_modules/.
+	if err := os.Chmod(dir, 0777); err != nil {
+		return fmt.Errorf("failed to chmod approval handler directory: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "approval-handler.ts"), pods.ApprovalHandlerTS, 0644); err != nil {
+		return fmt.Errorf("failed to write approval-handler.ts: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), pods.ApprovalHandlerPackageJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write package.json: %w", err)
+	}
+	return nil
 }
 
 // writePodYAMLFile renders and writes the pod YAML template to the given path.

@@ -1343,6 +1343,10 @@ func TestConfig_Load_Network_Valid(t *testing.T) {
 			json: `{"network": {"mode": "allow"}}`,
 		},
 		{
+			name: "allow mode with hosts is valid (hosts are ignored at runtime)",
+			json: `{"network": {"mode": "allow", "hosts": ["example.com"]}}`,
+		},
+		{
 			name: "no mode defaults to deny",
 			json: `{"network": {"hosts": ["example.com"]}}`,
 		},
@@ -1387,11 +1391,6 @@ func TestConfig_Load_Network_Invalid(t *testing.T) {
 			name:       "invalid mode",
 			json:       `{"network": {"mode": "block"}}`,
 			wantErrMsg: `network mode "block" is invalid`,
-		},
-		{
-			name:       "allow mode with hosts",
-			json:       `{"network": {"mode": "allow", "hosts": ["example.com"]}}`,
-			wantErrMsg: `network hosts must not be set when mode is "allow"`,
 		},
 		{
 			name:       "empty host entry",

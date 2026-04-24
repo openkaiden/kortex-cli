@@ -9,6 +9,10 @@ spec:
   # avoid migration race conditions. OnFailure/Always would restart onecli before
   # postgres is ready, causing repeated migration failures.
   restartPolicy: Never
+  volumes:
+    - name: approval-handler
+      hostPath:
+        path: {{.ApprovalHandlerDir}}
   containers:
     - name: postgres
       image: docker.io/library/postgres:18-alpine
@@ -47,3 +51,10 @@ spec:
         - containerPort: 10254
           hostPort: {{.OnecliWebPort}}
           hostIP: "127.0.0.1"
+
+    - name: approval-handler
+      image: registry.access.redhat.com/ubi9/nodejs-22-minimal
+      command: ["sh", "-c", "cd /app && npm install --omit=optional && npx tsx approval-handler.ts"]
+      volumeMounts:
+        - name: approval-handler
+          mountPath: /app
