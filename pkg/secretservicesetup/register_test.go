@@ -75,8 +75,8 @@ func TestRegisterAll(t *testing.T) {
 			t.Errorf("RegisterAll() error = %v, want nil", err)
 		}
 
-		if len(registrar.registered) != 2 {
-			t.Errorf("registered %d secret services, want 2", len(registrar.registered))
+		if len(registrar.registered) != 3 {
+			t.Errorf("registered %d secret services, want 3", len(registrar.registered))
 		}
 
 		if _, exists := registrar.registered["github"]; !exists {
@@ -85,6 +85,10 @@ func TestRegisterAll(t *testing.T) {
 
 		if _, exists := registrar.registered["gemini"]; !exists {
 			t.Error("gemini secret service was not registered")
+		}
+
+		if _, exists := registrar.registered["anthropic"]; !exists {
+			t.Error("anthropic secret service was not registered")
 		}
 	})
 }
@@ -172,8 +176,8 @@ func TestRegisterAllWithFactories(t *testing.T) {
 func TestAvailableSecretServicesLoaded(t *testing.T) {
 	t.Parallel()
 
-	if len(availableSecretServices) != 2 {
-		t.Errorf("availableSecretServices should have 2 entries, got %d", len(availableSecretServices))
+	if len(availableSecretServices) != 3 {
+		t.Errorf("availableSecretServices should have 3 entries, got %d", len(availableSecretServices))
 	}
 }
 
@@ -257,6 +261,43 @@ func TestAvailableSecretServicesContainGemini(t *testing.T) {
 	}
 }
 
+func TestAvailableSecretServicesContainAnthropic(t *testing.T) {
+	t.Parallel()
+
+	if len(availableSecretServices) < 3 {
+		t.Fatal("availableSecretServices has fewer than 3 entries")
+	}
+
+	svc := availableSecretServices[2]()
+	if svc == nil {
+		t.Fatal("factory returned nil")
+	}
+
+	if svc.Name() != "anthropic" {
+		t.Errorf("Name() = %q, want %q", svc.Name(), "anthropic")
+	}
+	if svc.HostPattern() != "api.anthropic.com" {
+		t.Errorf("HostPattern() = %q, want %q", svc.HostPattern(), "api.anthropic.com")
+	}
+	if svc.Path() != "" {
+		t.Errorf("Path() = %q, want empty string", svc.Path())
+	}
+	if svc.HeaderName() != "x-api-key" {
+		t.Errorf("HeaderName() = %q, want %q", svc.HeaderName(), "x-api-key")
+	}
+	if svc.HeaderTemplate() != "" {
+		t.Errorf("HeaderTemplate() = %q, want empty string", svc.HeaderTemplate())
+	}
+
+	envVars := svc.EnvVars()
+	if len(envVars) != 1 {
+		t.Fatalf("EnvVars() has %d entries, want 1", len(envVars))
+	}
+	if envVars[0] != "ANTHROPIC_API_KEY" {
+		t.Errorf("EnvVars()[0] = %q, want %q", envVars[0], "ANTHROPIC_API_KEY")
+	}
+}
+
 func TestLoadSecretServices(t *testing.T) {
 	t.Parallel()
 
@@ -265,8 +306,8 @@ func TestLoadSecretServices(t *testing.T) {
 		t.Fatalf("loadSecretServices() error = %v", err)
 	}
 
-	if len(factories) != 2 {
-		t.Fatalf("loadSecretServices() returned %d factories, want 2", len(factories))
+	if len(factories) != 3 {
+		t.Fatalf("loadSecretServices() returned %d factories, want 3", len(factories))
 	}
 
 	svc := factories[0]()
