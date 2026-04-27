@@ -221,19 +221,20 @@ The approval-handler checks each request's hostname against the `hosts` list usi
 |---------|---------|
 | `*` | everything |
 | `api.github.com` | exact match only |
-| `api.*.com` | `api.github.com`, `api.example.com` (one segment) |
-| `*.github.com` | `api.github.com`, `cdn.github.com` |
+| `*.github.com` | `api.github.com`, `cdn.github.com` but **not** `github.com` |
 
-`*` within a pattern matches exactly one hostname segment (no dots). The catch-all `*` entry approves all hosts unconditionally.
+Only three forms are supported: catch-all `*`, leading-wildcard `*.domain`, or exact hostname. Mid-pattern wildcards like `api.*.com` are treated as literal strings and will never match.
 
 Implementation (`approval-handler.ts`):
 
 ```typescript
 function matchesPattern(pattern: string, hostname: string): boolean {
   if (pattern === "*") return true;
-  if (!pattern.includes("*")) return pattern === hostname;
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp("^" + escaped.replace(/\*/g, "[^.]+") + "$").test(hostname);
+  if (pattern.startsWith("*.")) {
+    const suffix = pattern.slice(1); // ".github.com"
+    return hostname.endsWith(suffix) && hostname.length > suffix.length;
+  }
+  return pattern === hostname;
 }
 ```
 
