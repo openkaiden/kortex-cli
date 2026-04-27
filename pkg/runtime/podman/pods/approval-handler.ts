@@ -45,10 +45,12 @@ const onecli = new OneCLI({
 
 function matchesPattern(pattern: string, hostname: string): boolean {
   if (pattern === "*") return true;
-  if (!pattern.includes("*")) return pattern === hostname;
-  // Convert glob to regex: * matches one hostname segment (no dots)
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp("^" + escaped.replace(/\*/g, "[^.]+") + "$").test(hostname);
+  // *.github.com matches api.github.com but not github.com itself
+  if (pattern.startsWith("*.")) {
+    const suffix = pattern.slice(1); // ".github.com"
+    return hostname.endsWith(suffix) && hostname.length > suffix.length;
+  }
+  return pattern === hostname;
 }
 
 const handle = onecli.configureManualApproval(async (request) => {
