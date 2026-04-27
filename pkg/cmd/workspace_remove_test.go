@@ -45,6 +45,10 @@ func TestWorkspaceRemoveCmd(t *testing.T) {
 	if cmd.Use != "remove NAME|ID" {
 		t.Errorf("Expected Use to be 'remove NAME|ID', got '%s'", cmd.Use)
 	}
+
+	if len(cmd.Aliases) != 1 || cmd.Aliases[0] != "rm" {
+		t.Errorf("Expected Aliases to be [rm], got %v", cmd.Aliases)
+	}
 }
 
 func TestWorkspaceRemoveCmd_PreRun(t *testing.T) {
@@ -494,6 +498,66 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 		// Use the alias command 'remove' instead of 'workspace remove'
 		rootCmd := NewRootCmd()
 		rootCmd.SetArgs([]string{"remove", instanceID, "--storage", storageDir})
+
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		// Verify output is only the ID
+		result := strings.TrimSpace(output.String())
+		if result != instanceID {
+			t.Errorf("Expected output to be '%s', got: '%s'", instanceID, result)
+		}
+
+		// Verify workspace is removed
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 instances after removal, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("rm command alias works", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		// Create a workspace
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instances.AddOptions{Instance: instance, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		instanceID := addedInstance.GetID()
+
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"rm", instanceID, "--storage", storageDir})
 
 		var output bytes.Buffer
 		rootCmd.SetOut(&output)

@@ -35,6 +35,10 @@ func TestRemoveCmd(t *testing.T) {
 		t.Errorf("Expected Use to be 'remove NAME|ID', got '%s'", cmd.Use)
 	}
 
+	if len(cmd.Aliases) != 1 || cmd.Aliases[0] != "rm" {
+		t.Errorf("Expected Aliases to be [rm], got %v", cmd.Aliases)
+	}
+
 	// Verify it includes the original workspace remove Short description
 	workspaceRemoveCmd := NewWorkspaceRemoveCmd()
 	if !strings.Contains(cmd.Short, workspaceRemoveCmd.Short) {

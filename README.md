@@ -3275,13 +3275,14 @@ If the workspace is stopped, `terminal` automatically starts it before connectin
 
 ### `workspace remove` - Remove a Workspace
 
-Removes a registered workspace by its name or ID. Also available as the shorter alias `remove`.
+Removes a registered workspace by its name or ID. Also available as the shorter aliases `remove` and `rm`.
 
 #### Usage
 
 ```bash
 kdn workspace remove NAME|ID [flags]
 kdn remove NAME|ID [flags]
+kdn rm NAME|ID [flags]
 ```
 
 #### Arguments
@@ -3309,9 +3310,10 @@ kdn workspace remove my-project
 ```
 Output: `a1b2c3d4e5f6...` (ID of removed workspace)
 
-**Use the short alias:**
+**Use the short aliases:**
 ```bash
 kdn remove my-project
+kdn rm my-project
 ```
 
 **View workspace names and IDs before removing:**
