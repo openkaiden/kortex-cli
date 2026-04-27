@@ -178,6 +178,23 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 
 **To add a new runtime, use:** `/add-runtime`
 
+### Podman Runtime — Deny-mode Networking
+
+When a workspace has `network.mode = deny` with at least one host in `network.hosts`, the Podman runtime configures outbound traffic filtering via OneCLI on every `Start()`:
+
+1. All existing OneCLI rules are deleted (idempotency across restarts)
+2. A single `manual_approval` rule for `*` is created — **`"allow"` is not a valid OneCLI action**
+3. `config.json` is written to `<storageDir>/runtimes/podman/approval-handler/<name>/` on the host, which is mounted at `/app` inside the pod
+4. The `approval-handler` sidecar container is started; it copies `/app/*` to its working directory, connects to the OneCLI gateway (port 10255), and approves/denies each intercepted request by matching the hostname against the `hosts` list (supports `*` catch-all and glob patterns like `api.*.com`)
+
+**Key files:**
+- `pkg/runtime/podman/network.go` — `configureNetworking` / `clearNetworkingRules` / `loadNetworkConfig`
+- `pkg/runtime/podman/pods/approval-handler.ts` — Node.js sidecar (TypeScript, runs via `tsx`)
+- `pkg/runtime/podman/pods/onecli-pod.yaml` — pod manifest with the approval-handler container
+- `pkg/runtime/podman/system/path.go` / `path_windows.go` — `HostPathToMachinePath` / `MachinePathToHostPath` for translating host paths to Podman Machine (WSL2) paths on Windows; no-ops on Linux/macOS
+
+**For the full design, use:** `/working-with-onecli`
+
 ### Secret Service System
 
 The secret service system provides a pluggable architecture for managing secret service definitions that describe how secrets are applied to workspace requests.
