@@ -54,7 +54,7 @@ spec:
 
     - name: approval-handler
       image: registry.access.redhat.com/ubi9/nodejs-22-minimal
-      command: ["sh", "-c", "cp /app/* . && npm install --omit=optional && npx tsx approval-handler.ts"]
+      command: ["sh", "-c", "cp /app/approval-handler.ts /app/package.json . && npm install --omit=optional && npx tsx approval-handler.ts"]
       volumeMounts:
         - name: approval-handler
           mountPath: /app
