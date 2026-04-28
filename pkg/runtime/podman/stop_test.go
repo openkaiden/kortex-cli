@@ -25,6 +25,12 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
+// podInspectOutput returns a fake `podman pod inspect` output listing the
+// three containers that kdn pods always contain.
+func podInspectOutput(podName string) []byte {
+	return []byte(fmt.Sprintf("%s\n%s-onecli\n%s-postgres\n", podName, podName, podName))
+}
+
 func TestStop_ValidatesID(t *testing.T) {
 	t.Parallel()
 
@@ -53,22 +59,38 @@ func TestStop_Success(t *testing.T) {
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 	podName := setupPodFiles(t, p, containerID, "my-project")
 
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return podInspectOutput(podName), nil
+	}
+
 	err := p.Stop(context.Background(), containerID)
 	if err != nil {
 		t.Fatalf("Stop() failed: %v", err)
 	}
 
-	fakeExec.AssertRunCalledWith(t, "pod", "stop", podName)
+	// Verify pod inspect was called to discover containers dynamically.
+	fakeExec.AssertOutputCalledWith(t, "pod", "inspect", "--format", "{{range .Containers}}{{.Name}}\n{{end}}", podName)
+
+	// Verify each container was stopped individually (not via pod stop).
+	fakeExec.AssertRunCalledWith(t, "stop", podName)
+	fakeExec.AssertRunCalledWith(t, "stop", podName+"-onecli")
+	fakeExec.AssertRunCalledWith(t, "stop", podName+"-postgres")
+
+	for _, call := range fakeExec.RunCalls {
+		if len(call) >= 2 && call[0] == "pod" && call[1] == "stop" {
+			t.Errorf("Expected podman pod stop NOT to be called, but it was called with: %v", call)
+		}
+	}
 }
 
-func TestStop_PodStopFailure(t *testing.T) {
+func TestStop_PodInspectFailure(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("pod not found")
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("pod not found")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
@@ -76,10 +98,37 @@ func TestStop_PodStopFailure(t *testing.T) {
 
 	err := p.Stop(context.Background(), containerID)
 	if err == nil {
-		t.Fatal("Expected error when pod stop fails, got nil")
+		t.Fatal("Expected error when pod inspect fails, got nil")
 	}
 
-	fakeExec.AssertRunCalledWith(t, "pod", "stop", podName)
+	fakeExec.AssertOutputCalledWith(t, "pod", "inspect", "--format", "{{range .Containers}}{{.Name}}\n{{end}}", podName)
+
+	if len(fakeExec.RunCalls) != 0 {
+		t.Errorf("Expected no Run calls when inspect fails, got: %v", fakeExec.RunCalls)
+	}
+}
+
+func TestStop_ContainerStopFailure(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123"
+	fakeExec := exec.NewFake()
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "test-ws")
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return podInspectOutput(podName), nil
+	}
+
+	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+		return fmt.Errorf("container stop failed")
+	}
+
+	err := p.Stop(context.Background(), containerID)
+	if err == nil {
+		t.Fatal("Expected error when container stop fails, got nil")
+	}
 }
 
 func TestStop_StepLogger_Success(t *testing.T) {
@@ -90,6 +139,10 @@ func TestStop_StepLogger_Success(t *testing.T) {
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 	podName := setupPodFiles(t, p, containerID, "test-ws")
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return podInspectOutput(podName), nil
+	}
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
@@ -129,18 +182,22 @@ func TestStop_StepLogger_Success(t *testing.T) {
 	}
 }
 
-func TestStop_StepLogger_FailOnPodStop(t *testing.T) {
+func TestStop_StepLogger_FailOnContainerStop(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("pod not found")
-	}
-
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 	podName := setupPodFiles(t, p, containerID, "test-ws")
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return podInspectOutput(podName), nil
+	}
+
+	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+		return fmt.Errorf("container not found")
+	}
 
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
