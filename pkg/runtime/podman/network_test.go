@@ -542,7 +542,7 @@ func (f *fakeSecretStore) Create(secret.CreateParams) error { return nil }
 func (f *fakeSecretStore) Remove(string) error              { return nil }
 
 func makeSecretService(name string, patterns []string) secretservice.SecretService {
-	return secretservice.NewSecretService(name, patterns, "", nil, "", "")
+	return secretservice.NewSecretService(name, patterns, "", nil, "", "", "")
 }
 
 func makeRegistry(t *testing.T, services ...secretservice.SecretService) secretservice.Registry {
