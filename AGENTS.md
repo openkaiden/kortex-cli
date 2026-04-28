@@ -180,13 +180,15 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 
 ### Podman Runtime — Deny-mode Networking
 
-When a workspace has `network.mode = deny` with at least one host in `network.hosts`, the Podman runtime enforces outbound traffic filtering on every `Start()` using two layers:
+When a workspace has `network.mode = deny`, the Podman runtime enforces outbound traffic filtering on every `Start()` using two layers. Allowed hosts come from `network.hosts` and are automatically augmented by host patterns derived from configured secrets. With no allowed hosts at all, the approval-handler denies every request (fully-isolated workspace).
 
 1. **nftables firewall (kernel level)**: A `network-guard` sidecar with `CAP_NET_ADMIN` runs nftables rules that DROP outbound traffic from the agent's UID. Loopback and `host.containers.internal` are always allowed. This prevents bypassing the proxy by unsetting `HTTP_PROXY`.
 2. **OneCLI proxy (application level)**: All existing OneCLI rules are deleted, a single `manual_approval` rule for `*` is created (**`"allow"` is not a valid OneCLI action**), and the `approval-handler` sidecar approves/denies intercepted requests by hostname pattern.
 
+**Secret host auto-injection:** When secrets are configured, `collectSecretHosts()` (in `network.go`) reads their host patterns from the secret service registry (known types) or stored metadata (`other` type) and merges them with the explicit `network.hosts` list. The `podmanRuntime` receives the `secretservice.Registry` via `SetSecretServiceRegistry()`, called by `manager.RegisterRuntime()` for runtimes that implement the `secretServiceRegistryAware` interface.
+
 **Key files:**
-- `pkg/runtime/podman/network.go` — `configureNetworking` / `clearNetworkingRules` / `setupFirewallRules` / `clearFirewallRules` / `buildNftScript`
+- `pkg/runtime/podman/network.go` — `configureNetworking` / `clearNetworkingRules` / `setupFirewallRules` / `clearFirewallRules` / `buildNftScript` / `collectSecretHosts` / `mergeHosts`
 - `pkg/runtime/podman/pods/approval-handler.ts` — Node.js sidecar (TypeScript, runs via `tsx`)
 - `pkg/runtime/podman/pods/onecli-pod.yaml` — pod manifest with the approval-handler, network-guard, and OneCLI containers
 - `pkg/runtime/podman/system/path.go` / `path_windows.go` — `HostPathToMachinePath` / `MachinePathToHostPath` for translating host paths to Podman Machine (WSL2) paths on Windows; no-ops on Linux/macOS

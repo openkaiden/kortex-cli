@@ -89,21 +89,34 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	// unless the network mode is explicitly set to allow in the workspace config.
 	// The policy is read fresh from projects.json on each start so edits take effect
 	// without recreating the workspace.
-	wsCfg, loadErr := loadNetworkConfig(tmplData.SourcePath, p.globalStorageDir, tmplData.ProjectID)
+	wsCfg, loadErr := loadNetworkConfig(tmplData.SourcePath, p.globalStorageDir, tmplData.ProjectID, tmplData.Agent)
 	if loadErr != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load network config: %w", loadErr)
 	}
 
-	// Networking rules are only configured when mode is explicitly deny AND at
-	// least one allowed host is specified. All other cases (allow, no config,
-	// deny without hosts) clear any stale rules so that mode switches take
-	// effect without recreating the workspace.
+	// Collect explicit allowed hosts from the workspace network config.
+	var explicitHosts []string
+	if wsCfg != nil && wsCfg.Network != nil && wsCfg.Network.Hosts != nil {
+		explicitHosts = *wsCfg.Network.Hosts
+	}
+
+	// Automatically add host patterns from secrets so users do not need to
+	// list them explicitly under network.hosts.
+	secretHosts, err := collectSecretHosts(wsCfg, p.secretStore, p.secretServiceRegistry)
+	if err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to collect secret hosts: %w", err)
+	}
+	allHosts := mergeHosts(explicitHosts, secretHosts)
+
+	// Networking rules are configured whenever mode is explicitly deny, regardless
+	// of whether any hosts are allowed. An empty host list causes the
+	// approval-handler to deny all requests, which is the correct behaviour for
+	// a fully-isolated workspace. Allow mode (or no config) clears any stale
+	// rules so that mode switches take effect without recreating the workspace.
 	shouldConfigureNetworking := wsCfg != nil &&
 		wsCfg.Network != nil &&
 		wsCfg.Network.Mode != nil &&
-		*wsCfg.Network.Mode == workspace.Deny &&
-		wsCfg.Network.Hosts != nil &&
-		len(*wsCfg.Network.Hosts) > 0
+		*wsCfg.Network.Mode == workspace.Deny
 
 	// Start the network-guard container so we can exec nftables commands into it.
 	networkGuardContainer := podName + "-network-guard"
@@ -124,10 +137,8 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	}
 
 	if shouldConfigureNetworking {
-		hosts := *wsCfg.Network.Hosts
-
 		stepLogger.Start("Configuring network rules", "Network rules configured")
-		if err := p.configureNetworking(ctx, onecliBaseURL, hosts, tmplData.ApprovalHandlerDir); err != nil {
+		if err := p.configureNetworking(ctx, onecliBaseURL, allHosts, tmplData.ApprovalHandlerDir); err != nil {
 			stepLogger.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
 		}

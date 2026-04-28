@@ -40,7 +40,7 @@ const defaultOnecliVersion = "1.17"
 
 // podTemplateData holds the values used to render the pod YAML template
 // and is also persisted as per-pod metadata (pod-template-data.json) so
-// that Start() can recover SourcePath, ProjectID and ApprovalHandlerDir
+// that Start() can recover SourcePath, ProjectID, Agent and ApprovalHandlerDir
 // without re-reading the original CreateParams.
 type podTemplateData struct {
 	Name               string
@@ -51,6 +51,7 @@ type podTemplateData struct {
 	BaseImageVersion   string
 	SourcePath         string
 	ProjectID          string
+	Agent              string
 	ApprovalHandlerDir string
 }
 
@@ -416,6 +417,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		BaseImageVersion:   imageConfig.Version,
 		SourcePath:         params.SourcePath,
 		ProjectID:          params.ProjectID,
+		Agent:              params.Agent,
 		ApprovalHandlerDir: podmanSystem.HostPathToMachinePath(approvalHandlerDir),
 	}
 

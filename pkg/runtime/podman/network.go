@@ -26,14 +26,16 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/onecli"
+	"github.com/openkaiden/kdn/pkg/secret"
+	"github.com/openkaiden/kdn/pkg/secretservice"
 )
 
 // loadNetworkConfig reads the merged workspace configuration for a project by
-// combining the workspace-level config (.kaiden/workspace.json) with the
-// project-level config from projects.json. It mirrors the merge logic used
-// at workspace creation time so that edits to projects.json are picked up on
+// combining workspace-level, project-level, and agent-level configs. It mirrors
+// the merge logic used at workspace creation time so that edits take effect on
 // the next Start() without recreating the workspace.
-func loadNetworkConfig(sourcePath, storageDir, projectID string) (*workspace.WorkspaceConfiguration, error) {
+// Precedence (highest to lowest): agent > project > workspace.
+func loadNetworkConfig(sourcePath, storageDir, projectID, agentName string) (*workspace.WorkspaceConfiguration, error) {
 	merger := config.NewMerger()
 
 	var merged *workspace.WorkspaceConfiguration
@@ -54,7 +56,89 @@ func loadNetworkConfig(sourcePath, storageDir, projectID string) (*workspace.Wor
 		merged = merger.Merge(merged, pc)
 	}
 
+	if agentName != "" {
+		agentLoader, err := config.NewAgentConfigLoader(storageDir)
+		if err != nil {
+			return nil, fmt.Errorf("initializing agent config loader: %w", err)
+		}
+		if ac, loadErr := agentLoader.Load(agentName); loadErr == nil {
+			merged = merger.Merge(merged, ac)
+		}
+	}
+
 	return merged, nil
+}
+
+// collectSecretHosts returns the host patterns contributed by the secrets
+// listed in wsCfg. For known secret types, patterns come from the secret
+// service registry; for "other" secrets, they come from the stored metadata.
+// Returns nil when any required input is nil or when no secrets are configured.
+func collectSecretHosts(wsCfg *workspace.WorkspaceConfiguration, store secret.Store, registry secretservice.Registry) ([]string, error) {
+	if wsCfg == nil || wsCfg.Secrets == nil || len(*wsCfg.Secrets) == 0 {
+		return nil, nil
+	}
+	if store == nil || registry == nil {
+		return nil, nil
+	}
+
+	items, err := store.List()
+	if err != nil {
+		return nil, fmt.Errorf("listing secrets: %w", err)
+	}
+
+	byName := make(map[string]secret.ListItem, len(items))
+	for _, item := range items {
+		byName[item.Name] = item
+	}
+
+	seen := make(map[string]bool)
+	var hosts []string
+	for _, name := range *wsCfg.Secrets {
+		item, ok := byName[name]
+		if !ok {
+			continue
+		}
+		var itemHosts []string
+		if item.Type == secret.TypeOther {
+			itemHosts = item.Hosts
+		} else {
+			svc, svcErr := registry.Get(item.Type)
+			if svcErr != nil {
+				continue
+			}
+			itemHosts = svc.HostsPatterns()
+		}
+		for _, h := range itemHosts {
+			if !seen[h] {
+				seen[h] = true
+				hosts = append(hosts, h)
+			}
+		}
+	}
+	return hosts, nil
+}
+
+// mergeHosts returns a deduplicated list of all hosts from a and b,
+// preserving order (a first, then new entries from b).
+func mergeHosts(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	seen := make(map[string]bool, len(a)+len(b))
+	result := make([]string, 0, len(a)+len(b))
+	for _, h := range a {
+		if !seen[h] {
+			seen[h] = true
+			result = append(result, h)
+		}
+	}
+	for _, h := range b {
+		if !seen[h] {
+			seen[h] = true
+			result = append(result, h)
+		}
+	}
+	return result
 }
 
 // approvalHandlerConfig is serialized to config.json in the approval-handler

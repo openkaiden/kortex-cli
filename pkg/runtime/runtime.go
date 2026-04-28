@@ -23,6 +23,7 @@ import (
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/onecli"
+	"github.com/openkaiden/kdn/pkg/secretservice"
 )
 
 // Runtime manages the lifecycle of workspace instances in a specific execution environment.
@@ -182,6 +183,14 @@ type Terminal interface {
 	//   - command: The command to execute (e.g., ["bash"], ["claude-code", "--debug"]).
 	//              If empty, the runtime will use the agent's configured terminal command.
 	Terminal(ctx context.Context, instanceID string, agent string, command []string) error
+}
+
+// SecretServiceRegistryAware is an optional interface for runtimes that need the
+// secret service registry to resolve host patterns for networking decisions.
+// Runtimes implementing this interface receive the registry via SetSecretServiceRegistry
+// during registration, enabling them to look up host patterns for secret-derived hosts.
+type SecretServiceRegistryAware interface {
+	SetSecretServiceRegistry(secretservice.Registry)
 }
 
 // ValidateState validates that a runtime state is one of the valid WorkspaceState values.

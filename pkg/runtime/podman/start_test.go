@@ -662,6 +662,81 @@ func TestStart_DenyMode_ConfiguresNetworking(t *testing.T) {
 	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
 }
 
+func TestStart_DenyMode_NoHosts_ConfiguresNetworking(t *testing.T) {
+	t.Parallel()
+
+	// Regression test: deny mode with no allowed hosts must still configure
+	// networking (write config.json and start the approval-handler) so that
+	// the approval-handler container has a config file available and does not
+	// exit immediately, causing it to be set as stopped.
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "exec" {
+			return []byte("accepting connections\n"), nil
+		}
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
+		return []byte(output), nil
+	}
+
+	var ruleActions []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode([]any{})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/rules":
+			var body struct {
+				Action string `json:"action"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			ruleActions = append(ruleActions, body.Action)
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "new-rule"})
+		default:
+			t.Errorf("unexpected OneCLI request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return server.URL }
+	// Deny mode with no hosts field at all.
+	podName := setupPodFilesWithSource(t, p, containerID, "test-ws", `{"network":{"mode":"deny"}}`)
+
+	_, err := p.Start(context.Background(), containerID)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+
+	// manual_approval rule must still be created even with no allowed hosts.
+	if len(ruleActions) != 1 || ruleActions[0] != "manual_approval" {
+		t.Errorf("expected one manual_approval rule, got: %v", ruleActions)
+	}
+
+	// config.json must be written with an empty hosts list.
+	approvalDir := filepath.Join(p.storageDir, "approval-handler", "test-ws")
+	data, readErr := os.ReadFile(filepath.Join(approvalDir, "config.json"))
+	if readErr != nil {
+		t.Fatalf("reading config.json: %v", readErr)
+	}
+	var cfg approvalHandlerConfig
+	if jsonErr := json.Unmarshal(data, &cfg); jsonErr != nil {
+		t.Fatalf("unmarshaling config.json: %v", jsonErr)
+	}
+	if len(cfg.Hosts) != 0 {
+		t.Errorf("config.hosts = %v, want empty", cfg.Hosts)
+	}
+
+	// Approval-handler must be started before pod start so it has config.json.
+	fakeExec.AssertRunCalledWith(t, "start", podName+"-approval-handler")
+	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
+}
+
 func TestStart_DenyMode_StepLogger(t *testing.T) {
 	t.Parallel()
 
