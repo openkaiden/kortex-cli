@@ -32,6 +32,7 @@ import (
 	"testing"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	gokeyring "github.com/zalando/go-keyring"
 )
 
 // initMu serializes "kdn init" calls so that only one podman build runs at a
@@ -46,6 +47,9 @@ const containerSourcesPath = "/workspace/sources"
 var warmupImages []string
 
 func TestMain(m *testing.M) {
+	// Use an in-memory keyring so integration tests never touch the real system
+	// keychain, which may not be available in CI environments.
+	gokeyring.MockInit()
 	if podmanAvailable() {
 		warmupBuildCache()
 	}
@@ -878,4 +882,52 @@ func TestIntegration_MultipleWorkspacesIsolated(t *testing.T) {
 	// Stop both
 	integrationExecCmd(t, "--storage", storageDir, "stop", wsID1, "--output", "json")
 	integrationExecCmd(t, "--storage", storageDir, "stop", wsID2, "--output", "json")
+}
+
+func TestIntegration_WorkspaceWithSecret(t *testing.T) {
+	skipIfNoPodman(t)
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	sourcesDir := t.TempDir()
+
+	// Create a secret using kdn secret create. Both the secret command and the
+	// workspace manager use the same storageDir, so the metadata file and the
+	// in-memory mock keyring are shared across all commands in this test.
+	integrationExecCmd(t,
+		"--storage", storageDir,
+		"secret", "create", "integration-test-token",
+		"--type", "other",
+		"--value", "supersecretvalue",
+		"--host", "api.example.com",
+		"--header", "Authorization",
+		"--output", "json",
+	)
+
+	// Create workspace configuration that references the secret.
+	configDir := filepath.Join(sourcesDir, ".kaiden")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	workspaceJSON := `{"secrets": ["integration-test-token"]}`
+	if err := os.WriteFile(filepath.Join(configDir, "workspace.json"), []byte(workspaceJSON), 0644); err != nil {
+		t.Fatalf("Failed to write workspace.json: %v", err)
+	}
+
+	// Create the workspace; this reads the secret from the store and sets up the
+	// onecli proxy so the secret can be injected at runtime.
+	_, wsID := integrationInit(t, storageDir, sourcesDir, "workspace-with-secret", "claude")
+
+	// Start the workspace and verify it reaches the running state.
+	integrationExecCmd(t, "--storage", storageDir, "start", wsID, "--output", "json")
+
+	listResult := integrationListWorkspaces(t, storageDir)
+	if len(listResult.Items) != 1 {
+		t.Fatalf("Expected 1 workspace, got %d", len(listResult.Items))
+	}
+	if listResult.Items[0].State != "running" {
+		t.Errorf("Expected state 'running', got %q", listResult.Items[0].State)
+	}
+
+	integrationExecCmd(t, "--storage", storageDir, "stop", wsID, "--output", "json")
 }

@@ -101,12 +101,12 @@ const caTrustAnchorPath = "/etc/pki/ca-trust/source/anchors/onecli-ca.pem"
 func (p *podmanRuntime) installCACert(ctx context.Context, containerID, caContainerPath string) error {
 	l := logger.FromContext(ctx)
 	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(),
-		"exec", containerID, "sudo", "cp", caContainerPath, caTrustAnchorPath,
+		"exec", "--user", "root", containerID, "cp", caContainerPath, caTrustAnchorPath,
 	); err != nil {
 		return fmt.Errorf("failed to copy CA certificate: %w", err)
 	}
 	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(),
-		"exec", containerID, "sudo", "update-ca-trust",
+		"exec", "--user", "root", containerID, "update-ca-trust",
 	); err != nil {
 		return fmt.Errorf("update-ca-trust failed: %w", err)
 	}
