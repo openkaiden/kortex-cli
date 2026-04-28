@@ -18,4 +18,4 @@
 
 package version
 
-var Version = "0.6.0-next"
+var Version = "0.7.0-next"
