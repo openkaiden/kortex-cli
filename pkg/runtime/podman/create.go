@@ -397,7 +397,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	// Create the pod with onecli services via kube play (--start=false keeps all containers stopped)
 	stepLogger.Start("Creating onecli services", "Onecli services created")
 	l := logger.FromContext(ctx)
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "kube", "play", "--start=false", tmpYAMLPath); err != nil {
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "kube", "play", "--userns=keep-id", "--start=false", tmpYAMLPath); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create pod via kube play: %w", err)
 	}
