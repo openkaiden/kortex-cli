@@ -309,6 +309,108 @@ func TestAvailableSecretServicesContainAnthropic(t *testing.T) {
 	}
 }
 
+func TestListServicesWithFactories(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns constructed services from factories", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []secretServiceFactory{
+			func() secretservice.SecretService {
+				return &fakeSecretService{name: "svc-a", hostsPatterns: []string{"a.example.com"}}
+			},
+			func() secretservice.SecretService {
+				return &fakeSecretService{name: "svc-b", hostsPatterns: []string{"b.example.com"}}
+			},
+		}
+
+		services := listServicesWithFactories(factories)
+
+		if len(services) != 2 {
+			t.Fatalf("expected 2 services, got %d", len(services))
+		}
+		if services[0].Name() != "svc-a" {
+			t.Errorf("services[0].Name() = %q, want %q", services[0].Name(), "svc-a")
+		}
+		if services[1].Name() != "svc-b" {
+			t.Errorf("services[1].Name() = %q, want %q", services[1].Name(), "svc-b")
+		}
+	})
+
+	t.Run("returns empty slice for empty factory list", func(t *testing.T) {
+		t.Parallel()
+
+		services := listServicesWithFactories([]secretServiceFactory{})
+		if len(services) != 0 {
+			t.Errorf("expected empty slice, got %d services", len(services))
+		}
+	})
+}
+
+func TestListAvailableWithFactories(t *testing.T) {
+	t.Parallel()
+
+	factories := []secretServiceFactory{
+		func() secretservice.SecretService { return &fakeSecretService{name: "alpha"} },
+		func() secretservice.SecretService { return &fakeSecretService{name: "beta"} },
+	}
+
+	names := listAvailableWithFactories(factories)
+
+	if len(names) != 2 {
+		t.Fatalf("expected 2 names, got %d", len(names))
+	}
+	if names[0] != "alpha" {
+		t.Errorf("names[0] = %q, want %q", names[0], "alpha")
+	}
+	if names[1] != "beta" {
+		t.Errorf("names[1] = %q, want %q", names[1], "beta")
+	}
+}
+
+func TestListAvailable(t *testing.T) {
+	t.Parallel()
+
+	names := ListAvailable()
+
+	if len(names) != 3 {
+		t.Fatalf("ListAvailable() returned %d names, want 3", len(names))
+	}
+	// Order matches secretservices.json: github, gemini, anthropic.
+	expected := []string{"github", "gemini", "anthropic"}
+	for i, want := range expected {
+		if names[i] != want {
+			t.Errorf("names[%d] = %q, want %q", i, names[i], want)
+		}
+	}
+}
+
+func TestListServices(t *testing.T) {
+	t.Parallel()
+
+	services := ListServices()
+
+	if len(services) != 3 {
+		t.Fatalf("ListServices() returned %d services, want 3", len(services))
+	}
+	// Verify each service is a non-nil, fully-constructed instance.
+	for i, svc := range services {
+		if svc == nil {
+			t.Errorf("services[%d] is nil", i)
+			continue
+		}
+		if svc.Name() == "" {
+			t.Errorf("services[%d].Name() is empty", i)
+		}
+		if len(svc.EnvVars()) == 0 {
+			t.Errorf("services[%d] (%s) has no env vars", i, svc.Name())
+		}
+	}
+	if services[0].Name() != "github" {
+		t.Errorf("services[0].Name() = %q, want %q", services[0].Name(), "github")
+	}
+}
+
 func TestLoadSecretServices(t *testing.T) {
 	t.Parallel()
 

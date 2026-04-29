@@ -145,6 +145,43 @@ kdn workspace list`,
 			wantErr: true,
 		},
 		{
+			name:      "command with env var prefix",
+			example:   `GH_TOKEN=ghp_abc kdn autoconf`,
+			wantCount: 1,
+			checkCommands: func(t *testing.T, commands []ExampleCommand) {
+				if commands[0].Binary != "kdn" {
+					t.Errorf("Expected binary 'kdn', got '%s'", commands[0].Binary)
+				}
+				if commands[0].EnvVars["GH_TOKEN"] != "ghp_abc" {
+					t.Errorf("Expected EnvVars[GH_TOKEN]=ghp_abc, got %v", commands[0].EnvVars)
+				}
+				if len(commands[0].Args) != 1 || commands[0].Args[0] != "autoconf" {
+					t.Errorf("Expected args [autoconf], got %v", commands[0].Args)
+				}
+			},
+		},
+		{
+			name:      "command with multiple env var prefixes",
+			example:   `ANTHROPIC_API_KEY=sk-ant-... GH_TOKEN=ghp_... kdn autoconf --yes`,
+			wantCount: 1,
+			checkCommands: func(t *testing.T, commands []ExampleCommand) {
+				if commands[0].EnvVars["ANTHROPIC_API_KEY"] != "sk-ant-..." {
+					t.Errorf("Expected ANTHROPIC_API_KEY in EnvVars, got %v", commands[0].EnvVars)
+				}
+				if commands[0].EnvVars["GH_TOKEN"] != "ghp_..." {
+					t.Errorf("Expected GH_TOKEN in EnvVars, got %v", commands[0].EnvVars)
+				}
+				if !commands[0].FlagPresent["yes"] {
+					t.Errorf("Expected --yes flag to be present")
+				}
+			},
+		},
+		{
+			name:    "env vars only, no kdn command",
+			example: `FOO=bar BAZ=qux`,
+			wantErr: true,
+		},
+		{
 			name:      "command with multiple flags",
 			example:   `kdn init --name my-project --verbose`,
 			wantCount: 1,

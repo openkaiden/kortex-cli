@@ -204,7 +204,7 @@ The secret service system provides a pluggable architecture for managing secret 
 **Key Components:**
 - **SecretService Interface** (`pkg/secretservice/secretservice.go`): Contract all secret services must implement (`Name()`, `Description()`, `HostsPatterns()`, `Path()`, `EnvVars()`, `HeaderName()`, `HeaderTemplate()`)
 - **Registry** (`pkg/secretservice/registry.go`): Manages secret service registration and discovery
-- **Centralized Registration** (`pkg/secretservicesetup/register.go`): Automatically registers all available secret services; `ListAvailable()` returns the names of all registered services (used by commands to derive valid `--type` values dynamically)
+- **Centralized Registration** (`pkg/secretservicesetup/register.go`): Automatically registers all available secret services; `ListAvailable()` returns the names of all registered services (used by commands to derive valid `--type` values dynamically); `ListServices()` returns fully-constructed service instances (used by `autoconf` to iterate env vars)
 
 **For detailed guidance on the full secrets abstraction (Store, registry, adding new types), use:** `/working-with-secrets`
 

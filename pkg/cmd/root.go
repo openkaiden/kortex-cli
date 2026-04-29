@@ -67,6 +67,10 @@ func NewRootCmd() *cobra.Command {
 		ID:    "secret",
 		Title: "Secret Commands:",
 	})
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "config",
+		Title: "Configuration Commands:",
+	})
 
 	// Add subcommands with groups
 	initCmd := NewInitCmd()
@@ -104,6 +108,10 @@ func NewRootCmd() *cobra.Command {
 	secretCmd := NewSecretCmd()
 	secretCmd.GroupID = "secret"
 	rootCmd.AddCommand(secretCmd)
+
+	autoconfCmd := NewAutoconfCmd()
+	autoconfCmd.GroupID = "config"
+	rootCmd.AddCommand(autoconfCmd)
 
 	// Commands without a group (will appear under "Additional Commands")
 	rootCmd.AddCommand(NewVersionCmd())
