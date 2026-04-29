@@ -147,9 +147,11 @@ func TestAutoconfCmd_Run_NoSecrets(t *testing.T) {
 	t.Parallel()
 
 	c := &autoconfCmd{
-		detector:     &fakeAutoconfCmdDetector{},
-		confirm:      func(string) (bool, error) { return true, nil },
-		selectTarget: func(_ string, _ []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) { return autoconf.ConfigTargetGlobal, nil },
+		detector: &fakeAutoconfCmdDetector{},
+		confirm:  func(string) (bool, error) { return true, nil },
+		selectTarget: func(_ string, _ []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) {
+			return autoconf.ConfigTargetGlobal, nil
+		},
 	}
 
 	cmd := NewAutoconfCmd()
@@ -282,10 +284,12 @@ func TestDetectProjectID_GitRepo_WithRemote_Subdir(t *testing.T) {
 // fakeAutoconfCmdStore satisfies secret.Store for cmd-level run() tests.
 type fakeAutoconfCmdStore struct{}
 
-func (fakeAutoconfCmdStore) Create(_ secret.CreateParams) error               { return nil }
-func (fakeAutoconfCmdStore) List() ([]secret.ListItem, error)                 { return nil, nil }
-func (fakeAutoconfCmdStore) Remove(_ string) error                            { return nil }
-func (fakeAutoconfCmdStore) Get(_ string) (secret.ListItem, string, error)    { return secret.ListItem{}, "", nil }
+func (fakeAutoconfCmdStore) Create(_ secret.CreateParams) error { return nil }
+func (fakeAutoconfCmdStore) List() ([]secret.ListItem, error)   { return nil, nil }
+func (fakeAutoconfCmdStore) Remove(_ string) error              { return nil }
+func (fakeAutoconfCmdStore) Get(_ string) (secret.ListItem, string, error) {
+	return secret.ListItem{}, "", nil
+}
 
 // fakeAutoconfCmdUpdater satisfies config.ProjectConfigUpdater for cmd-level tests.
 type fakeAutoconfCmdUpdater struct{}
