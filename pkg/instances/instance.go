@@ -296,13 +296,6 @@ func NewInstanceFromData(data InstanceData) (Instance, error) {
 		return nil, ErrInvalidPath
 	}
 
-	createdAt := data.CreatedAt
-	if createdAt.IsZero() {
-		// Backward compatibility: instances persisted before timestamp support
-		// get the current time as a conservative fallback.
-		createdAt = time.Now()
-	}
-
 	return &instance{
 		ID:        data.ID,
 		Name:      data.Name,
@@ -312,7 +305,7 @@ func NewInstanceFromData(data InstanceData) (Instance, error) {
 		Project:   data.Project,
 		Agent:     data.Agent,
 		Model:     data.Model,
-		CreatedAt: createdAt,
+		CreatedAt: data.CreatedAt,
 		StartedAt: data.StartedAt,
 	}, nil
 }

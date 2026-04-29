@@ -1800,6 +1800,112 @@ func TestManager_Persistence(t *testing.T) {
 	})
 }
 
+func TestManager_MigrateTimestamps(t *testing.T) {
+	t.Parallel()
+
+	t.Run("backfills CreatedAt for legacy instances and persists to disk", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
+		// Write instances.json with a zero CreatedAt to simulate pre-timestamp
+		// data. Using json.Marshal ensures paths are correctly escaped on all
+		// platforms (e.g. backslashes on Windows).
+		legacyData := []InstanceData{
+			{
+				ID:    "legacy-id-0000000000000000000000000000000000000000000000000000000000",
+				Name:  "legacy",
+				Paths: InstancePaths{Source: sourceDir, Configuration: configDir},
+				// CreatedAt intentionally zero: time.Time{}.IsZero() == true after
+				// JSON round-trip, so migrateTimestamps will treat it as legacy.
+			},
+		}
+		legacyJSON, err := json.Marshal(legacyData)
+		if err != nil {
+			t.Fatalf("Failed to marshal legacy data: %v", err)
+		}
+		storageFile := filepath.Join(tmpDir, DefaultStorageFileName)
+		if err := os.WriteFile(storageFile, legacyJSON, 0644); err != nil {
+			t.Fatalf("Failed to write legacy storage file: %v", err)
+		}
+
+		fixedNow := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+		fixedClock := func() time.Time { return fixedNow }
+
+		// Creating the manager triggers migrateTimestamps
+		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), fixedClock)
+		if err != nil {
+			t.Fatalf("newManagerWithFactory() error = %v", err)
+		}
+
+		instances, err := manager.List()
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(instances) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instances))
+		}
+		if !instances[0].GetCreatedAt().Equal(fixedNow) {
+			t.Errorf("GetCreatedAt() = %v, want %v", instances[0].GetCreatedAt(), fixedNow)
+		}
+
+		// Verify the backfilled timestamp was persisted to disk
+		raw, err := os.ReadFile(storageFile)
+		if err != nil {
+			t.Fatalf("Failed to read storage file: %v", err)
+		}
+		var persisted []InstanceData
+		if err := json.Unmarshal(raw, &persisted); err != nil {
+			t.Fatalf("Failed to unmarshal storage file: %v", err)
+		}
+		if persisted[0].CreatedAt.IsZero() {
+			t.Error("Expected CreatedAt to be persisted to disk, got zero value")
+		}
+		if !persisted[0].CreatedAt.Equal(fixedNow) {
+			t.Errorf("Persisted CreatedAt = %v, want %v", persisted[0].CreatedAt, fixedNow)
+		}
+	})
+
+	t.Run("does not modify instances that already have CreatedAt set", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+
+		// Add an instance through the manager (it will have CreatedAt set)
+		existingNow := time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC)
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), func() time.Time { return existingNow })
+
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  t.TempDir(),
+			ConfigDir:  t.TempDir(),
+			Accessible: true,
+		})
+		if _, err := manager1.Add(context.Background(), AddOptions{Instance: inst, RuntimeType: "fake"}); err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		// Reload with a different clock — migration must not overwrite the existing timestamp
+		laterNow := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+		manager2, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), func() time.Time { return laterNow })
+		if err != nil {
+			t.Fatalf("newManagerWithFactory() error = %v", err)
+		}
+
+		instances, err := manager2.List()
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(instances) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instances))
+		}
+		if !instances[0].GetCreatedAt().Equal(existingNow) {
+			t.Errorf("GetCreatedAt() = %v, want original %v (not later %v)", instances[0].GetCreatedAt(), existingNow, laterNow)
+		}
+	})
+}
+
 func TestManager_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 

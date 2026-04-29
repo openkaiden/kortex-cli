@@ -166,7 +166,7 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 	}
 
 	storageFile := filepath.Join(storageDir, DefaultStorageFileName)
-	return &manager{
+	mgr := &manager{
 		storageFile:           storageFile,
 		storageDir:            storageDir,
 		factory:               factory,
@@ -177,7 +177,13 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 		secretStore:           secretStore,
 		gitDetector:           detector,
 		now:                   clock,
-	}, nil
+	}
+
+	if err := mgr.migrateTimestamps(); err != nil {
+		return nil, fmt.Errorf("failed to migrate instance timestamps: %w", err)
+	}
+
+	return mgr, nil
 }
 
 // Add registers a new instance with a runtime.
@@ -913,6 +919,36 @@ func (m *manager) mergeConfigurations(projectID string, workspaceConfig *workspa
 	}
 
 	return result, nil
+}
+
+// migrateTimestamps backfills CreatedAt for instances persisted before timestamp
+// support was added. It runs once at manager construction, computes the missing
+// timestamp using the injected clock, and writes the result back to disk so
+// subsequent loads see the authoritative value.
+func (m *manager) migrateTimestamps() error {
+	instances, err := m.loadInstances()
+	if err != nil {
+		return err
+	}
+
+	migrated := false
+	for i, inst := range instances {
+		if inst.GetCreatedAt().IsZero() {
+			data := inst.Dump()
+			data.CreatedAt = m.now()
+			updated, err := m.factory(data)
+			if err != nil {
+				return err
+			}
+			instances[i] = updated
+			migrated = true
+		}
+	}
+
+	if migrated {
+		return m.saveInstances(instances)
+	}
+	return nil
 }
 
 // loadInstances reads instances from the storage file
