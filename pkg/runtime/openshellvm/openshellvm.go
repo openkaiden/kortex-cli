@@ -82,6 +82,10 @@ func (r *openshellVMRuntime) Initialize(storageDir string) error {
 	}
 	r.vmBinaryPath = vmPath
 
+	if err := codesignBinary(vmPath); err != nil {
+		return fmt.Errorf("failed to codesign openshell-vm binary: %w", err)
+	}
+
 	openshellPath, err := ensureBinary(binDir, "openshell", openshellRelease)
 	if err != nil {
 		return fmt.Errorf("failed to ensure openshell binary: %w", err)
