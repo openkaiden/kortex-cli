@@ -310,6 +310,48 @@ func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
 	}
 }
 
+func TestGoose_SetModel_ProviderModelFormat(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "goose::gemma2:7b")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "gemma2:7b" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "gemma2:7b")
+	}
+}
+
+func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "goose::gemma2:7b::http://localhost:11434/v1")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "gemma2:7b" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "gemma2:7b")
+	}
+}
+
 func TestGoose_SkillsDir(t *testing.T) {
 	t.Parallel()
 

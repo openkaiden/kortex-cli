@@ -412,6 +412,58 @@ func TestCursor_SetModel_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestCursor_SetModel_ProviderModelFormat(t *testing.T) {
+	t.Parallel()
+
+	agent := NewCursor()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "cursor::gemma2:7b")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[CursorCLIConfigPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	modelObj, ok := config["model"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("model is not an object: %v", config["model"])
+	}
+
+	if modelObj["modelId"] != "gemma2:7b" {
+		t.Errorf("modelId = %v, want %q", modelObj["modelId"], "gemma2:7b")
+	}
+}
+
+func TestCursor_SetModel_ProviderModelURLFormat(t *testing.T) {
+	t.Parallel()
+
+	agent := NewCursor()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "cursor::gemma2:7b::http://localhost:11434/v1")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[CursorCLIConfigPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	modelObj, ok := config["model"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("model is not an object: %v", config["model"])
+	}
+
+	if modelObj["modelId"] != "gemma2:7b" {
+		t.Errorf("modelId = %v, want %q", modelObj["modelId"], "gemma2:7b")
+	}
+}
+
 func TestCursor_SkillsDir(t *testing.T) {
 	t.Parallel()
 

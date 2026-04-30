@@ -23,6 +23,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	kdnconfig "github.com/openkaiden/kdn/pkg/config"
 )
 
 const (
@@ -111,7 +112,8 @@ func (g *gooseAgent) SetModel(settings map[string][]byte, modelID string) (map[s
 		config = make(map[string]interface{})
 	}
 
-	config[gooseModelKey] = modelID
+	_, modelName, _ := kdnconfig.ParseModelID(modelID)
+	config[gooseModelKey] = modelName
 
 	modifiedContent, err := yaml.Marshal(config)
 	if err != nil {

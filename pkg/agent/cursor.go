@@ -25,6 +25,7 @@ import (
 	"time"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	kdnconfig "github.com/openkaiden/kdn/pkg/config"
 )
 
 // CursorCLIConfigPath is the path to Cursor's CLI configuration file.
@@ -105,11 +106,12 @@ func (c *cursorAgent) SetModel(settings map[string][]byte, modelID string) (map[
 		config = make(map[string]interface{})
 	}
 
+	_, modelName, _ := kdnconfig.ParseModelID(modelID)
 	config["model"] = map[string]interface{}{
-		"modelId":          modelID,
-		"displayModelId":   modelID,
-		"displayName":      modelID,
-		"displayNameShort": modelID,
+		"modelId":          modelName,
+		"displayModelId":   modelName,
+		"displayName":      modelName,
+		"displayNameShort": modelName,
 		"maxMode":          false,
 	}
 	config["hasChangedDefaultModel"] = true

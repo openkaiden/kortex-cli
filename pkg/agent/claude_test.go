@@ -496,6 +496,48 @@ func TestClaude_SetModel_OverwritesExistingModel(t *testing.T) {
 	}
 }
 
+func TestClaude_SetModel_ProviderModelFormat(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "claude::gemma2:7b")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	if model, ok := config["model"].(string); !ok || model != "gemma2:7b" {
+		t.Errorf("model = %v, want %q", config["model"], "gemma2:7b")
+	}
+}
+
+func TestClaude_SetModel_ProviderModelURLFormat(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "claude::gemma2:7b::http://localhost:11434/v1")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	if model, ok := config["model"].(string); !ok || model != "gemma2:7b" {
+		t.Errorf("model = %v, want %q", config["model"], "gemma2:7b")
+	}
+}
+
 func TestClaude_SkillsDir(t *testing.T) {
 	t.Parallel()
 

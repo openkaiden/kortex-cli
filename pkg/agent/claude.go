@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	kdnconfig "github.com/openkaiden/kdn/pkg/config"
 )
 
 const (
@@ -213,7 +214,8 @@ func (c *claudeAgent) SetModel(settings map[string][]byte, modelID string) (map[
 		return nil, fmt.Errorf("failed to parse existing %s: %w", ClaudeSettingsPath, err)
 	}
 
-	config["model"] = modelID
+	_, modelName, _ := kdnconfig.ParseModelID(modelID)
+	config["model"] = modelName
 
 	modifiedContent, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
