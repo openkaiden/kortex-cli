@@ -165,7 +165,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 **Key Components:**
 - **Runtime Interface** (`pkg/runtime/runtime.go`): Contract all runtimes must implement
 - **Registry** (`pkg/runtime/registry.go`): Manages runtime registration and discovery
-- **Runtime Implementations** (`pkg/runtime/<runtime-name>/`): Platform-specific packages (e.g., `fake`, `podman`)
+- **Runtime Implementations** (`pkg/runtime/<runtime-name>/`): Platform-specific packages (e.g., `fake`, `podman`, `openshell`)
 - **Centralized Registration** (`pkg/runtimesetup/register.go`): Automatically registers all available runtimes
 
 **Optional Interfaces:**

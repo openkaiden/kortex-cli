@@ -65,6 +65,8 @@ type AddOptions struct {
 	Agent string
 	// Model is an optional model ID to configure for the agent
 	Model string
+	// OpenshellDriver is the driver to use for the openshell runtime (podman, vm)
+	OpenshellDriver string
 }
 
 // Manager handles instance storage and operations
@@ -353,6 +355,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		OnecliSecrets:      onecliSecrets,
 		SecretEnvVars:      secretEnvVars,
 		ProjectID:          project,
+		OpenshellDriver:    opts.OpenshellDriver,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
