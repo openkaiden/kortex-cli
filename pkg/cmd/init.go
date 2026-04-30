@@ -43,6 +43,7 @@ type initCmd struct {
 	workspaceConfigDir string
 	name               string
 	runtime            string
+	openshellDriver    string
 	project            string
 	agent              string
 	model              string
@@ -227,6 +228,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	addedInstance, err := i.manager.Add(ctx, instances.AddOptions{
 		Instance:        instance,
 		RuntimeType:     i.runtime,
+		OpenshellDriver: i.openshellDriver,
 		WorkspaceConfig: i.workspaceConfig,
 		Project:         i.project,
 		Agent:           i.agent,
@@ -336,6 +338,9 @@ kdn init --runtime podman --agent opencode --model ollama::gemma4:26b
 # Register with a model provider and custom endpoint
 kdn init --runtime podman --agent opencode --model ollama::gemma4:26b::http://192.168.1.50:11434/v1
 
+# Register with openshell using VM driver
+kdn init --runtime openshell --agent claude --openshell-driver vm
+
 # Register and start workspace
 kdn init --runtime podman --agent claude --start
 
@@ -358,6 +363,10 @@ kdn init --runtime podman --agent claude --show-logs`,
 	// Add runtime flag
 	cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use for the workspace (required if KDN_DEFAULT_RUNTIME is not set)")
 	cmd.RegisterFlagCompletionFunc("runtime", completeRuntimeFlag)
+
+	// Add openshell-driver flag
+	cmd.Flags().StringVar(&c.openshellDriver, "openshell-driver", "", "OpenShell driver to use (podman, vm)")
+	cmd.RegisterFlagCompletionFunc("openshell-driver", newOutputFlagCompletion([]string{"podman", "vm"}))
 
 	// Add project flag
 	cmd.Flags().StringVarP(&c.project, "project", "p", "", "Custom project identifier (default: auto-detected from git repository or source directory)")

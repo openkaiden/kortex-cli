@@ -95,6 +95,10 @@ type CreateParams struct {
 	// ProjectID is the project identifier used to load per-project workspace
 	// configuration (e.g. network policy) during subsequent Start() calls.
 	ProjectID string
+
+	// OpenshellDriver is the driver to use for the openshell runtime.
+	// Supports "podman" and "vm". Empty means the runtime uses its default.
+	OpenshellDriver string
 }
 
 // RuntimeInfo contains information about a runtime instance.
