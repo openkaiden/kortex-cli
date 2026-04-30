@@ -319,22 +319,18 @@ func (p *podmanRuntime) isPodmanWSL(ctx context.Context) bool {
 	return strings.TrimSpace(string(out)) == "wsl"
 }
 
-// resolveWSLHostIP reads the first IPv4 nameserver from /etc/resolv.conf
-// inside the podman machine via SSH. On WSL2 this is the Windows host IP.
+// resolveWSLHostIP returns the default gateway IP from inside the podman
+// machine via SSH. On WSL2 this is the Windows host IP.
 func (p *podmanRuntime) resolveWSLHostIP(ctx context.Context) string {
 	out, err := p.executor.Output(ctx, io.Discard,
-		"machine", "ssh", "cat", "/etc/resolv.conf",
+		"machine", "ssh", "ip", "route", "show", "default",
 	)
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) >= 2 && fields[0] == "nameserver" {
-			if ip := parseIPv4(fields[1]); ip != "" {
-				return ip
-			}
-		}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) >= 3 {
+		return parseIPv4(fields[2])
 	}
 	return ""
 }
