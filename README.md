@@ -678,7 +678,7 @@ kdn autoconf
 kdn autoconf --yes
 
 # Pass secrets inline and apply immediately
-ANTHROPIC_API_KEY=sk-ant-... GH_TOKEN=ghp_... kdn autoconf --yes
+GH_TOKEN="$(gh auth token)" kdn autoconf --yes
 ```
 
 With `--yes`, every detected secret is created without prompts and recorded in the **global** config (`""` key in `~/.kdn/config/projects.json`), making it available across all projects.

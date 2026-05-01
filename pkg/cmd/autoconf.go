@@ -178,7 +178,7 @@ kdn autoconf --yes
 kdn autoconf --storage /custom/path
 
 # Pass secrets inline and apply immediately
-ANTHROPIC_API_KEY=sk-ant-... GH_TOKEN=ghp_... kdn autoconf --yes`,
+GH_TOKEN="$(gh auth token)" kdn autoconf --yes`,
 		Args:    cobra.NoArgs,
 		PreRunE: c.preRun,
 		RunE:    c.run,

@@ -50,6 +50,10 @@ func NewDetector(gitDetector git.Detector) Detector {
 //   - Git repository without remote: the repository root directory with workspace path appended
 //   - Non-git directory: the source directory
 func (d *detector) DetectProject(ctx context.Context, dir string) string {
+	if absDir, err := filepath.Abs(dir); err == nil {
+		dir = absDir
+	}
+
 	// Try to detect git repository
 	repoInfo, err := d.gitDetector.DetectRepository(ctx, dir)
 	if err != nil {

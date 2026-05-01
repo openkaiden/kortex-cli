@@ -102,6 +102,9 @@ func (f *alreadyConfiguredFilter) Filter(detected []DetectedSecret) (FilterResul
 	var result FilterResult
 	for _, d := range detected {
 		_, _, storeErr := f.store.Get(d.ServiceName)
+		if storeErr != nil && !errors.Is(storeErr, secret.ErrSecretNotFound) {
+			return FilterResult{}, fmt.Errorf("failed to check secret %q in store: %w", d.ServiceName, storeErr)
+		}
 		inStore := storeErr == nil
 
 		locations := f.locations(d.ServiceName, globalSecrets, projectSecrets, localSecrets)

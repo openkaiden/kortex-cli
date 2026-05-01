@@ -218,3 +218,28 @@ func TestWorkspaceUpdater_WriteConfig_WriteFileFails(t *testing.T) {
 		t.Error("expected error writing to read-only directory, got nil")
 	}
 }
+
+// TestWorkspaceUpdater_EmptyFile_TreatedAsMissing verifies that a zero-byte
+// workspace.json is treated as an empty config rather than returning a JSON error.
+func TestWorkspaceUpdater_EmptyFile_TreatedAsMissing(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, WorkspaceConfigFile), []byte{}, 0600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	if err := u.AddSecret("github"); err != nil {
+		t.Fatalf("AddSecret on empty file: %v", err)
+	}
+
+	secrets := readWorkspaceSecrets(t, dir)
+	if len(secrets) != 1 || secrets[0] != "github" {
+		t.Errorf("expected [github] after adding to empty file, got %v", secrets)
+	}
+}

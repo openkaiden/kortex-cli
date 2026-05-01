@@ -501,3 +501,50 @@ func TestAutoconf_LocalOptionOnlyOfferedWhenWorkspaceUpdaterSet(t *testing.T) {
 		t.Errorf("expected 2 options (global + project), got %d", len(capturedOptions))
 	}
 }
+
+// TestAutoconf_LocalTarget_NilWorkspaceUpdater verifies that selecting the local
+// target when no WorkspaceUpdater is set returns an error rather than panicking.
+func TestAutoconf_LocalTarget_NilWorkspaceUpdater(t *testing.T) {
+	t.Parallel()
+
+	runner := New(Options{
+		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
+			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
+		}},
+		Store:          &fakeAutoconfStore{},
+		ProjectUpdater: &fakeAutoconfUpdater{},
+		ProjectID:      "test-project",
+		// WorkspaceUpdater intentionally nil.
+		Confirm: func(string) (bool, error) { return true, nil },
+		SelectTarget: func(_ string, _ []ConfigTargetOption) (ConfigTarget, error) {
+			return ConfigTargetLocal, nil
+		},
+	})
+
+	if err := runner.Run(&bytes.Buffer{}); err == nil {
+		t.Error("expected error when ConfigTargetLocal selected with nil WorkspaceUpdater, got nil")
+	}
+}
+
+// TestAutoconf_UnknownConfigTarget verifies that an unknown ConfigTarget value
+// returned by SelectTarget is rejected with an error.
+func TestAutoconf_UnknownConfigTarget(t *testing.T) {
+	t.Parallel()
+
+	runner := New(Options{
+		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
+			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
+		}},
+		Store:          &fakeAutoconfStore{},
+		ProjectUpdater: &fakeAutoconfUpdater{},
+		ProjectID:      "test-project",
+		Confirm:        func(string) (bool, error) { return true, nil },
+		SelectTarget: func(_ string, _ []ConfigTargetOption) (ConfigTarget, error) {
+			return ConfigTarget(99), nil
+		},
+	})
+
+	if err := runner.Run(&bytes.Buffer{}); err == nil {
+		t.Error("expected error for unknown ConfigTarget value, got nil")
+	}
+}

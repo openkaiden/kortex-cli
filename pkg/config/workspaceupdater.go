@@ -19,6 +19,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -84,6 +85,10 @@ func (w *workspaceConfigUpdater) readConfig(configPath string) (*workspace.Works
 			return &workspace.WorkspaceConfiguration{}, nil
 		}
 		return nil, fmt.Errorf("failed to read workspace config: %w", err)
+	}
+
+	if len(bytes.TrimSpace(data)) == 0 {
+		return &workspace.WorkspaceConfiguration{}, nil
 	}
 
 	var cfg workspace.WorkspaceConfiguration

@@ -42,6 +42,18 @@ func (f *fakeFilterStore) Get(name string) (secret.ListItem, string, error) {
 	return secret.ListItem{}, "", fmt.Errorf("secret %q: %w", name, secret.ErrSecretNotFound)
 }
 
+// fakeFilterStoreWithErr returns a fixed error from Get (simulates backend failure).
+type fakeFilterStoreWithErr struct {
+	err error
+}
+
+func (f *fakeFilterStoreWithErr) Create(params secret.CreateParams) error { return nil }
+func (f *fakeFilterStoreWithErr) List() ([]secret.ListItem, error)        { return nil, nil }
+func (f *fakeFilterStoreWithErr) Remove(name string) error                { return nil }
+func (f *fakeFilterStoreWithErr) Get(name string) (secret.ListItem, string, error) {
+	return secret.ListItem{}, "", f.err
+}
+
 // fakeFilterLoader is a minimal config.ProjectConfigLoader fake for filter tests.
 // It returns the configured secrets for any project ID (the routing between
 // global/project is the loader's responsibility, tested in the config package).
@@ -413,5 +425,20 @@ func TestFilter_AnySourceSuffices(t *testing.T) {
 	}
 	if len(got.Configured) != 2 {
 		t.Errorf("expected both secrets in Configured, got %v", got.Configured)
+	}
+}
+
+// TestFilter_StoreBackendError verifies that a non-ErrSecretNotFound error from
+// store.Get is propagated rather than silently treated as "not in store".
+func TestFilter_StoreBackendError(t *testing.T) {
+	t.Parallel()
+	backendErr := fmt.Errorf("keychain unavailable")
+	store := &fakeFilterStoreWithErr{err: backendErr}
+	f := newFilter(store, &fakeFilterLoader{})
+	_, err := f.Filter([]DetectedSecret{
+		{ServiceName: "anthropic", EnvVarName: "ANTHROPIC_API_KEY", Value: "sk"},
+	})
+	if err == nil {
+		t.Error("expected error from backend store failure, got nil")
 	}
 }

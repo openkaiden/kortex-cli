@@ -251,10 +251,15 @@ func (a *autoconfRunner) applyTarget(out io.Writer, secretName string, target Co
 		fmt.Fprintf(out, "%s Added secret %q to project config.\n", greenCheck, secretName)
 
 	case ConfigTargetLocal:
+		if a.workspaceUpdater == nil {
+			return fmt.Errorf("local config target selected but workspace updater is not configured")
+		}
 		if err := a.workspaceUpdater.AddSecret(secretName); err != nil {
 			return fmt.Errorf("failed to update workspace config for secret %q: %w", secretName, err)
 		}
 		fmt.Fprintf(out, "%s Added secret %q to local workspace config.\n", greenCheck, secretName)
+	default:
+		return fmt.Errorf("unknown config target %d", target)
 	}
 	return nil
 }
