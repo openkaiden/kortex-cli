@@ -36,6 +36,11 @@ spec:
 
     - name: onecli
       image: ghcr.io/onecli/onecli:{{.OnecliVersion}}
+      securityContext:
+        runAsUser: 0
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
       env:
         - name: DATABASE_URL
           value: "postgresql://onecli:onecli@localhost:5432/onecli"
