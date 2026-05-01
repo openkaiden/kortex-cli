@@ -41,9 +41,11 @@ func detect(t *testing.T, info *git.RepositoryInfo, err error) string {
 // TestDetectProject_NotGitRepo verifies that a non-git directory is returned as-is.
 func TestDetectProject_NotGitRepo(t *testing.T) {
 	t.Parallel()
-	got := detect(t, nil, git.ErrNotGitRepository)
-	if got != "/some/dir" {
-		t.Errorf("expected %q, got %q", "/some/dir", got)
+	dir := t.TempDir()
+	d := NewDetector(&fakeGitDetector{err: git.ErrNotGitRepository})
+	got := d.DetectProject(context.Background(), dir)
+	if got != dir {
+		t.Errorf("expected %q, got %q", dir, got)
 	}
 }
 
