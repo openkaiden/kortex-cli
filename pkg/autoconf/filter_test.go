@@ -87,6 +87,40 @@ func newFilterWithWorkspace(store secret.Store, loader config.ProjectConfigLoade
 	return NewAlreadyConfiguredFilter(store, loader, "", ws)
 }
 
+// fakeFilterLoaderWithErr always returns an error from Load.
+type fakeFilterLoaderWithErr struct{ err error }
+
+func (f *fakeFilterLoaderWithErr) Load(_ string) (*workspace.WorkspaceConfiguration, error) {
+	return nil, f.err
+}
+
+// fakeFilterLoaderByID returns different secrets based on the project ID.
+// If errID matches the requested ID, it returns an error instead.
+type fakeFilterLoaderByID struct {
+	byID  map[string][]string
+	errID string
+}
+
+func (f *fakeFilterLoaderByID) Load(id string) (*workspace.WorkspaceConfiguration, error) {
+	if f.errID != "" && id == f.errID {
+		return nil, fmt.Errorf("load error for project %q", id)
+	}
+	cfg := &workspace.WorkspaceConfiguration{}
+	if s := f.byID[id]; len(s) > 0 {
+		cp := make([]string, len(s))
+		copy(cp, s)
+		cfg.Secrets = &cp
+	}
+	return cfg, nil
+}
+
+// fakeFilterConfigWithErr returns a non-ErrConfigNotFound error from Load.
+type fakeFilterConfigWithErr struct{ err error }
+
+func (f *fakeFilterConfigWithErr) Load() (*workspace.WorkspaceConfiguration, error) {
+	return nil, f.err
+}
+
 func TestFilter_NothingInStoreOrConfig(t *testing.T) {
 	t.Parallel()
 	f := newFilter(&fakeFilterStore{}, &fakeFilterLoader{})
@@ -252,6 +286,108 @@ func TestFilter_WorkspaceConfigNotFound(t *testing.T) {
 	}
 	if len(got.NeedsAction) != 1 {
 		t.Errorf("expected 1 in NeedsAction (workspace config missing = not configured), got %d", len(got.NeedsAction))
+	}
+}
+
+// TestFilter_GlobalConfigLoadError verifies that a failure in the global config
+// load is propagated as an error from Filter.
+func TestFilter_GlobalConfigLoadError(t *testing.T) {
+	t.Parallel()
+	loader := &fakeFilterLoaderWithErr{err: fmt.Errorf("global load failure")}
+	f := newFilter(&fakeFilterStore{}, loader)
+	_, err := f.Filter([]DetectedSecret{
+		{ServiceName: "anthropic", EnvVarName: "ANTHROPIC_API_KEY", Value: "sk"},
+	})
+	if err == nil {
+		t.Error("expected error from global config load failure, got nil")
+	}
+}
+
+// TestFilter_ProjectConfigLoadError verifies that a failure in the project-specific
+// config load (when projectID is set) is propagated as an error from Filter.
+func TestFilter_ProjectConfigLoadError(t *testing.T) {
+	t.Parallel()
+	loader := &fakeFilterLoaderByID{
+		byID:  map[string][]string{"": {}},
+		errID: "proj-a",
+	}
+	f := NewAlreadyConfiguredFilter(&fakeFilterStore{}, loader, "proj-a", nil)
+	_, err := f.Filter([]DetectedSecret{
+		{ServiceName: "anthropic", EnvVarName: "ANTHROPIC_API_KEY", Value: "sk"},
+	})
+	if err == nil {
+		t.Error("expected error from project config load failure, got nil")
+	}
+}
+
+// TestFilter_WorkspaceConfigLoadError verifies that a non-ErrConfigNotFound error
+// from the workspace config is propagated as an error from Filter.
+func TestFilter_WorkspaceConfigLoadError(t *testing.T) {
+	t.Parallel()
+	ws := &fakeFilterConfigWithErr{err: fmt.Errorf("workspace load failure")}
+	f := newFilterWithWorkspace(&fakeFilterStore{}, &fakeFilterLoader{}, ws)
+	_, err := f.Filter([]DetectedSecret{
+		{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp"},
+	})
+	if err == nil {
+		t.Error("expected error from workspace config load failure, got nil")
+	}
+}
+
+// TestFilter_ProjectScopedLocation verifies that a secret present only in the
+// project-specific config (not the global config) is assigned ConfigTargetProject.
+func TestFilter_ProjectScopedLocation(t *testing.T) {
+	t.Parallel()
+	// Global config is empty; project-merged config adds "github".
+	// loadProjectSecrets will compute projectOnly = {"github"}.
+	loader := &fakeFilterLoaderByID{
+		byID: map[string][]string{
+			"":       {},
+			"proj-a": {"github"},
+		},
+	}
+	store := &fakeFilterStore{existing: map[string]struct{}{"github": {}}}
+	f := NewAlreadyConfiguredFilter(store, loader, "proj-a", nil)
+	got, err := f.Filter([]DetectedSecret{
+		{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Configured) != 1 {
+		t.Fatalf("expected 1 Configured, got %d", len(got.Configured))
+	}
+	locs := got.Configured[0].Locations
+	if len(locs) != 1 || locs[0] != ConfigTargetProject {
+		t.Errorf("expected [ConfigTargetProject], got %v", locs)
+	}
+}
+
+// TestFilter_ProjectScopedLocation_WithLocal verifies that a secret present in
+// the project config and in the local workspace config gets both locations.
+func TestFilter_ProjectScopedLocation_WithLocal(t *testing.T) {
+	t.Parallel()
+	loader := &fakeFilterLoaderByID{
+		byID: map[string][]string{
+			"":       {},
+			"proj-a": {"github"},
+		},
+	}
+	store := &fakeFilterStore{existing: map[string]struct{}{"github": {}}}
+	ws := &fakeFilterConfig{secrets: []string{"github"}}
+	f := NewAlreadyConfiguredFilter(store, loader, "proj-a", ws)
+	got, err := f.Filter([]DetectedSecret{
+		{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Configured) != 1 {
+		t.Fatalf("expected 1 Configured, got %d", len(got.Configured))
+	}
+	locs := got.Configured[0].Locations
+	if len(locs) != 2 {
+		t.Errorf("expected [ConfigTargetProject ConfigTargetLocal], got %v", locs)
 	}
 }
 
