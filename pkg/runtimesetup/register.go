@@ -210,3 +210,42 @@ func registerAllWithAvailable(registrar Registrar, factories []runtimeFactory) e
 
 	return nil
 }
+
+// ListFlags returns the CLI flag definitions declared by all available runtimes
+// that implement the FlagProvider interface.
+// Flags from unavailable runtimes and the internal "fake" runtime are excluded.
+func ListFlags() []runtime.FlagDef {
+	return listFlagsWithFactories(availableRuntimes)
+}
+
+// listFlagsWithFactories returns flag definitions from the given runtime factories.
+func listFlagsWithFactories(factories []runtimeFactory) []runtime.FlagDef {
+	seen := make(map[string]struct{})
+	var flags []runtime.FlagDef
+
+	for _, factory := range factories {
+		rt := factory()
+
+		if avail, ok := rt.(Available); ok && !avail.Available() {
+			continue
+		}
+
+		if rt.Type() == "fake" {
+			continue
+		}
+
+		fp, ok := rt.(runtime.FlagProvider)
+		if !ok {
+			continue
+		}
+
+		for _, f := range fp.Flags() {
+			if _, exists := seen[f.Name]; !exists {
+				seen[f.Name] = struct{}{}
+				flags = append(flags, f)
+			}
+		}
+	}
+
+	return flags
+}

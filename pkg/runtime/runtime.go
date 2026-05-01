@@ -95,6 +95,11 @@ type CreateParams struct {
 	// ProjectID is the project identifier used to load per-project workspace
 	// configuration (e.g. network policy) during subsequent Start() calls.
 	ProjectID string
+
+	// RuntimeOptions contains runtime-specific flag values collected from
+	// the CLI. Keys are flag names (matching FlagDef.Name), values are the
+	// user-provided strings. This map is nil when no runtime flags were set.
+	RuntimeOptions map[string]string
 }
 
 // RuntimeInfo contains information about a runtime instance.
@@ -191,6 +196,30 @@ type Terminal interface {
 // during registration, enabling them to look up host patterns for secret-derived hosts.
 type SecretServiceRegistryAware interface {
 	SetSecretServiceRegistry(secretservice.Registry)
+}
+
+// FlagDef describes a CLI flag that a runtime wants to expose on the init command.
+type FlagDef struct {
+	// Name is the flag name (e.g., "openshell-driver").
+	Name string
+
+	// Usage is the help text shown for the flag.
+	Usage string
+
+	// Completions is an optional list of static values for shell completion.
+	Completions []string
+}
+
+// FlagProvider is an optional interface for runtimes that need additional CLI flags
+// on the init command. Runtimes implementing this interface declare their flags
+// via Flags(), and the command layer registers them on the cobra command.
+//
+// Flag values are collected into a map[string]string and passed through
+// AddOptions.RuntimeOptions and CreateParams.RuntimeOptions so that the
+// runtime's Create method can access them without the command layer
+// knowing what they mean.
+type FlagProvider interface {
+	Flags() []FlagDef
 }
 
 // ValidateState validates that a runtime state is one of the valid WorkspaceState values.

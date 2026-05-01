@@ -50,6 +50,9 @@ var _ runtime.Runtime = (*<runtime-name>Runtime)(nil)
 // Ensure implementation of runtime.StorageAware at compile time (optional)
 var _ runtime.StorageAware = (*<runtime-name>Runtime)(nil)
 
+// Uncomment only if this runtime implements runtime.FlagProvider.
+// var _ runtime.FlagProvider = (*<runtime-name>Runtime)(nil)
+
 // New creates a new runtime instance
 func New() runtime.Runtime {
     return &<runtime-name>Runtime{}
@@ -444,6 +447,23 @@ Use this to:
 - Report agents discovered from configuration files
 - Enable the `info` command to display available agents
 - Allow agent discovery without runtime-specific knowledge
+
+### FlagProvider Interface (optional)
+
+Implement if the runtime needs to expose CLI flags on the `init` command:
+
+```go
+type FlagProvider interface {
+    Flags() []FlagDef
+}
+```
+
+Use this to:
+- Declare runtime-specific flags (e.g., `--openshell-driver`)
+- Provide shell completion values for those flags
+- Keep the init command runtime-agnostic — flag values flow through `CreateParams.RuntimeOptions` as `map[string]string`
+
+The `runtimesetup.ListFlags()` bridge discovers and deduplicates flags from all available `FlagProvider` runtimes.
 
 ### Available Interface (optional)
 

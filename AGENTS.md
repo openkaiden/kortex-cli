@@ -173,6 +173,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 - **AgentLister**: Enables runtimes to report which agents they support
 - **Terminal**: Enables interactive terminal sessions with instances (auto-starts if needed)
 - **Dashboard**: Enables runtimes to expose a web dashboard URL (`GetURL(ctx, instanceID) (string, error)`)
+- **FlagProvider**: Enables runtimes to declare runtime-specific CLI flags (`Flags() []FlagDef`). Flag values flow through `AddOptions.RuntimeOptions` and `CreateParams.RuntimeOptions` as `map[string]string`, keeping the command layer runtime-agnostic. The `runtimesetup.ListFlags()` bridge discovers flags from all available runtimes for registration on cobra commands.
 
 **For detailed runtime implementation guidance, use:** `/working-with-runtime-system`
 

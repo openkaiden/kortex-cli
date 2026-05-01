@@ -31,6 +31,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/envvars"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/logger"
+	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
 	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -54,6 +55,7 @@ type initCmd struct {
 	output             string
 	showLogs           bool
 	start              bool
+	runtimeOptions     map[string]string
 }
 
 // preRun validates the parameters and flags
@@ -118,6 +120,13 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("runtime is required: use --runtime flag or set KDN_DEFAULT_RUNTIME environment variable"))
 		}
 	}
+
+	// Collect runtime-specific flag values
+	runtimeOptions, err := collectRuntimeFlagValues(cmd, runtimesetup.ListFlags())
+	if err != nil {
+		return outputErrorIfJSON(cmd, i.output, err)
+	}
+	i.runtimeOptions = runtimeOptions
 
 	// Determine agent: flag takes precedence over environment variable
 	if i.agent == "" {
@@ -231,6 +240,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		Project:         i.project,
 		Agent:           i.agent,
 		Model:           i.model,
+		RuntimeOptions:  i.runtimeOptions,
 	})
 	if err != nil {
 		return outputErrorIfJSON(cmd, i.output, err)
@@ -380,5 +390,39 @@ kdn init --runtime podman --agent claude --show-logs`,
 
 	cmd.RegisterFlagCompletionFunc("output", newOutputFlagCompletion([]string{"json"}))
 
+	// Register runtime-provided flags
+	registerRuntimeFlags(cmd, runtimesetup.ListFlags())
+
 	return cmd
+}
+
+// registerRuntimeFlags registers runtime-declared flags on the given cobra command.
+func registerRuntimeFlags(cmd *cobra.Command, flags []runtime.FlagDef) {
+	for _, f := range flags {
+		cmd.Flags().String(f.Name, "", f.Usage)
+		if len(f.Completions) > 0 {
+			completions := f.Completions
+			cmd.RegisterFlagCompletionFunc(f.Name, func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+				return completions, cobra.ShellCompDirectiveNoFileComp
+			})
+		}
+	}
+}
+
+// collectRuntimeFlagValues reads changed flag values from the command for the given flag definitions.
+func collectRuntimeFlagValues(cmd *cobra.Command, flags []runtime.FlagDef) (map[string]string, error) {
+	var result map[string]string
+	for _, f := range flags {
+		if cmd.Flags().Changed(f.Name) {
+			val, err := cmd.Flags().GetString(f.Name)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read --%s flag: %w", f.Name, err)
+			}
+			if result == nil {
+				result = make(map[string]string)
+			}
+			result[f.Name] = val
+		}
+	}
+	return result, nil
 }

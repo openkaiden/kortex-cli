@@ -71,6 +71,16 @@ func (t *testRuntime) Available() bool {
 	return t.available
 }
 
+// testRuntimeWithFlags wraps testRuntime and implements runtime.FlagProvider.
+type testRuntimeWithFlags struct {
+	*testRuntime
+	flags []runtime.FlagDef
+}
+
+func (t *testRuntimeWithFlags) Flags() []runtime.FlagDef {
+	return t.flags
+}
+
 // testRuntimeWithDashboard wraps testRuntime and implements runtime.Dashboard.
 type testRuntimeWithDashboard struct {
 	*testRuntime
@@ -239,6 +249,193 @@ func TestRegisterAll(t *testing.T) {
 		err := registerAllWithAvailable(registrar, testFactories)
 		if err == nil {
 			t.Fatal("Expected error when registration fails, got nil")
+		}
+	})
+}
+
+func TestListFlags(t *testing.T) {
+	t.Parallel()
+
+	// ListFlags delegates to listFlagsWithFactories with the real availableRuntimes.
+	// Since no real runtime currently implements FlagProvider, it should return empty.
+	flags := ListFlags()
+	if len(flags) != 0 {
+		t.Errorf("expected 0 flags from real runtimes, got %d", len(flags))
+	}
+}
+
+func TestListFlagsWithFactories(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns flags from FlagProvider runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "flagged-rt", available: true},
+					flags: []runtime.FlagDef{
+						{Name: "my-flag", Usage: "a test flag", Completions: []string{"a", "b"}},
+					},
+				}
+			},
+		}
+
+		flags := listFlagsWithFactories(factories)
+
+		if len(flags) != 1 {
+			t.Fatalf("expected 1 flag, got %d", len(flags))
+		}
+		if flags[0].Name != "my-flag" {
+			t.Errorf("expected flag name 'my-flag', got %q", flags[0].Name)
+		}
+		if flags[0].Usage != "a test flag" {
+			t.Errorf("expected usage 'a test flag', got %q", flags[0].Usage)
+		}
+		if len(flags[0].Completions) != 2 {
+			t.Errorf("expected 2 completions, got %d", len(flags[0].Completions))
+		}
+	})
+
+	t.Run("skips runtimes without FlagProvider", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "plain-rt", available: true}
+			},
+		}
+
+		flags := listFlagsWithFactories(factories)
+
+		if len(flags) != 0 {
+			t.Errorf("expected 0 flags, got %d", len(flags))
+		}
+	})
+
+	t.Run("skips unavailable runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "unavail-rt", available: false},
+					flags: []runtime.FlagDef{
+						{Name: "hidden-flag", Usage: "should not appear"},
+					},
+				}
+			},
+		}
+
+		flags := listFlagsWithFactories(factories)
+
+		if len(flags) != 0 {
+			t.Errorf("expected 0 flags (runtime unavailable), got %d", len(flags))
+		}
+	})
+
+	t.Run("skips fake runtime", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "fake", available: true},
+					flags: []runtime.FlagDef{
+						{Name: "fake-flag", Usage: "should not appear"},
+					},
+				}
+			},
+		}
+
+		flags := listFlagsWithFactories(factories)
+
+		if len(flags) != 0 {
+			t.Errorf("expected 0 flags (fake runtime), got %d", len(flags))
+		}
+	})
+
+	t.Run("deduplicates flags by name across runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "rt1", available: true},
+					flags: []runtime.FlagDef{
+						{Name: "shared-flag", Usage: "from rt1"},
+					},
+				}
+			},
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "rt2", available: true},
+					flags: []runtime.FlagDef{
+						{Name: "shared-flag", Usage: "from rt2"},
+						{Name: "unique-flag", Usage: "only in rt2"},
+					},
+				}
+			},
+		}
+
+		flags := listFlagsWithFactories(factories)
+
+		if len(flags) != 2 {
+			t.Fatalf("expected 2 flags (deduplicated), got %d", len(flags))
+		}
+
+		names := make(map[string]bool)
+		for _, f := range flags {
+			names[f.Name] = true
+		}
+		if !names["shared-flag"] {
+			t.Error("expected 'shared-flag' to be present")
+		}
+		if !names["unique-flag"] {
+			t.Error("expected 'unique-flag' to be present")
+		}
+	})
+
+	t.Run("collects flags from multiple runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "rt-a", available: true},
+					flags: []runtime.FlagDef{
+						{Name: "flag-a", Usage: "from rt-a"},
+					},
+				}
+			},
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "rt-b", available: true}
+			},
+			func() runtime.Runtime {
+				return &testRuntimeWithFlags{
+					testRuntime: &testRuntime{runtimeType: "rt-c", available: true},
+					flags: []runtime.FlagDef{
+						{Name: "flag-c", Usage: "from rt-c"},
+					},
+				}
+			},
+		}
+
+		flags := listFlagsWithFactories(factories)
+
+		if len(flags) != 2 {
+			t.Fatalf("expected 2 flags, got %d", len(flags))
+		}
+
+		names := make(map[string]bool)
+		for _, f := range flags {
+			names[f.Name] = true
+		}
+		if !names["flag-a"] {
+			t.Error("expected 'flag-a' to be present")
+		}
+		if !names["flag-c"] {
+			t.Error("expected 'flag-c' to be present")
 		}
 	})
 }

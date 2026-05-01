@@ -30,6 +30,7 @@ import (
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/cmd/testutil"
 	"github.com/openkaiden/kdn/pkg/instances"
+	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
 	"github.com/spf13/cobra"
 )
@@ -2534,4 +2535,148 @@ func TestInitCmd_Examples(t *testing.T) {
 	if err != nil {
 		t.Errorf("Example validation failed: %v", err)
 	}
+}
+
+func TestRegisterRuntimeFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("registers flags on command", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{Use: "test"}
+		flags := []runtime.FlagDef{
+			{Name: "my-flag", Usage: "a test flag"},
+			{Name: "other-flag", Usage: "another flag", Completions: []string{"a", "b"}},
+		}
+
+		registerRuntimeFlags(cmd, flags)
+
+		f := cmd.Flags().Lookup("my-flag")
+		if f == nil {
+			t.Fatal("expected 'my-flag' to be registered")
+		}
+		if f.Usage != "a test flag" {
+			t.Errorf("expected usage 'a test flag', got %q", f.Usage)
+		}
+
+		f2 := cmd.Flags().Lookup("other-flag")
+		if f2 == nil {
+			t.Fatal("expected 'other-flag' to be registered")
+		}
+	})
+
+	t.Run("no-op with empty flags", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{Use: "test"}
+		registerRuntimeFlags(cmd, nil)
+
+		if cmd.Flags().HasFlags() {
+			t.Error("expected no flags to be registered")
+		}
+	})
+}
+
+func TestCollectRuntimeFlagValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("collects changed flag values", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{Use: "test", Run: func(_ *cobra.Command, _ []string) {}}
+		cmd.Flags().String("my-flag", "", "test")
+		cmd.Flags().String("other-flag", "", "test")
+
+		cmd.SetArgs([]string{"--my-flag", "val1", "--other-flag", "val2"})
+		_ = cmd.Execute()
+
+		flags := []runtime.FlagDef{
+			{Name: "my-flag"},
+			{Name: "other-flag"},
+		}
+
+		result, err := collectRuntimeFlagValues(cmd, flags)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("expected 2 values, got %d", len(result))
+		}
+		if result["my-flag"] != "val1" {
+			t.Errorf("expected 'val1', got %q", result["my-flag"])
+		}
+		if result["other-flag"] != "val2" {
+			t.Errorf("expected 'val2', got %q", result["other-flag"])
+		}
+	})
+
+	t.Run("returns nil when no flags changed", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{Use: "test", Run: func(_ *cobra.Command, _ []string) {}}
+		cmd.Flags().String("my-flag", "", "test")
+
+		cmd.SetArgs([]string{})
+		_ = cmd.Execute()
+
+		flags := []runtime.FlagDef{
+			{Name: "my-flag"},
+		}
+
+		result, err := collectRuntimeFlagValues(cmd, flags)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result != nil {
+			t.Errorf("expected nil, got %v", result)
+		}
+	})
+
+	t.Run("returns nil with empty flags list", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{Use: "test", Run: func(_ *cobra.Command, _ []string) {}}
+
+		cmd.SetArgs([]string{})
+		_ = cmd.Execute()
+
+		result, err := collectRuntimeFlagValues(cmd, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result != nil {
+			t.Errorf("expected nil, got %v", result)
+		}
+	})
+
+	t.Run("collects only changed flags", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{Use: "test", Run: func(_ *cobra.Command, _ []string) {}}
+		cmd.Flags().String("set-flag", "", "test")
+		cmd.Flags().String("unset-flag", "", "test")
+
+		cmd.SetArgs([]string{"--set-flag", "value"})
+		_ = cmd.Execute()
+
+		flags := []runtime.FlagDef{
+			{Name: "set-flag"},
+			{Name: "unset-flag"},
+		}
+
+		result, err := collectRuntimeFlagValues(cmd, flags)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(result) != 1 {
+			t.Fatalf("expected 1 value, got %d", len(result))
+		}
+		if result["set-flag"] != "value" {
+			t.Errorf("expected 'value', got %q", result["set-flag"])
+		}
+	})
 }

@@ -121,6 +121,47 @@ func (p *podmanRuntime) ListAgents() ([]string, error) {
 
 This pattern decouples agent discovery from runtime-specific configuration details, allowing the `info` command to query agents generically through the runtime interface.
 
+### FlagProvider Interface
+
+The FlagProvider interface enables runtimes to declare CLI flags that appear on the `init` command. This decouples runtime-specific options from the command layer.
+
+```go
+type FlagDef struct {
+    Name        string
+    Usage       string
+    Completions []string
+}
+
+type FlagProvider interface {
+    Flags() []FlagDef
+}
+```
+
+**How it works:**
+
+When a runtime implements FlagProvider:
+1. `runtimesetup.ListFlags()` discovers and deduplicates flags from all available FlagProvider runtimes
+2. The `init` command registers them as cobra flags (with shell completions if `Completions` is non-empty)
+3. Changed flag values are collected into a `map[string]string` and passed through `AddOptions.RuntimeOptions` → `CreateParams.RuntimeOptions`
+4. The runtime reads its values from `params.RuntimeOptions` in `Create()`
+
+**Example implementation:**
+
+```go
+func (r *myRuntime) Flags() []runtime.FlagDef {
+    return []runtime.FlagDef{{
+        Name:        "my-driver",
+        Usage:       "Driver to use (podman, vm)",
+        Completions: []string{"podman", "vm"},
+    }}
+}
+
+func (r *myRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
+    driver := params.RuntimeOptions["my-driver"]
+    // ... use driver value ...
+}
+```
+
 ### Terminal Interface
 
 The Terminal interface enables interactive terminal sessions for connecting to running instances. This is used by the `terminal` command.

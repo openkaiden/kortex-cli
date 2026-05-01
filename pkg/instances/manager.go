@@ -65,6 +65,8 @@ type AddOptions struct {
 	Agent string
 	// Model is an optional model ID to configure for the agent
 	Model string
+	// RuntimeOptions contains runtime-specific flag values from the CLI.
+	RuntimeOptions map[string]string
 }
 
 // Manager handles instance storage and operations
@@ -353,6 +355,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		OnecliSecrets:      onecliSecrets,
 		SecretEnvVars:      secretEnvVars,
 		ProjectID:          project,
+		RuntimeOptions:     opts.RuntimeOptions,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
