@@ -90,6 +90,240 @@ func (t *testRuntimeWithDashboard) GetURL(_ context.Context, _ string) (string, 
 	return "http://localhost:8888", nil
 }
 
+// testRuntimeWithAgents wraps testRuntime and implements runtime.AgentLister.
+type testRuntimeWithAgents struct {
+	*testRuntime
+	agents []string
+}
+
+func (t *testRuntimeWithAgents) ListAgents() ([]string, error) {
+	return t.agents, nil
+}
+
+// testRuntimeWithAgentsError wraps testRuntime and implements runtime.AgentLister with error.
+type testRuntimeWithAgentsError struct {
+	*testRuntime
+}
+
+func (t *testRuntimeWithAgentsError) ListAgents() ([]string, error) {
+	return nil, fmt.Errorf("list agents failed")
+}
+
+func TestListAvailableWithFactories(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns available non-fake runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime { return &testRuntime{runtimeType: "rt1", available: true} },
+			func() runtime.Runtime { return &testRuntime{runtimeType: "rt2", available: true} },
+		}
+
+		names := listAvailableWithFactories(factories)
+		if len(names) != 2 {
+			t.Fatalf("Expected 2 names, got %d: %v", len(names), names)
+		}
+	})
+
+	t.Run("skips unavailable runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime { return &testRuntime{runtimeType: "rt1", available: true} },
+			func() runtime.Runtime { return &testRuntime{runtimeType: "rt2", available: false} },
+		}
+
+		names := listAvailableWithFactories(factories)
+		if len(names) != 1 {
+			t.Fatalf("Expected 1 name, got %d: %v", len(names), names)
+		}
+		if names[0] != "rt1" {
+			t.Errorf("Expected 'rt1', got %q", names[0])
+		}
+	})
+
+	t.Run("skips fake runtime", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime { return &testRuntime{runtimeType: "fake", available: true} },
+			func() runtime.Runtime { return &testRuntime{runtimeType: "rt1", available: true} },
+		}
+
+		names := listAvailableWithFactories(factories)
+		if len(names) != 1 {
+			t.Fatalf("Expected 1 name (fake excluded), got %d: %v", len(names), names)
+		}
+		if names[0] != "rt1" {
+			t.Errorf("Expected 'rt1', got %q", names[0])
+		}
+	})
+
+	t.Run("returns empty for no available runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime { return &testRuntime{runtimeType: "rt1", available: false} },
+		}
+
+		names := listAvailableWithFactories(factories)
+		if len(names) != 0 {
+			t.Errorf("Expected 0 names, got %d: %v", len(names), names)
+		}
+	})
+}
+
+func TestListAgentsWithFactories(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns agents from available runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithAgents{
+					testRuntime: &testRuntime{runtimeType: "rt1", available: true},
+					agents:      []string{"claude", "goose"},
+				}
+			},
+		}
+
+		agents, err := listAgentsWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(agents) != 2 {
+			t.Fatalf("Expected 2 agents, got %d: %v", len(agents), agents)
+		}
+	})
+
+	t.Run("deduplicates agents across runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithAgents{
+					testRuntime: &testRuntime{runtimeType: "rt1", available: true},
+					agents:      []string{"claude", "goose"},
+				}
+			},
+			func() runtime.Runtime {
+				return &testRuntimeWithAgents{
+					testRuntime: &testRuntime{runtimeType: "rt2", available: true},
+					agents:      []string{"claude", "cursor"},
+				}
+			},
+		}
+
+		agents, err := listAgentsWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(agents) != 3 {
+			t.Fatalf("Expected 3 unique agents, got %d: %v", len(agents), agents)
+		}
+	})
+
+	t.Run("skips unavailable runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithAgents{
+					testRuntime: &testRuntime{runtimeType: "rt1", available: false},
+					agents:      []string{"claude"},
+				}
+			},
+		}
+
+		agents, err := listAgentsWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(agents) != 0 {
+			t.Errorf("Expected 0 agents (runtime unavailable), got %d: %v", len(agents), agents)
+		}
+	})
+
+	t.Run("skips runtimes without AgentLister", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "rt1", available: true}
+			},
+		}
+
+		agents, err := listAgentsWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(agents) != 0 {
+			t.Errorf("Expected 0 agents (no AgentLister), got %d: %v", len(agents), agents)
+		}
+	})
+
+	t.Run("returns sorted agents", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithAgents{
+					testRuntime: &testRuntime{runtimeType: "rt1", available: true},
+					agents:      []string{"goose", "claude", "cursor"},
+				}
+			},
+		}
+
+		agents, err := listAgentsWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for i := 1; i < len(agents); i++ {
+			if agents[i] < agents[i-1] {
+				t.Errorf("Agents not sorted: %v", agents)
+				break
+			}
+		}
+	})
+
+	t.Run("returns error for empty storage dir", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := listAgentsWithFactories("", nil)
+		if err == nil {
+			t.Fatal("Expected error for empty storage dir")
+		}
+	})
+
+	t.Run("skips runtimes with ListAgents error", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithAgentsError{
+					testRuntime: &testRuntime{runtimeType: "rt-err", available: true},
+				}
+			},
+		}
+
+		agents, err := listAgentsWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(agents) != 0 {
+			t.Errorf("Expected 0 agents when ListAgents fails, got %d: %v", len(agents), agents)
+		}
+	})
+}
+
 func TestListDashboardRuntimeTypesWithFactories(t *testing.T) {
 	t.Parallel()
 
@@ -156,6 +390,15 @@ func TestListDashboardRuntimeTypesWithFactories(t *testing.T) {
 
 		if len(types) != 0 {
 			t.Errorf("expected 0 types (runtime unavailable), got %d: %v", len(types), types)
+		}
+	})
+
+	t.Run("returns error for empty storage dir", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := listDashboardRuntimeTypesWithFactories("", nil)
+		if err == nil {
+			t.Fatal("Expected error for empty storage dir")
 		}
 	})
 }
@@ -257,10 +500,17 @@ func TestListFlags(t *testing.T) {
 	t.Parallel()
 
 	// ListFlags delegates to listFlagsWithFactories with the real availableRuntimes.
-	// Since no real runtime currently implements FlagProvider, it should return empty.
+	// The openshell runtime implements FlagProvider when available on this platform.
 	flags := ListFlags()
-	if len(flags) != 0 {
-		t.Errorf("expected 0 flags from real runtimes, got %d", len(flags))
+
+	flagNames := make(map[string]bool, len(flags))
+	for _, f := range flags {
+		flagNames[f.Name] = true
+	}
+
+	if flagNames["openshell-driver"] != flagNames["openshell-allow-hosts"] {
+		t.Errorf("expected openshell flags to be either both present or both absent, got driver=%v allow-hosts=%v",
+			flagNames["openshell-driver"], flagNames["openshell-allow-hosts"])
 	}
 }
 
