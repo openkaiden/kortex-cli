@@ -5,7 +5,7 @@
 
 kdn is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
 
-The architecture is built around pluggable runtimes. The first supported runtime is **Podman**, which creates container-based workspaces using a custom Fedora image. Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
+The architecture is built around pluggable runtimes. Supported runtimes include **Podman** (container-based workspaces using a custom Fedora image) and **OpenShell** (sandbox-based workspaces using the OpenShell Gateway with Podman or VM drivers). Additional runtimes (e.g., Kubernetes) can be added to support other execution environments.
 
 **Supported Agents**
 
@@ -17,7 +17,7 @@ The architecture is built around pluggable runtimes. The first supported runtime
 **Key Features**
 
 - Isolated workspaces per project, each running in its own runtime instance
-- Pluggable runtime system — Podman is the default, with support for adding other runtimes
+- Pluggable runtime system — Podman and OpenShell runtimes, with support for adding others
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
 - Multi-level configuration: workspace, global, project-specific, and agent-specific settings
 - Inject environment variables and mount directories into workspaces at multiple scopes
@@ -80,7 +80,17 @@ The underlying AI model that powers the agents. Examples include Claude (by Anth
 A standardized protocol for connecting AI agents to external data sources and tools. MCP servers provide agents with additional capabilities like database access, API integrations, or file system operations.
 
 ### Runtime
-The environment where workspaces run. kdn supports multiple runtimes (e.g., Podman containers), allowing workspaces to be hosted on different backends depending on your needs.
+The environment where workspaces run. kdn supports multiple runtimes:
+- **Podman** — container-based workspaces using a custom Fedora image
+- **OpenShell** — sandbox-based workspaces using the OpenShell Gateway, with `--openshell-driver podman` (default) or `--openshell-driver vm` drivers
+
+```bash
+# Register with openshell using VM driver
+kdn init --runtime openshell --agent claude --openshell-driver vm
+
+# Register with openshell and allow additional hosts
+kdn init --runtime openshell --agent claude --openshell-allow-hosts github.com,registry.npmjs.org
+```
 
 ### Service
 A secret service definition that describes how to inject credentials into workspace HTTP requests. Each service specifies a host pattern to match, the HTTP header to set, and which environment variables hold the credential value.
