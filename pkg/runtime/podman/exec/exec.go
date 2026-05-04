@@ -43,14 +43,17 @@ type Executor interface {
 }
 
 // executor is the default implementation of Executor.
-type executor struct{}
+type executor struct {
+	podmanPath string
+}
 
 // Ensure executor implements Executor at compile time.
 var _ Executor = (*executor)(nil)
 
-// New creates a new Executor instance.
-func New() Executor {
-	return &executor{}
+// New creates a new Executor instance using the given podman executable path.
+// The path can be a bare name ("podman") or an absolute path ("/usr/bin/podman").
+func New(podmanPath string) Executor {
+	return &executor{podmanPath: podmanPath}
 }
 
 // Run executes a podman command, writing stdout and stderr to the provided writers.
@@ -58,7 +61,7 @@ func New() Executor {
 // even when the caller passes io.Discard as the stderr writer.
 func (e *executor) Run(ctx context.Context, stdout, stderr io.Writer, args ...string) error {
 	var stderrBuf bytes.Buffer
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := exec.CommandContext(ctx, e.podmanPath, args...)
 	cmd.Stdout = stdout
 	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
 	if err := cmd.Run(); err != nil {
@@ -75,7 +78,7 @@ func (e *executor) Run(ctx context.Context, stdout, stderr io.Writer, args ...st
 // On failure, the error includes podman's stderr output for diagnostics.
 func (e *executor) Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error) {
 	var stderrBuf bytes.Buffer
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := exec.CommandContext(ctx, e.podmanPath, args...)
 	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
 	out, err := cmd.Output()
 	if err != nil {
@@ -89,7 +92,7 @@ func (e *executor) Output(ctx context.Context, stderr io.Writer, args ...string)
 
 // RunInteractive executes a podman command with stdin/stdout/stderr connected to the terminal.
 func (e *executor) RunInteractive(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := exec.CommandContext(ctx, e.podmanPath, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

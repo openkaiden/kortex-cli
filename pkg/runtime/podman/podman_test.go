@@ -42,43 +42,22 @@ func TestNew(t *testing.T) {
 func TestPodmanRuntime_Available(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns true when podman command exists", func(t *testing.T) {
+	t.Run("returns true when cli path is set", func(t *testing.T) {
 		t.Parallel()
 
-		fakeSys := &fakeSystem{commandExists: true}
-		rt := newWithDeps(fakeSys, exec.New())
-
-		avail, ok := rt.(interface{ Available() bool })
-		if !ok {
-			t.Fatal("Expected runtime to implement Available interface")
-		}
-
-		if !avail.Available() {
-			t.Error("Expected Available() to return true when podman exists")
-		}
-
-		if fakeSys.checkedCommand != "podman" {
-			t.Errorf("Expected to check for 'podman' command, got '%s'", fakeSys.checkedCommand)
+		path := "/usr/bin/podman"
+		rt := &podmanRuntime{cli: &path}
+		if !rt.Available() {
+			t.Error("Expected Available() to return true when cli is set")
 		}
 	})
 
-	t.Run("returns false when podman command does not exist", func(t *testing.T) {
+	t.Run("returns false when cli path is nil", func(t *testing.T) {
 		t.Parallel()
 
-		fakeSys := &fakeSystem{commandExists: false}
-		rt := newWithDeps(fakeSys, exec.New())
-
-		avail, ok := rt.(interface{ Available() bool })
-		if !ok {
-			t.Fatal("Expected runtime to implement Available interface")
-		}
-
-		if avail.Available() {
-			t.Error("Expected Available() to return false when podman does not exist")
-		}
-
-		if fakeSys.checkedCommand != "podman" {
-			t.Errorf("Expected to check for 'podman' command, got '%s'", fakeSys.checkedCommand)
+		rt := &podmanRuntime{}
+		if rt.Available() {
+			t.Error("Expected Available() to return false when cli is nil")
 		}
 	})
 }
@@ -90,7 +69,7 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 		t.Parallel()
 
 		storageDir := t.TempDir()
-		rt := newWithDeps(system.New(), exec.New())
+		rt := newWithDeps(system.New(), exec.New("podman"))
 
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
@@ -121,7 +100,7 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 	t.Run("returns error for empty storage directory", func(t *testing.T) {
 		t.Parallel()
 
-		rt := newWithDeps(system.New(), exec.New())
+		rt := newWithDeps(system.New(), exec.New("podman"))
 
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
@@ -138,7 +117,7 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 		t.Parallel()
 
 		storageDir := t.TempDir()
-		rt := newWithDeps(system.New(), exec.New())
+		rt := newWithDeps(system.New(), exec.New("podman"))
 
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
@@ -157,7 +136,7 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Failed to write custom config: %v", err)
 		}
 
-		rt2 := newWithDeps(system.New(), exec.New())
+		rt2 := newWithDeps(system.New(), exec.New("podman"))
 		storageAware2, ok := rt2.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
@@ -458,7 +437,7 @@ func TestPodmanRuntime_ListAgents(t *testing.T) {
 	t.Run("returns empty slice when not initialized", func(t *testing.T) {
 		t.Parallel()
 
-		rt := newWithDeps(system.New(), exec.New())
+		rt := newWithDeps(system.New(), exec.New("podman"))
 
 		lister, ok := rt.(interface{ ListAgents() ([]string, error) })
 		if !ok {
@@ -479,7 +458,7 @@ func TestPodmanRuntime_ListAgents(t *testing.T) {
 		t.Parallel()
 
 		storageDir := t.TempDir()
-		rt := newWithDeps(system.New(), exec.New())
+		rt := newWithDeps(system.New(), exec.New("podman"))
 
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {

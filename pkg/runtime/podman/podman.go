@@ -35,6 +35,7 @@ import (
 type podmanRuntime struct {
 	system                system.System
 	executor              exec.Executor
+	cli                   *string               // Full path to the podman executable; nil if not found
 	storageDir            string                // Runtime-specific storage: <globalStorageDir>/runtimes/podman
 	globalStorageDir      string                // Top-level kdn storage dir: where config/projects.json lives
 	config                config.Config         // Configuration manager for runtime settings
@@ -65,7 +66,16 @@ var _ runtime.SecretServiceRegistryAware = (*podmanRuntime)(nil)
 
 // New creates a new Podman runtime instance.
 func New() runtime.Runtime {
-	return newWithDeps(system.New(), exec.New())
+	cli := findPodmanCLI()
+	podmanPath := "podman"
+	if cli != nil {
+		podmanPath = *cli
+	}
+	return &podmanRuntime{
+		system:   system.New(),
+		executor: exec.New(podmanPath),
+		cli:      cli,
+	}
 }
 
 // newWithDeps creates a new Podman runtime instance with custom dependencies (for testing).
@@ -77,9 +87,9 @@ func newWithDeps(sys system.System, executor exec.Executor) runtime.Runtime {
 }
 
 // Available implements runtimesetup.Available.
-// It checks if the podman CLI is available on the system.
+// It reports whether the podman CLI was found during initialization.
 func (p *podmanRuntime) Available() bool {
-	return p.system.CommandExists("podman")
+	return p.cli != nil
 }
 
 // SetSecretServiceRegistry injects the secret service registry so that Start()
