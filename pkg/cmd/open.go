@@ -19,35 +19,22 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
-func NewWorkspaceCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "workspace",
-		Short: "Manage workspaces",
-		Long:  "Manage workspaces registered with kdn init",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
-	}
+func NewOpenCmd() *cobra.Command {
+	workspaceOpenCmd := NewWorkspaceOpenCmd()
 
-	// Add subcommands
-	cmd.AddCommand(NewWorkspaceDashboardCmd())
-	cmd.AddCommand(NewWorkspaceListCmd())
-	cmd.AddCommand(NewWorkspaceOpenCmd())
-	cmd.AddCommand(NewWorkspaceRemoveCmd())
-	cmd.AddCommand(NewWorkspaceStartCmd())
-	cmd.AddCommand(NewWorkspaceStopCmd())
-	cmd.AddCommand(NewWorkspaceTerminalCmd())
+	cmd := &cobra.Command{
+		Use:               "open NAME|ID [PORT]",
+		Short:             workspaceOpenCmd.Short + " (alias for 'workspace open')",
+		Long:              workspaceOpenCmd.Long,
+		Example:           AdaptExampleForAlias(workspaceOpenCmd.Example, "workspace open", "open"),
+		Args:              workspaceOpenCmd.Args,
+		ValidArgsFunction: workspaceOpenCmd.ValidArgsFunction,
+		PreRunE:           workspaceOpenCmd.PreRunE,
+		RunE:              workspaceOpenCmd.RunE,
+	}
 
 	return cmd
 }

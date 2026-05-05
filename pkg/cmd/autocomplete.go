@@ -21,6 +21,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/envvars"
@@ -231,4 +232,57 @@ func completeRuntimeFlag(cmd *cobra.Command, args []string, toComplete string) (
 	runtimes := runtimesetup.ListAvailable()
 
 	return runtimes, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeOpenArgs provides completion for the workspace open command.
+// The first argument completes to running workspace names/IDs; the second
+// argument completes to the available target port numbers for that workspace.
+func completeOpenArgs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		return getFilteredWorkspaceIDs(cmd, func(state api.WorkspaceState) bool {
+			return state == api.WorkspaceStateRunning
+		})
+	}
+	if len(args) == 1 {
+		return completeOpenPort(cmd, args[0])
+	}
+	return nil, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeOpenPort returns the available target port numbers for the given workspace.
+func completeOpenPort(cmd *cobra.Command, nameOrID string) ([]string, cobra.ShellCompDirective) {
+	storageDir, err := cmd.Flags().GetString("storage")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	absStorageDir, err := filepath.Abs(storageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	if _, err := os.Stat(absStorageDir); os.IsNotExist(err) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	manager, err := instances.NewManager(absStorageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	instance, err := manager.Get(nameOrID)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	forwards := instanceForwards(instance)
+	if len(forwards) == 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	ports := make([]string, 0, len(forwards))
+	for _, f := range forwards {
+		ports = append(ports, strconv.Itoa(f.Target))
+	}
+	return ports, cobra.ShellCompDirectiveNoFileComp
 }

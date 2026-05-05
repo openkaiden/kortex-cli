@@ -1999,7 +1999,7 @@ Forward ports from the workspace to the host so that services running inside the
 **Fields:**
 - Each entry is an integer workspace port to forward
 
-At workspace creation time, kdn allocates a free host port for each requested workspace port and binds it to `127.0.0.1`. The assigned host ports are reported in the `forwards` field of the workspace JSON output (`kdn list --output json` / `kdn workspace list --output json`):
+At workspace creation time, kdn allocates a free host port for each requested workspace port and binds it to `127.0.0.1`. The assigned host ports are reported in the `forwards` field of the workspace JSON output (`kdn list --output json` / `kdn workspace list --output json`). Use `kdn open` / `kdn workspace open` to open a forwarded port directly in the browser:
 
 ```json
 {
@@ -3687,4 +3687,87 @@ Error: dashboard not supported for workspace "my-project"
 - The URL is always printed to stdout, even when the browser opens successfully
 - Opening the browser is best-effort; errors are silently ignored
 - Tab completion suggests only running workspaces whose runtime supports the Dashboard interface
+- JSON output is **not supported** for this command
+
+### `workspace open` - Open a Forwarded Port in the Browser
+
+Prints the URL for a forwarded port of a running workspace and opens it in the default browser. Also available as the shorter alias `open`.
+
+This command uses the port forwards configured in `workspace.json` (see [Port Forwarding](#port-forwarding)). The host port and bind address are determined at workspace creation time.
+
+#### Usage
+
+```bash
+kdn workspace open NAME|ID [PORT] [flags]
+kdn open NAME|ID [PORT] [flags]
+```
+
+#### Arguments
+
+- `NAME|ID` - The workspace name or unique identifier (required)
+- `PORT` - The workspace (target) port to open. Optional when exactly one port is forwarded; required when multiple ports are configured. Tab completion lists the available target ports.
+
+#### Flags
+
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
+
+#### Examples
+
+**Open the only forwarded port (single-port workspace):**
+```bash
+kdn workspace open my-project
+```
+Output: `http://127.0.0.1:54321` (URL printed; browser opened automatically)
+
+**Open a specific port (multi-port workspace):**
+```bash
+kdn workspace open my-project 8080
+kdn open my-project 8080
+```
+
+#### Error Handling
+
+**Workspace not found:**
+```bash
+kdn open invalid-id
+```
+Output:
+```text
+Error: workspace not found: invalid-id
+Use 'workspace list' to see available workspaces
+```
+
+**No ports configured:**
+```bash
+kdn open my-project
+```
+Output:
+```text
+Error: no port forwards configured for workspace "my-project"
+```
+
+**Multiple ports, no port argument:**
+```bash
+kdn open my-project
+```
+Output:
+```text
+Error: workspace "my-project" has multiple port forwards; specify a port
+```
+
+**Port not found:**
+```bash
+kdn open my-project 9999
+```
+Output:
+```text
+Error: no port forward found for port 9999 in workspace "my-project"
+```
+
+#### Notes
+
+- The workspace must be running with port forwards configured via the `ports` field in `workspace.json`
+- The URL is always printed to stdout, even when the browser opens successfully
+- Opening the browser is best-effort; errors are silently ignored
+- Tab completion for the first argument suggests running workspaces; for the second argument it suggests the available target port numbers
 - JSON output is **not supported** for this command
