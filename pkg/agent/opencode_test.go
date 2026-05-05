@@ -520,34 +520,3 @@ func TestOpenCode_SetMCPServers(t *testing.T) {
 		}
 	})
 }
-
-func TestToContainerURL(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"localhost", "http://localhost:11434/v1", "http://host.containers.internal:11434/v1"},
-		{"127.0.0.1", "http://127.0.0.1:8080/v1", "http://host.containers.internal:8080/v1"},
-		{"0.0.0.0", "http://0.0.0.0:11434/v1", "http://host.containers.internal:11434/v1"},
-		{"::1", "http://[::1]:11434/v1", "http://host.containers.internal:11434/v1"},
-		{"remote host unchanged", "http://192.168.1.50:11434/v1", "http://192.168.1.50:11434/v1"},
-		{"hostname unchanged", "http://my-server:11434/v1", "http://my-server:11434/v1"},
-		{"https preserved", "https://localhost:11434/v1", "https://host.containers.internal:11434/v1"},
-		{"no port", "http://localhost/v1", "http://host.containers.internal/v1"},
-		{"invalid URL returned as-is", "not a url ://", "not a url ://"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := toContainerURL(tt.input)
-			if got != tt.expected {
-				t.Errorf("toContainerURL(%q) = %q, want %q", tt.input, got, tt.expected)
-			}
-		})
-	}
-}

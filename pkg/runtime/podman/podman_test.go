@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 	"github.com/openkaiden/kdn/pkg/system"
@@ -483,6 +484,53 @@ func TestPodmanRuntime_ListAgents(t *testing.T) {
 		expected := []string{"claude", "cursor", "goose", "opencode"}
 		if !slices.Equal(agents, expected) {
 			t.Errorf("Expected %v, got: %v", expected, agents)
+		}
+	})
+}
+
+func TestPodmanRuntime_TransformConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rewrites localhost URLs in MCP command args", func(t *testing.T) {
+		t.Parallel()
+
+		rt := &podmanRuntime{}
+		args := []string{"--url", "http://localhost:8080/api"}
+		config := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "test", Command: "cmd", Args: &args},
+				},
+			},
+		}
+
+		if err := rt.TransformConfig(config); err != nil {
+			t.Fatalf("TransformConfig() error = %v", err)
+		}
+
+		got := (*(*config.Mcp.Commands)[0].Args)[1]
+		want := "http://host.containers.internal:8080/api"
+		if got != want {
+			t.Errorf("arg = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("handles nil config", func(t *testing.T) {
+		t.Parallel()
+
+		rt := &podmanRuntime{}
+		if err := rt.TransformConfig(nil); err != nil {
+			t.Fatalf("TransformConfig(nil) error = %v", err)
+		}
+	})
+
+	t.Run("handles config without MCP", func(t *testing.T) {
+		t.Parallel()
+
+		rt := &podmanRuntime{}
+		config := &workspace.WorkspaceConfiguration{}
+		if err := rt.TransformConfig(config); err != nil {
+			t.Fatalf("TransformConfig() error = %v", err)
 		}
 	})
 }

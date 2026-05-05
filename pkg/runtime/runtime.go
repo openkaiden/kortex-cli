@@ -222,6 +222,28 @@ type FlagProvider interface {
 	Flags() []FlagDef
 }
 
+// ConfigTransformer is an optional interface for runtimes that need to
+// transform workspace configuration before it is processed by agents.
+// For example, a container runtime may rewrite localhost URLs in MCP
+// command args to make host services reachable from inside the container.
+//
+// TransformConfig is called after configuration merging but before
+// agent settings are generated (e.g., before SetMCPServers bakes MCP
+// config into agent setting files). Implementations should mutate the
+// config in place.
+//
+// Example implementation:
+//
+//	func (r *myRuntime) TransformConfig(config *workspace.WorkspaceConfiguration) error {
+//	    if config.Mcp != nil {
+//	        rewriteLocalhostURLs(config.Mcp)
+//	    }
+//	    return nil
+//	}
+type ConfigTransformer interface {
+	TransformConfig(config *workspace.WorkspaceConfiguration) error
+}
+
 // ValidateState validates that a runtime state is one of the valid WorkspaceState values.
 // Valid states are: "running", "stopped", "error", "unknown".
 // Returns an error if the state is not valid.

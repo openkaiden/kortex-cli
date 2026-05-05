@@ -21,18 +21,11 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	kdnconfig "github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
-
-// containerHost is the hostname used to reach the host machine from inside a container.
-const containerHost = "host.containers.internal"
-
-// localhostAliases lists hostnames and IPs that refer to the local machine.
-var localhostAliases = []string{"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
 
 const (
 	// OpenCodeConfigPath is the relative path to the OpenCode configuration file.
@@ -105,7 +98,7 @@ func (o *openCodeAgent) SetModel(settings map[string][]byte, modelID string) (ma
 			}
 			resolvedURL = defaultURL
 		} else {
-			resolvedURL = toContainerURL(resolvedURL)
+			resolvedURL = containerurl.RewriteURL(resolvedURL)
 		}
 		config["model"] = provider + "/" + modelName
 		if err := configureProvider(config, provider, modelName, resolvedURL); err != nil {
@@ -173,32 +166,8 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 	return nil
 }
 
-// toContainerURL replaces localhost aliases in a URL with host.containers.internal
-// so the URL is reachable from inside a container.
-func toContainerURL(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return rawURL
-	}
-
-	hostname := parsed.Hostname()
-	for _, alias := range localhostAliases {
-		if strings.EqualFold(hostname, alias) {
-			port := parsed.Port()
-			if port != "" {
-				parsed.Host = containerHost + ":" + port
-			} else {
-				parsed.Host = containerHost
-			}
-			return parsed.String()
-		}
-	}
-
-	return rawURL
-}
-
 // defaultProviderBaseURLs maps known provider names to their default base URLs.
 var defaultProviderBaseURLs = map[string]string{
-	"ollama":   "http://host.containers.internal:11434/v1",
-	"ramalama": "http://host.containers.internal:8080/v1",
+	"ollama":   "http://" + containerurl.ContainerHost + ":11434/v1",
+	"ramalama": "http://" + containerurl.ContainerHost + ":8080/v1",
 }

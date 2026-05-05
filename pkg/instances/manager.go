@@ -257,6 +257,14 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, fmt.Errorf("failed to get runtime: %w", err)
 	}
 
+	// Allow the runtime to transform the workspace config for its environment
+	// (e.g. rewriting localhost URLs for container networking).
+	if transformer, ok := rt.(runtime.ConfigTransformer); ok && mergedConfig != nil {
+		if err := transformer.TransformConfig(mergedConfig); err != nil {
+			return nil, fmt.Errorf("failed to transform workspace config: %w", err)
+		}
+	}
+
 	// Read agent settings files from storage config directory
 	agentSettings, err := m.readAgentSettings(m.storageDir, opts.Agent)
 	if err != nil {

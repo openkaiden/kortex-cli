@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
@@ -64,6 +66,9 @@ var _ runtime.AgentLister = (*podmanRuntime)(nil)
 // Ensure podmanRuntime implements runtime.SecretServiceRegistryAware at compile time.
 var _ runtime.SecretServiceRegistryAware = (*podmanRuntime)(nil)
 
+// Ensure podmanRuntime implements runtime.ConfigTransformer at compile time.
+var _ runtime.ConfigTransformer = (*podmanRuntime)(nil)
+
 // New creates a new Podman runtime instance.
 func New() runtime.Runtime {
 	cli := findPodmanCLI()
@@ -96,6 +101,16 @@ func (p *podmanRuntime) Available() bool {
 // can resolve host patterns for secrets when configuring deny-mode networking.
 func (p *podmanRuntime) SetSecretServiceRegistry(reg secretservice.Registry) {
 	p.secretServiceRegistry = reg
+}
+
+// TransformConfig implements runtime.ConfigTransformer.
+// It rewrites localhost URLs in MCP command args to host.containers.internal
+// so that MCP servers spawned inside the container can reach host services.
+func (p *podmanRuntime) TransformConfig(config *workspace.WorkspaceConfiguration) error {
+	if config != nil && config.Mcp != nil {
+		containerurl.RewriteMCPCommandArgs(config.Mcp)
+	}
+	return nil
 }
 
 // Initialize implements runtime.StorageAware.
