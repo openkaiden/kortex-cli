@@ -1999,7 +1999,7 @@ Forward ports from the workspace to the host so that services running inside the
 **Fields:**
 - Each entry is an integer workspace port to forward
 
-At workspace creation time, kdn allocates a free host port for each requested workspace port and binds it to `127.0.0.1`. The assigned host ports are reported in the `forwards` field of the workspace JSON output (`kdn list --output json` / `kdn get --output json`):
+At workspace creation time, kdn allocates a free host port for each requested workspace port and binds it to `127.0.0.1`. The assigned host ports are reported in the `forwards` field of the workspace JSON output (`kdn list --output json` / `kdn workspace list --output json`):
 
 ```json
 {

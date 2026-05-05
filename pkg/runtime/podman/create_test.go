@@ -1791,6 +1791,9 @@ func TestRenderPodYAML_Ports(t *testing.T) {
 		if !strings.Contains(yaml, "hostPort: 54322") {
 			t.Errorf("Expected hostPort 54322 in YAML:\n%s", yaml)
 		}
+		if !strings.Contains(yaml, `hostIP: "127.0.0.1"`) {
+			t.Errorf("Expected hostIP 127.0.0.1 in YAML:\n%s", yaml)
+		}
 	})
 
 	t.Run("omits ports section when no forwards configured", func(t *testing.T) {
