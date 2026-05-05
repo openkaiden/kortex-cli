@@ -376,15 +376,41 @@ func TestOpenCode_SetModel(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown provider without baseURL returns error", func(t *testing.T) {
+	t.Run("unknown provider without baseURL configures provider without baseURL", func(t *testing.T) {
 		t.Parallel()
 
 		agent := NewOpenCode()
 		settings := make(map[string][]byte)
 
-		_, err := agent.SetModel(settings, "unknown::some-model")
-		if err == nil {
-			t.Fatal("Expected error for unknown provider without baseURL")
+		result, err := agent.SetModel(settings, "openrouter::anthropic/claude-sonnet-4-6")
+		if err != nil {
+			t.Fatalf("SetModel() error = %v", err)
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(result[OpenCodeConfigPath], &config); err != nil {
+			t.Fatalf("Failed to parse result JSON: %v", err)
+		}
+
+		if config["model"] != "openrouter/anthropic/claude-sonnet-4-6" {
+			t.Errorf("model = %v, want %q", config["model"], "openrouter/anthropic/claude-sonnet-4-6")
+		}
+
+		providers := config["provider"].(map[string]interface{})
+		openrouter := providers["openrouter"].(map[string]interface{})
+
+		if openrouter["npm"] != "@ai-sdk/openai-compatible" {
+			t.Errorf("npm = %v, want %q", openrouter["npm"], "@ai-sdk/openai-compatible")
+		}
+
+		models := openrouter["models"].(map[string]interface{})
+		modelEntry := models["anthropic/claude-sonnet-4-6"].(map[string]interface{})
+		if name := modelEntry["name"].(string); name != "anthropic/claude-sonnet-4-6" {
+			t.Errorf("model name = %q, want %q", name, "anthropic/claude-sonnet-4-6")
+		}
+
+		if _, hasOptions := openrouter["options"]; hasOptions {
+			t.Error("Provider without baseURL should not have options block")
 		}
 	})
 

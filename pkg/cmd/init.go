@@ -343,6 +343,9 @@ kdn init --runtime podman --agent claude --model claude-sonnet-4-20250514
 # Register with a model provider (auto-configured base URL)
 kdn init --runtime podman --agent opencode --model ollama::gemma4:26b
 
+# Register with a model provider (provider resolves its own endpoint)
+kdn init --runtime podman --agent opencode --model openrouter::anthropic/claude-sonnet-4-6
+
 # Register with a model provider and custom endpoint
 kdn init --runtime podman --agent opencode --model ollama::gemma4:26b::http://192.168.1.50:11434/v1
 
