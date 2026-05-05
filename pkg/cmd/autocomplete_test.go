@@ -1156,3 +1156,324 @@ func TestCompleteRuntimeFlag(t *testing.T) {
 		}
 	})
 }
+
+func TestCompleteOpenArgs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("first arg completes running workspace IDs and names", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		// running instance
+		src1 := t.TempDir()
+		inst1, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: src1,
+			ConfigDir: filepath.Join(src1, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance1: %v", err)
+		}
+		added1, err := manager.Add(ctx, instances.AddOptions{Instance: inst1, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance1: %v", err)
+		}
+		if err := manager.Start(ctx, added1.GetID()); err != nil {
+			t.Fatalf("failed to start instance1: %v", err)
+		}
+
+		// stopped instance — must not appear
+		src2 := t.TempDir()
+		inst2, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: src2,
+			ConfigDir: filepath.Join(src2, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance2: %v", err)
+		}
+		if _, err := manager.Add(ctx, instances.AddOptions{Instance: inst2, RuntimeType: "fake"}); err != nil {
+			t.Fatalf("failed to add instance2: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenArgs(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		// Only running instance should appear (ID + name)
+		if len(completions) != 2 {
+			t.Fatalf("expected 2 completions (ID and name of running workspace), got %d: %v", len(completions), completions)
+		}
+		set := make(map[string]bool)
+		for _, c := range completions {
+			set[c] = true
+		}
+		if !set[added1.GetID()] {
+			t.Errorf("expected running workspace ID %q in completions, got %v", added1.GetID(), completions)
+		}
+		if !set[added1.GetName()] {
+			t.Errorf("expected running workspace name %q in completions, got %v", added1.GetName(), completions)
+		}
+	})
+
+	t.Run("second arg completes port numbers for the given workspace", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		forwards := []map[string]any{
+			{"bind": "127.0.0.1", "port": 45678, "target": 8080},
+			{"bind": "127.0.0.1", "port": 45679, "target": 9090},
+		}
+		id := setupWorkspaceWithForwards(t, storageDir, forwards)
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenArgs(cmd, []string{id}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 2 {
+			t.Fatalf("expected 2 port completions, got %d: %v", len(completions), completions)
+		}
+		set := make(map[string]bool)
+		for _, c := range completions {
+			set[c] = true
+		}
+		if !set["8080"] {
+			t.Errorf("expected %q in port completions, got %v", "8080", completions)
+		}
+		if !set["9090"] {
+			t.Errorf("expected %q in port completions, got %v", "9090", completions)
+		}
+	})
+
+	t.Run("third arg and beyond returns no completions", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", t.TempDir(), "")
+
+		completions, directive := completeOpenArgs(cmd, []string{"my-workspace", "8080"}, "")
+
+		if completions != nil {
+			t.Errorf("expected nil completions for third arg, got %v", completions)
+		}
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+	})
+
+	t.Run("first arg returns error directive when storage flag is missing", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+
+		_, directive := completeOpenArgs(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("directive = %v, want ShellCompDirectiveError", directive)
+		}
+	})
+}
+
+func TestCompleteOpenPort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns error directive when storage flag is missing", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+
+		_, directive := completeOpenPort(cmd, "my-workspace")
+
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("directive = %v, want ShellCompDirectiveError", directive)
+		}
+	})
+
+	t.Run("returns no completions when storage directory does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", filepath.Join(t.TempDir(), "nonexistent"), "")
+
+		completions, directive := completeOpenPort(cmd, "my-workspace")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("expected 0 completions, got %d: %v", len(completions), completions)
+		}
+	})
+
+	t.Run("returns no completions when workspace is not found", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		// Create an empty manager (no instances)
+		if _, err := instances.NewManager(storageDir); err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenPort(cmd, "nonexistent")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("expected 0 completions, got %d: %v", len(completions), completions)
+		}
+	})
+
+	t.Run("returns no completions when workspace has no forwards", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		id := setupWorkspaceWithForwards(t, storageDir, nil)
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenPort(cmd, id)
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("expected 0 completions, got %d: %v", len(completions), completions)
+		}
+	})
+
+	t.Run("returns target port numbers for a workspace with forwards", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		forwards := []map[string]any{
+			{"bind": "127.0.0.1", "port": 45678, "target": 8080},
+			{"bind": "127.0.0.1", "port": 45679, "target": 3000},
+		}
+		id := setupWorkspaceWithForwards(t, storageDir, forwards)
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenPort(cmd, id)
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 2 {
+			t.Fatalf("expected 2 port completions, got %d: %v", len(completions), completions)
+		}
+		set := make(map[string]bool)
+		for _, c := range completions {
+			set[c] = true
+		}
+		if !set["8080"] {
+			t.Errorf("expected %q in completions, got %v", "8080", completions)
+		}
+		if !set["3000"] {
+			t.Errorf("expected %q in completions, got %v", "3000", completions)
+		}
+	})
+
+	t.Run("returns a single port number for a single-forward workspace", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		forwards := []map[string]any{
+			{"bind": "127.0.0.1", "port": 45678, "target": 8080},
+		}
+		id := setupWorkspaceWithForwards(t, storageDir, forwards)
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenPort(cmd, id)
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 1 {
+			t.Fatalf("expected 1 port completion, got %d: %v", len(completions), completions)
+		}
+		if completions[0] != "8080" {
+			t.Errorf("expected %q, got %q", "8080", completions[0])
+		}
+	})
+
+	t.Run("lookup by name as well as ID", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		forwards := []map[string]any{
+			{"bind": "127.0.0.1", "port": 45678, "target": 8080},
+		}
+		setupWorkspaceWithForwards(t, storageDir, forwards)
+
+		// Get the name from the stored instance.
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+		list, err := manager.List()
+		if err != nil || len(list) == 0 {
+			t.Fatalf("failed to list instances: %v", err)
+		}
+		name := list[0].GetName()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeOpenPort(cmd, name)
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("directive = %v, want ShellCompDirectiveNoFileComp", directive)
+		}
+		if len(completions) != 1 || completions[0] != "8080" {
+			t.Errorf("expected [\"8080\"], got %v", completions)
+		}
+	})
+}
+
+func TestCompleteDashboardWorkspaceIDWith_ListError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns error directive when listDashboardTypes fails", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		_, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return nil, filepath.ErrBadPattern
+		})
+
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("directive = %v, want ShellCompDirectiveError", directive)
+		}
+	})
+}
