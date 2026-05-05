@@ -229,7 +229,7 @@ The `pkg/devcontainers/features` package models, downloads, and orders Dev Conta
 - `WorkspaceConfigDir` is required in `CreateParams` so `FromMap` can resolve `./local-feature` paths
 - In the Containerfile, feature `COPY`/`RUN`/`ENV` instructions are placed after user creation (`useradd -m agent`) but before `USER agent:agent` — features still run as root so they can install system-wide tools, but `/home/agent` and the `agent` account exist so install scripts can `chown`, write dotfiles, and `su` to the target user. `_REMOTE_USER` and `_REMOTE_USER_HOME` are exported as `ENV` immediately before the feature block
 
-**Config merger requirement:** The `pkg/config/merger.go` `Merge()` and `copyConfig()` functions must explicitly handle every field of `WorkspaceConfiguration`. Fields not wired in are silently dropped. `Features` is handled via `mergeFeatures()` / `copyFeatures()`.
+**Config merger requirement:** The `pkg/config/merger.go` `Merge()` and `copyConfig()` functions must explicitly handle every field of `WorkspaceConfiguration`. Fields not wired in are silently dropped. `Features` is handled via `mergeFeatures()` / `copyFeatures()`; `Ports` is handled via `mergePorts()` / inline copy.
 
 **For full implementation details, use:** `/working-with-devcontainers`
 

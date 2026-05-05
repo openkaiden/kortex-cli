@@ -36,12 +36,13 @@ func instanceToWorkspaceId(instance instances.Instance) api.WorkspaceId {
 
 // instanceToWorkspace converts an Instance to an api.Workspace
 func instanceToWorkspace(instance instances.Instance) api.Workspace {
+	runtimeData := instance.GetRuntimeData()
 	ws := api.Workspace{
 		Id:      instance.GetID(),
 		Name:    instance.GetName(),
 		Project: instance.GetProject(),
 		Agent:   instance.GetAgent(),
-		State:   instance.GetRuntimeData().State,
+		State:   runtimeData.State,
 		Paths: api.WorkspacePaths{
 			Configuration: instance.GetConfigDir(),
 			Source:        instance.GetSourceDir(),
@@ -49,6 +50,7 @@ func instanceToWorkspace(instance instances.Instance) api.Workspace {
 		Timestamps: api.WorkspaceTimestamps{
 			Created: instance.GetCreatedAt().UnixMilli(),
 		},
+		Forwards: []api.WorkspaceForward{},
 	}
 	if model := instance.GetModel(); model != "" {
 		ws.Model = &model
@@ -56,6 +58,12 @@ func instanceToWorkspace(instance instances.Instance) api.Workspace {
 	if startedAt := instance.GetStartedAt(); !startedAt.IsZero() {
 		ms := startedAt.UnixMilli()
 		ws.Timestamps.Started = &ms
+	}
+	if forwardsJSON, ok := runtimeData.Info["forwards"]; ok {
+		var forwards []api.WorkspaceForward
+		if err := json.Unmarshal([]byte(forwardsJSON), &forwards); err == nil {
+			ws.Forwards = forwards
+		}
 	}
 	return ws
 }

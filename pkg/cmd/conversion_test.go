@@ -527,3 +527,144 @@ func TestOutputErrorIfJSON(t *testing.T) {
 		}
 	})
 }
+
+func TestInstanceToWorkspace_Forwards(t *testing.T) {
+	t.Parallel()
+
+	t.Run("populates forwards from runtime info", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
+		instanceData := instances.InstanceData{
+			ID:    "fwd-test-id",
+			Name:  "fwd-workspace",
+			Paths: instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+			Runtime: instances.RuntimeData{
+				Info: map[string]string{
+					"forwards": `[{"bind":"127.0.0.1","port":54321,"target":8080}]`,
+				},
+			},
+		}
+		instance, err := instances.NewInstanceFromData(instanceData)
+		if err != nil {
+			t.Fatalf("Failed to create instance from data: %v", err)
+		}
+
+		result := instanceToWorkspace(instance)
+
+		if len(result.Forwards) != 1 {
+			t.Fatalf("Expected 1 forward, got %d", len(result.Forwards))
+		}
+		fwd := result.Forwards[0]
+		if fwd.Bind != "127.0.0.1" {
+			t.Errorf("Expected Bind '127.0.0.1', got '%s'", fwd.Bind)
+		}
+		if fwd.Port != 54321 {
+			t.Errorf("Expected Port 54321, got %d", fwd.Port)
+		}
+		if fwd.Target != 8080 {
+			t.Errorf("Expected Target 8080, got %d", fwd.Target)
+		}
+	})
+
+	t.Run("returns empty forwards when no runtime info", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
+		instanceData := instances.InstanceData{
+			ID:    "no-fwd-id",
+			Name:  "no-fwd-workspace",
+			Paths: instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+		}
+		instance, err := instances.NewInstanceFromData(instanceData)
+		if err != nil {
+			t.Fatalf("Failed to create instance from data: %v", err)
+		}
+
+		result := instanceToWorkspace(instance)
+
+		if result.Forwards == nil {
+			t.Fatal("Expected Forwards to be non-nil (empty slice)")
+		}
+		if len(result.Forwards) != 0 {
+			t.Errorf("Expected 0 forwards, got %d", len(result.Forwards))
+		}
+	})
+
+	t.Run("returns empty forwards when forwards JSON is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
+		instanceData := instances.InstanceData{
+			ID:    "bad-fwd-id",
+			Name:  "bad-fwd-workspace",
+			Paths: instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+			Runtime: instances.RuntimeData{
+				Info: map[string]string{
+					"forwards": "not-valid-json",
+				},
+			},
+		}
+		instance, err := instances.NewInstanceFromData(instanceData)
+		if err != nil {
+			t.Fatalf("Failed to create instance from data: %v", err)
+		}
+
+		result := instanceToWorkspace(instance)
+
+		if result.Forwards == nil {
+			t.Fatal("Expected Forwards to be non-nil (empty slice)")
+		}
+		if len(result.Forwards) != 0 {
+			t.Errorf("Expected 0 forwards when JSON is invalid, got %d", len(result.Forwards))
+		}
+	})
+
+	t.Run("forwards field appears in JSON output", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
+		instanceData := instances.InstanceData{
+			ID:    "json-fwd-id",
+			Name:  "json-fwd-workspace",
+			Paths: instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+			Runtime: instances.RuntimeData{
+				Info: map[string]string{
+					"forwards": `[{"bind":"127.0.0.1","port":12345,"target":3000},{"bind":"127.0.0.1","port":12346,"target":9090}]`,
+				},
+			},
+		}
+		instance, err := instances.NewInstanceFromData(instanceData)
+		if err != nil {
+			t.Fatalf("Failed to create instance from data: %v", err)
+		}
+
+		result := instanceToWorkspace(instance)
+
+		jsonData, err := json.Marshal(result)
+		if err != nil {
+			t.Fatalf("Failed to marshal result: %v", err)
+		}
+
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(jsonData, &parsed); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+
+		forwards, ok := parsed["forwards"].([]interface{})
+		if !ok {
+			t.Fatal("Expected 'forwards' field to be an array in JSON")
+		}
+		if len(forwards) != 2 {
+			t.Errorf("Expected 2 forwards in JSON, got %d", len(forwards))
+		}
+	})
+}

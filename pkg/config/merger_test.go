@@ -1555,3 +1555,85 @@ func TestMerger_Features(t *testing.T) {
 		}
 	})
 }
+
+func TestMerger_Ports(t *testing.T) {
+	t.Parallel()
+
+	merger := NewMerger()
+
+	t.Run("base ports preserved when override has none", func(t *testing.T) {
+		t.Parallel()
+
+		ports := []int{8080, 9090}
+		base := &workspace.WorkspaceConfiguration{Ports: &ports}
+
+		result := merger.Merge(base, &workspace.WorkspaceConfiguration{})
+		if result.Ports == nil {
+			t.Fatal("Expected Ports to be preserved from base")
+		}
+		if len(*result.Ports) != 2 {
+			t.Errorf("Expected 2 ports, got %d", len(*result.Ports))
+		}
+	})
+
+	t.Run("override ports added when base has none", func(t *testing.T) {
+		t.Parallel()
+
+		ports := []int{3000}
+		override := &workspace.WorkspaceConfiguration{Ports: &ports}
+
+		result := merger.Merge(&workspace.WorkspaceConfiguration{}, override)
+		if result.Ports == nil {
+			t.Fatal("Expected Ports to be present from override")
+		}
+		if len(*result.Ports) != 1 || (*result.Ports)[0] != 3000 {
+			t.Errorf("Expected [3000], got %v", *result.Ports)
+		}
+	})
+
+	t.Run("ports are union-merged and deduplicated", func(t *testing.T) {
+		t.Parallel()
+
+		basePorts := []int{8080, 9090}
+		overridePorts := []int{9090, 3000}
+		base := &workspace.WorkspaceConfiguration{Ports: &basePorts}
+		override := &workspace.WorkspaceConfiguration{Ports: &overridePorts}
+
+		result := merger.Merge(base, override)
+		if result.Ports == nil {
+			t.Fatal("Expected Ports to be present")
+		}
+		if len(*result.Ports) != 3 {
+			t.Errorf("Expected 3 unique ports, got %d: %v", len(*result.Ports), *result.Ports)
+		}
+	})
+
+	t.Run("nil ports when both nil", func(t *testing.T) {
+		t.Parallel()
+
+		base := &workspace.WorkspaceConfiguration{}
+		override := &workspace.WorkspaceConfiguration{}
+
+		result := merger.Merge(base, override)
+		if result.Ports != nil {
+			t.Errorf("Expected Ports to be nil, got %v", *result.Ports)
+		}
+	})
+
+	t.Run("copyConfig copies ports independently", func(t *testing.T) {
+		t.Parallel()
+
+		ports := []int{8080}
+		cfg := &workspace.WorkspaceConfiguration{Ports: &ports}
+
+		result := merger.Merge(nil, cfg)
+		if result.Ports == nil {
+			t.Fatal("Expected Ports to be copied")
+		}
+		// Modify original; copy must be independent
+		(*cfg.Ports)[0] = 9999
+		if (*result.Ports)[0] == 9999 {
+			t.Error("Expected Ports copy to be independent of original")
+		}
+	})
+}

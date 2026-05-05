@@ -17,6 +17,7 @@ package podman
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -53,6 +54,7 @@ type podTemplateData struct {
 	ProjectID          string
 	Agent              string
 	ApprovalHandlerDir string
+	Forwards           []api.WorkspaceForward
 }
 
 // validateCreateParams validates the create parameters.
@@ -400,6 +402,13 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to allocate free ports: %w", err)
 	}
 
+	// Allocate host ports for each requested container port before rendering the pod YAML,
+	// since ports must be declared at the pod level (not on individual containers).
+	forwards, err := p.buildForwards(params)
+	if err != nil {
+		return runtime.RuntimeInfo{}, err
+	}
+
 	// Prepare the approval-handler directory with the embedded Node.js script
 	// so it is available as a hostPath volume when the pod is created.
 	approvalHandlerDir := filepath.Join(p.storageDir, "approval-handler", params.Name)
@@ -419,6 +428,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		ProjectID:          params.ProjectID,
 		Agent:              params.Agent,
 		ApprovalHandlerDir: podmanSystem.HostPathToMachinePath(approvalHandlerDir),
+		Forwards:           forwards,
 	}
 
 	tmpPodDir := filepath.Join(instanceDir, "pod")
@@ -513,12 +523,40 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	if ccArgs != nil && ccArgs.caContainerPath != "" {
 		info["ca_container_path"] = ccArgs.caContainerPath
 	}
+	if len(forwards) > 0 {
+		forwardsJSON, jsonErr := json.Marshal(forwards)
+		if jsonErr == nil {
+			info["forwards"] = string(forwardsJSON)
+		}
+	}
 
 	return runtime.RuntimeInfo{
 		ID:    containerID,
 		State: api.WorkspaceStateStopped,
 		Info:  info,
 	}, nil
+}
+
+// buildForwards allocates a free host port for each container port in WorkspaceConfig.Ports
+// and returns the resulting WorkspaceForward slice. Returns nil when no ports are configured.
+func (p *podmanRuntime) buildForwards(params runtime.CreateParams) ([]api.WorkspaceForward, error) {
+	if params.WorkspaceConfig == nil || params.WorkspaceConfig.Ports == nil || len(*params.WorkspaceConfig.Ports) == 0 {
+		return nil, nil
+	}
+	containerPorts := *params.WorkspaceConfig.Ports
+	hostPorts, err := findFreePorts(len(containerPorts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to allocate host ports: %w", err)
+	}
+	forwards := make([]api.WorkspaceForward, len(containerPorts))
+	for i, containerPort := range containerPorts {
+		forwards[i] = api.WorkspaceForward{
+			Bind:   "127.0.0.1",
+			Port:   hostPorts[i],
+			Target: containerPort,
+		}
+	}
+	return forwards, nil
 }
 
 // setupOnecli starts postgres, waits for it, then starts onecli to avoid migration race conditions.

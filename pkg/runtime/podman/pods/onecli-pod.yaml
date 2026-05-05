@@ -66,4 +66,8 @@ spec:
       securityContext:
         capabilities:
           add: ["NET_ADMIN"]
-      command: ["sleep", "infinity"]
+      command: ["sleep", "infinity"]{{if .Forwards}}
+      ports:{{range .Forwards}}
+        - containerPort: {{.Target}}
+          hostPort: {{.Port}}
+          hostIP: "{{.Bind}}"{{end}}{{end}}

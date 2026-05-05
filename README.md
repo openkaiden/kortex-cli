@@ -1985,6 +1985,33 @@ Each key is a feature ID — either an OCI reference (`ghcr.io/org/repo/feature:
 }
 ```
 
+### Port Forwarding
+
+Forward ports from the workspace to the host so that services running inside the workspace are reachable from the host machine.
+
+**Structure:**
+```json
+{
+  "ports": [8080, 3000]
+}
+```
+
+**Fields:**
+- Each entry is an integer workspace port to forward
+
+At workspace creation time, kdn allocates a free host port for each requested workspace port and binds it to `127.0.0.1`. The assigned host ports are reported in the `forwards` field of the workspace JSON output (`kdn list --output json` / `kdn get --output json`):
+
+```json
+{
+  "forwards": [
+    {"bind": "127.0.0.1", "port": 54321, "target": 8080},
+    {"bind": "127.0.0.1", "port": 54322, "target": 3000}
+  ]
+}
+```
+
+**Merging behaviour:** When configuration is merged across levels, port lists are union-merged and deduplicated (base ports first, then override ports with duplicates removed).
+
 ### Configuration Validation
 
 When you register a workspace with `kdn init`, the configuration is automatically validated. If `workspace.json` exists and contains invalid data, the registration will fail with a descriptive error message.

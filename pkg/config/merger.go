@@ -81,6 +81,9 @@ func (m *merger) Merge(base, override *workspace.WorkspaceConfiguration) *worksp
 	// Merge features
 	result.Features = mergeFeatures(base.Features, override.Features)
 
+	// Merge ports
+	result.Ports = mergePorts(base.Ports, override.Ports)
+
 	return result
 }
 
@@ -552,6 +555,13 @@ func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfi
 	// Copy features
 	result.Features = copyFeatures(cfg.Features)
 
+	// Copy ports
+	if cfg.Ports != nil {
+		portsCopy := make([]int, len(*cfg.Ports))
+		copy(portsCopy, *cfg.Ports)
+		result.Ports = &portsCopy
+	}
+
 	return result
 }
 
@@ -576,6 +586,33 @@ func copyFeatures(feats *map[string]map[string]interface{}) *map[string]map[stri
 	result := make(map[string]map[string]interface{}, len(*feats))
 	for id, opts := range *feats {
 		result[id] = copyFeatureOptions(opts)
+	}
+	return &result
+}
+
+// mergePorts merges two port slices, deduplicating port numbers.
+// Base ports come first; override ports are appended if not already present.
+func mergePorts(base, override *[]int) *[]int {
+	if base == nil && override == nil {
+		return nil
+	}
+	seen := make(map[int]bool)
+	var result []int
+
+	for _, slice := range []*[]int{base, override} {
+		if slice == nil {
+			continue
+		}
+		for _, port := range *slice {
+			if !seen[port] {
+				seen[port] = true
+				result = append(result, port)
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
 	}
 	return &result
 }
