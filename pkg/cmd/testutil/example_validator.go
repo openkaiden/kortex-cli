@@ -30,11 +30,13 @@ type ExampleCommand struct {
 	FlagPresent map[string]bool   // Flags that were present in the command
 	FlagValues  map[string]string // Values for flags (empty string if no value provided)
 	Flags       map[string]string // Deprecated: use FlagPresent and FlagValues instead
+	EnvVars     map[string]string // Environment variable assignments that preceded the command
 }
 
 // ParseExampleCommands extracts kdn commands from Example string
 // - Ignores empty lines and comment lines (starting with #)
-// - Returns error if non-comment, non-kdn lines exist
+// - Lines may be prefixed with VAR=VALUE environment variable assignments
+// - Returns error if non-comment lines do not contain a kdn command
 func ParseExampleCommands(example string) ([]ExampleCommand, error) {
 	var commands []ExampleCommand
 	lines := strings.Split(example, "\n")
@@ -64,7 +66,30 @@ func ParseExampleCommands(example string) ([]ExampleCommand, error) {
 	return commands, nil
 }
 
-// parseCommandLine parses a single command line into ExampleCommand
+// isEnvVarAssignment returns true if token looks like KEY=VALUE where KEY is a
+// valid shell identifier (letters, digits, underscores; not starting with a digit).
+func isEnvVarAssignment(token string) bool {
+	idx := strings.Index(token, "=")
+	if idx <= 0 {
+		return false
+	}
+	key := token[:idx]
+	if key[0] >= '0' && key[0] <= '9' {
+		return false
+	}
+	for _, ch := range key {
+		isUpper := ch >= 'A' && ch <= 'Z'
+		isLower := ch >= 'a' && ch <= 'z'
+		isDigit := ch >= '0' && ch <= '9'
+		if !(isUpper || isLower || isDigit || ch == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// parseCommandLine parses a single command line into ExampleCommand.
+// Leading VAR=VALUE tokens are collected into EnvVars; the next token must be "kdn".
 func parseCommandLine(line string) (ExampleCommand, error) {
 	// Split by whitespace, respecting quotes (simple parsing)
 	parts := splitCommandLine(line)
@@ -72,22 +97,35 @@ func parseCommandLine(line string) (ExampleCommand, error) {
 		return ExampleCommand{}, fmt.Errorf("empty command line")
 	}
 
-	// First part should be kdn
-	if parts[0] != "kdn" {
-		return ExampleCommand{}, fmt.Errorf("command must start with 'kdn', got '%s'", parts[0])
+	// Collect leading VAR=VALUE environment variable assignments.
+	envVars := make(map[string]string)
+	start := 0
+	for start < len(parts) && isEnvVarAssignment(parts[start]) {
+		idx := strings.Index(parts[start], "=")
+		envVars[parts[start][:idx]] = parts[start][idx+1:]
+		start++
+	}
+
+	if start >= len(parts) {
+		return ExampleCommand{}, fmt.Errorf("no command found after environment variable assignments")
+	}
+
+	if parts[start] != "kdn" {
+		return ExampleCommand{}, fmt.Errorf("command must start with 'kdn', got '%s'", parts[start])
 	}
 
 	cmd := ExampleCommand{
 		Raw:         line,
-		Binary:      parts[0],
+		Binary:      parts[start],
 		Args:        []string{},
 		FlagPresent: make(map[string]bool),
 		FlagValues:  make(map[string]string),
 		Flags:       make(map[string]string),
+		EnvVars:     envVars,
 	}
 
 	// Parse remaining parts as args and flags
-	for i := 1; i < len(parts); i++ {
+	for i := start + 1; i < len(parts); i++ {
 		part := parts[i]
 
 		// Check for -- separator (stop flag parsing)

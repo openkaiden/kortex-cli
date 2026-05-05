@@ -205,7 +205,7 @@ The secret service system provides a pluggable architecture for managing secret 
 **Key Components:**
 - **SecretService Interface** (`pkg/secretservice/secretservice.go`): Contract all secret services must implement (`Name()`, `Description()`, `HostsPatterns()`, `Path()`, `EnvVars()`, `HeaderName()`, `HeaderTemplate()`)
 - **Registry** (`pkg/secretservice/registry.go`): Manages secret service registration and discovery
-- **Centralized Registration** (`pkg/secretservicesetup/register.go`): Automatically registers all available secret services; `ListAvailable()` returns the names of all registered services (used by commands to derive valid `--type` values dynamically)
+- **Centralized Registration** (`pkg/secretservicesetup/register.go`): Automatically registers all available secret services; `ListAvailable()` returns the names of all registered services (used by commands to derive valid `--type` values dynamically); `ListServices()` returns fully-constructed service instances (used by `autoconf` to iterate env vars)
 
 **For detailed guidance on the full secrets abstraction (Store, registry, adding new types), use:** `/working-with-secrets`
 
@@ -405,6 +405,29 @@ manager.Terminal(ctx, id, []string{"bash"})
 **Workspace Name Sanitization:** The manager automatically sanitizes workspace names — whether auto-generated from the source directory basename or provided via `--name`. Names are lowercased and any run of invalid characters (spaces, `@`, etc.) is collapsed into a single hyphen. This ensures compatibility with runtimes like Podman that require lowercase image names.
 
 **For detailed manager API and project detection, use:** `/working-with-instances-manager`
+
+### Project Identifier Detection
+
+The `pkg/project` package provides a single shared implementation for computing stable project identifiers from a source directory. Both the instances manager and the `autoconf` command use it so the identifier is always derived the same way.
+
+**Key Components:**
+- **`Detector` interface** (`pkg/project/project.go`): Single method `DetectProject(ctx, dir) string`
+- **`NewDetector(git.Detector) Detector`**: Factory — wraps a `git.Detector` to resolve repository info
+
+**Detection rules (in priority order):**
+1. Git repo with remote URL → `<remoteURL>/` or `<remoteURL>/<relPath>`
+2. Git repo without remote → `filepath.Join(rootDir, relPath)` (or just `rootDir`)
+3. Not a git repo → `dir` as-is
+
+**Usage:**
+```go
+detector := project.NewDetector(git.NewDetector())
+projectID := detector.DetectProject(ctx, sourceDir)
+```
+
+**Integration points:**
+- `instances.NewManager` wraps `project.NewDetector(git.NewDetector())` internally; `newManagerWithFactory` accepts a `project.Detector` for test injection
+- `autoconfCmd` stores a `project.Detector` field with a nil guard in `preRun`; inject a fake in tests
 
 ### Cross-Platform Path Handling
 

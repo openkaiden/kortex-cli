@@ -107,6 +107,51 @@ invalidPath := filepath.Join(notADir, "subdir")  // ✅ Will fail MkdirAll on al
 path := filepath.Join(dir, "subdir")  // ✅ Cross-platform
 ```
 
+### chmod-Based Permission Tests
+
+`os.Chmod` maps to `SetFileAttributes` on Windows, which only sets the read-only file
+attribute — it does **not** restrict file creation inside a directory the way Unix ACLs do.
+Tests that make a directory read-only to trigger a `WriteFile` error will pass on Linux/macOS
+but silently succeed on Windows (no error returned, test fails with "expected error, got nil").
+
+**Guard these tests with a runtime skip:**
+
+```go
+if runtime.GOOS == "windows" {
+    t.Skip("chmod-based permission tests do not apply on Windows")
+}
+if os.Getuid() == 0 {
+    t.Skip("chmod restrictions do not apply to root")
+}
+```
+
+The `os.Getuid() == 0` guard is also required: root bypasses Unix permission checks, so the
+same test would fail if run as root inside a container. Both guards require `"runtime"` and
+`"os"` imports.
+
+**Pattern summary:**
+
+```go
+func TestWriteSomething_WriteFileFails(t *testing.T) {
+    t.Parallel()
+
+    if runtime.GOOS == "windows" {
+        t.Skip("chmod-based permission tests do not apply on Windows")
+    }
+    if os.Getuid() == 0 {
+        t.Skip("chmod restrictions do not apply to root")
+    }
+
+    dir := t.TempDir()
+    if err := os.Chmod(dir, 0500); err != nil {
+        t.Fatalf("setup chmod: %v", err)
+    }
+    t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
+
+    // ... test that WriteFile returns an error ...
+}
+```
+
 ## Production Code Patterns
 
 ### Host Path Construction

@@ -101,6 +101,20 @@ func ListAvailable() []string {
 	return listAvailableWithFactories(availableSecretServices)
 }
 
+// ListServices returns fully-constructed instances of all available secret services.
+func ListServices() []secretservice.SecretService {
+	return listServicesWithFactories(availableSecretServices)
+}
+
+// listServicesWithFactories returns fully-constructed secret services from the given factories.
+func listServicesWithFactories(factories []secretServiceFactory) []secretservice.SecretService {
+	services := make([]secretservice.SecretService, 0, len(factories))
+	for _, factory := range factories {
+		services = append(services, factory())
+	}
+	return services
+}
+
 // listAvailableWithFactories returns the names of secret services from the given factories.
 // This function is internal and used for testing with custom secret service lists.
 func listAvailableWithFactories(factories []secretServiceFactory) []string {

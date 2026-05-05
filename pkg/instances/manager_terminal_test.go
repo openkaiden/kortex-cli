@@ -84,7 +84,7 @@ func TestManager_Terminal(t *testing.T) {
 		reg, _ := runtime.NewRegistry(filepath.Join(tmpDir, "runtimes"))
 		_ = reg.Register(fakeRT)
 
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -133,7 +133,7 @@ func TestManager_Terminal(t *testing.T) {
 		reg, _ := runtime.NewRegistry(filepath.Join(tmpDir, "runtimes"))
 		_ = reg.Register(fakeRT)
 
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -161,7 +161,7 @@ func TestManager_Terminal(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistryWithTerminal(tmpDir, nil), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistryWithTerminal(tmpDir, nil), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		err := manager.Terminal(context.Background(), "nonexistent-id", []string{"bash"})
 		if !errors.Is(err, ErrInstanceNotFound) {
@@ -179,7 +179,7 @@ func TestManager_Terminal(t *testing.T) {
 		reg, _ := runtime.NewRegistry(filepath.Join(tmpDir, "runtimes"))
 		_ = reg.Register(fakeRT)
 
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -224,7 +224,7 @@ func TestManager_Terminal(t *testing.T) {
 		regularFakeRT := fake.New()
 		_ = reg.Register(regularFakeRT)
 
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -258,7 +258,7 @@ func TestManager_Terminal(t *testing.T) {
 		reg, _ := runtime.NewRegistry(filepath.Join(tmpDir, "runtimes"))
 		_ = reg.Register(fakeRT)
 
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{

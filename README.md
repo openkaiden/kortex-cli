@@ -666,6 +666,33 @@ kdn terminal my-project
 - When using the Podman runtime, the default base URLs for known providers point to `host.containers.internal`, which is the standard way to reach the host from a Podman container
 - The settings are baked into the container image at `init` time — changes require re-registering the workspace: `kdn remove <workspace-id>` then `kdn init` again
 
+### Auto-configuring Secrets from the Environment
+
+`kdn autoconf` scans your shell environment for known API keys and tokens, creates the corresponding secrets in the local store, and records them in the configuration target you choose (global, project-specific, or local `.kaiden/workspace.json`).
+
+```bash
+# Detect what is in the environment and apply interactively
+kdn autoconf
+
+# Apply immediately without prompts (saves to global config)
+kdn autoconf --yes
+
+# Pass secrets inline and apply immediately
+GH_TOKEN="$(gh auth token)" kdn autoconf --yes
+```
+
+With `--yes`, every detected secret is created without prompts and recorded in the **global** config (`""` key in `~/.kdn/config/projects.json`), making it available across all projects.
+
+When run interactively, `autoconf` asks one question per detected secret:
+
+1. **Confirm creation** — create the secret in the local store?
+2. **Choose target** — where to record the reference:
+   - *Global* — available across all projects (`~/.kdn/config/projects.json` global key)
+   - *Project* — scoped to the current directory's git project
+   - *Local* — written to `.kaiden/workspace.json` in the current directory
+
+Secrets that are already stored **and** referenced in any config source are reported as already configured and skipped.
+
 ### Sharing a GitHub Token
 
 This scenario demonstrates how to make a GitHub token available inside workspaces using the multi-level configuration system — either globally for all projects or scoped to a specific project.

@@ -36,6 +36,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/generator"
 	"github.com/openkaiden/kdn/pkg/git"
 	"github.com/openkaiden/kdn/pkg/onecli"
+	"github.com/openkaiden/kdn/pkg/project"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservice"
@@ -111,7 +112,7 @@ type manager struct {
 	agentRegistry         agent.Registry
 	secretServiceRegistry secretservice.Registry
 	secretStore           secret.Store
-	gitDetector           git.Detector
+	projectDetector       project.Detector
 	now                   func() time.Time
 }
 
@@ -128,12 +129,12 @@ func NewManager(storageDir string) (Manager, error) {
 	agentReg := agent.NewRegistry()
 	secretServiceReg := secretservice.NewRegistry()
 	secretStore := secret.NewStore(storageDir)
-	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg, agentReg, secretServiceReg, secretStore, git.NewDetector(), time.Now)
+	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg, agentReg, secretServiceReg, secretStore, project.NewDetector(git.NewDetector()), time.Now)
 }
 
-// newManagerWithFactory creates a new instance manager with a custom instance factory, generator, registry, and git detector.
-// This is unexported and primarily useful for testing with fake instances, generators, runtimes, and git detector.
-func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry, agentReg agent.Registry, secretServiceReg secretservice.Registry, secretStore secret.Store, detector git.Detector, clock func() time.Time) (Manager, error) {
+// newManagerWithFactory creates a new instance manager with a custom instance factory, generator, registry, and project detector.
+// This is unexported and primarily useful for testing with fake instances, generators, runtimes, and project detectors.
+func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry, agentReg agent.Registry, secretServiceReg secretservice.Registry, secretStore secret.Store, detector project.Detector, clock func() time.Time) (Manager, error) {
 	if storageDir == "" {
 		return nil, errors.New("storage directory cannot be empty")
 	}
@@ -156,7 +157,7 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 		return nil, errors.New("secret store cannot be nil")
 	}
 	if detector == nil {
-		return nil, errors.New("git detector cannot be nil")
+		return nil, errors.New("project detector cannot be nil")
 	}
 	if clock == nil {
 		return nil, errors.New("clock cannot be nil")
@@ -177,7 +178,7 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 		agentRegistry:         agentReg,
 		secretServiceRegistry: secretServiceReg,
 		secretStore:           secretStore,
-		gitDetector:           detector,
+		projectDetector:       detector,
 		now:                   clock,
 	}
 
@@ -241,7 +242,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 	// Use custom project identifier if provided, otherwise auto-detect
 	project := opts.Project
 	if project == "" {
-		project = m.detectProject(ctx, inst.GetSourceDir())
+		project = m.projectDetector.DetectProject(ctx, inst.GetSourceDir())
 	}
 
 	// Merge configurations from all levels: workspace -> project (global + specific) -> agent
@@ -842,47 +843,6 @@ func (m *manager) ensureUniqueName(name string, instances []Instance) string {
 		}
 		counter++
 	}
-}
-
-// detectProject detects the project identifier for a source directory
-// Returns:
-//   - Git repository with remote: the repository remote URL with workspace path appended
-//     (e.g., "https://github.com/user/repo/" for root, "https://github.com/user/repo/sub/path" for subdirectory)
-//   - Git repository without remote: the repository root directory with workspace path appended
-//   - Non-git directory: the source directory
-func (m *manager) detectProject(ctx context.Context, sourceDir string) string {
-	// Try to detect git repository
-	repoInfo, err := m.gitDetector.DetectRepository(ctx, sourceDir)
-	if err != nil {
-		// Not a git repository, use source directory
-		return sourceDir
-	}
-
-	// Git repository found
-	if repoInfo.RemoteURL != "" {
-		// Has remote URL, construct project identifier with relative path
-		// Ensure URL ends with slash before appending path
-		baseURL := repoInfo.RemoteURL
-		if !strings.HasSuffix(baseURL, "/") {
-			baseURL += "/"
-		}
-
-		if repoInfo.RelativePath != "" {
-			// Append relative path to base URL
-			// Convert to forward slashes for URL compatibility (Windows uses backslashes)
-			urlPath := filepath.ToSlash(repoInfo.RelativePath)
-			return baseURL + urlPath
-		}
-		// At repository root, return base URL with trailing slash
-		return baseURL
-	}
-
-	// No remote URL, use repository root directory with relative path
-	// Use filepath.Join for local paths (OS-specific separators)
-	if repoInfo.RelativePath != "" {
-		return filepath.Join(repoInfo.RootDir, repoInfo.RelativePath)
-	}
-	return repoInfo.RootDir
 }
 
 // mergeConfigurations loads and merges configurations from all levels:
