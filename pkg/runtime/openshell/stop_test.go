@@ -113,6 +113,35 @@ func TestStop_StopsPortForwards(t *testing.T) {
 	}
 }
 
+func TestStop_NilExecutorWithPorts(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	rt := &openshellRuntime{
+		storageDir: storageDir,
+		states:     newStateOverrides(storageDir),
+		config:     loadConfig(storageDir),
+	}
+
+	if err := rt.writeSandboxData("kdn-test", sandboxData{
+		SourcePath: "/src",
+		Agent:      "claude",
+		Ports:      []int{8080},
+	}); err != nil {
+		t.Fatalf("writeSandboxData() failed: %v", err)
+	}
+
+	err := rt.Stop(context.Background(), "kdn-test")
+	if err != nil {
+		t.Fatalf("Stop() should not panic or error with nil executor, got: %v", err)
+	}
+
+	state, ok := rt.states.Get("kdn-test")
+	if !ok || state != api.WorkspaceStateStopped {
+		t.Errorf("Expected stopped state, got %q", state)
+	}
+}
+
 func TestStop_OverwritesPreviousState(t *testing.T) {
 	t.Parallel()
 

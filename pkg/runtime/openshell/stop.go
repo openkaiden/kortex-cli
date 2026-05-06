@@ -53,6 +53,9 @@ func (r *openshellRuntime) Stop(ctx context.Context, id string) error {
 
 // stopPortForwards stops background port forwards. Best-effort — errors are ignored.
 func (r *openshellRuntime) stopPortForwards(ctx context.Context, sandboxName string, ports []int) {
+	if r.executor == nil {
+		return
+	}
 	l := logger.FromContext(ctx)
 	for _, port := range ports {
 		_ = r.executor.Run(ctx, l.Stdout(), l.Stderr(),
