@@ -23,6 +23,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -289,6 +290,9 @@ func TestLoadADC(t *testing.T) {
 	t.Run("returns error for unreadable file", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("file permission bits are not enforced on Windows")
+		}
 		if os.Getuid() == 0 {
 			t.Skip("running as root: permission checks do not apply")
 		}
