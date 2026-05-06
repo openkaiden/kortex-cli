@@ -227,6 +227,10 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	}
 	ctx = logger.WithLogger(ctx, l)
 
+	if i.runtime == "openshell" && i.output != "json" {
+		fmt.Fprintln(cmd.ErrOrStderr(), "⚠️  OpenShell support is experimental")
+	}
+
 	// Create a new instance
 	instance, err := instances.NewInstance(instances.NewInstanceParams{
 		SourceDir: i.absSourcesDir,

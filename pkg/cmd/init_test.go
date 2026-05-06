@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -894,6 +895,112 @@ func TestInitCmd_PreRun(t *testing.T) {
 				t.Errorf("Expected start to be true from flag, got false")
 			}
 		})
+	})
+}
+
+func TestInitCmd_OpenshellExperimentalWarning(t *testing.T) {
+	t.Parallel()
+
+	t.Run("prints warning when runtime is openshell", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:       "openshell",
+			agent:         "test-agent",
+			absSourcesDir: sourcesDir,
+			absConfigDir:  filepath.Join(sourcesDir, ".kaiden"),
+			manager:       manager,
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		outBuf := new(bytes.Buffer)
+		errBuf := new(bytes.Buffer)
+		cmd.SetOut(outBuf)
+		cmd.SetErr(errBuf)
+
+		// run() prints the warning before manager.Add(), which will fail
+		// because the openshell runtime is not registered — that's expected
+		_ = c.run(cmd, nil)
+
+		if !strings.Contains(errBuf.String(), "OpenShell support is experimental") {
+			t.Errorf("Expected experimental warning on stderr, got: %q", errBuf.String())
+		}
+	})
+
+	t.Run("does not print warning when runtime is not openshell", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:       "fake",
+			agent:         "test-agent",
+			absSourcesDir: sourcesDir,
+			absConfigDir:  filepath.Join(sourcesDir, ".kaiden"),
+			manager:       manager,
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		outBuf := new(bytes.Buffer)
+		errBuf := new(bytes.Buffer)
+		cmd.SetOut(outBuf)
+		cmd.SetErr(errBuf)
+
+		_ = c.run(cmd, nil)
+
+		if strings.Contains(errBuf.String(), "OpenShell support is experimental") {
+			t.Errorf("Did not expect experimental warning for non-openshell runtime, got: %q", errBuf.String())
+		}
+	})
+
+	t.Run("does not print warning in JSON mode", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:       "openshell",
+			agent:         "test-agent",
+			output:        "json",
+			absSourcesDir: sourcesDir,
+			absConfigDir:  filepath.Join(sourcesDir, ".kaiden"),
+			manager:       manager,
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		outBuf := new(bytes.Buffer)
+		errBuf := new(bytes.Buffer)
+		cmd.SetOut(outBuf)
+		cmd.SetErr(errBuf)
+
+		_ = c.run(cmd, nil)
+
+		if strings.Contains(errBuf.String(), "OpenShell support is experimental") {
+			t.Errorf("Did not expect experimental warning in JSON mode, got: %q", errBuf.String())
+		}
 	})
 }
 
