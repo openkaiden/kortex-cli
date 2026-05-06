@@ -3781,3 +3781,59 @@ Error: no port forward found for port 9999 in workspace "my-project"
 - Opening the browser is best-effort; errors are silently ignored
 - Tab completion for the first argument suggests running workspaces; for the second argument it suggests the available target port numbers
 - JSON output is **not supported** for this command
+
+### `runtime list` - List Available Runtimes
+
+Lists all runtime environments available for workspaces in the current environment.
+
+#### Usage
+
+```bash
+kdn runtime list [flags]
+```
+
+#### Flags
+
+- `--output, -o <format>` - Output format (supported: `json`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
+
+#### Examples
+
+**List all available runtimes (human-readable table):**
+```bash
+kdn runtime list
+```
+Output:
+```text
+NAME        DESCRIPTION                                  LOCAL
+podman      Container-based workspaces using Podman      yes
+openshell   Sandbox-based workspaces using OpenShell...  no
+```
+
+**List runtimes in JSON format:**
+```bash
+kdn runtime list --output json
+```
+Output:
+```json
+{
+  "items": [
+    {
+      "name": "podman",
+      "description": "Container-based workspaces using Podman",
+      "local": true
+    }
+  ]
+}
+```
+
+**List using short flag:**
+```bash
+kdn runtime list -o json
+```
+
+#### Notes
+
+- Only runtimes available in the current environment are listed (e.g., the Podman runtime only appears if the `podman` CLI is installed)
+- The `local` field indicates whether the runtime executes workspaces on the local machine (`true`) or on a remote system (`false`)
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure

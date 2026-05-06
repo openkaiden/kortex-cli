@@ -91,6 +91,20 @@ func (r *myRuntime) Create(ctx context.Context, params runtime.CreateParams) (ru
 }
 ```
 
+### Listing Runtimes
+
+`runtimesetup.ListRuntimes()` returns structured information about all available runtimes (excluding the internal `fake` runtime). It is used by `kdn runtime list`.
+
+The function relies on two mandatory methods that all runtimes must implement:
+
+```go
+// Description returns a human-readable description of the runtime.
+Description() string
+
+// Local reports whether the runtime executes workspaces on the local machine.
+Local() bool
+```
+
 ### AgentLister Interface
 
 The AgentLister interface enables runtimes to report which agents they support. This is used by the `info` command to discover available agents without requiring direct knowledge of runtime-specific configuration.

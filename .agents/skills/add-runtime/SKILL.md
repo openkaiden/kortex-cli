@@ -63,6 +63,16 @@ func (r *<runtime-name>Runtime) Type() string {
     return "<runtime-name>"
 }
 
+// Description returns a human-readable description of the runtime.
+func (r *<runtime-name>Runtime) Description() string {
+    return "<short description of what this runtime provides>"
+}
+
+// Local reports whether the runtime executes workspaces on the local machine.
+func (r *<runtime-name>Runtime) Local() bool {
+    return true // set to false for remote runtimes (e.g., Kubernetes)
+}
+
 // Initialize implements runtime.StorageAware (optional)
 func (r *<runtime-name>Runtime) Initialize(storageDir string) error {
     r.storageDir = storageDir
@@ -409,6 +419,8 @@ All runtimes MUST implement:
 ```go
 type Runtime interface {
     Type() string
+    Description() string
+    Local() bool
     WorkspaceSourcesPath() string
     Create(ctx context.Context, params CreateParams) (RuntimeInfo, error)
     Start(ctx context.Context, id string) (RuntimeInfo, error)
