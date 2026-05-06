@@ -33,6 +33,7 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/generator"
 	"github.com/openkaiden/kdn/pkg/git"
@@ -269,10 +270,19 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, fmt.Errorf("failed to get runtime: %w", err)
 	}
 
+	// Build a URL rewriter for container networking. On WSL2 this probes
+	// each service port to determine whether host.containers.internal or
+	// native-host.internal is reachable. On other platforms it defaults to
+	// host.containers.internal.
+	var rewriter containerurl.URLRewriter = containerurl.DefaultRewriter()
+	if provider, ok := rt.(runtime.ContainerURLRewriterProvider); ok {
+		rewriter = provider.BuildURLRewriter(ctx)
+	}
+
 	// Allow the runtime to transform the workspace config for its environment
 	// (e.g. rewriting localhost URLs for container networking).
 	if transformer, ok := rt.(runtime.ConfigTransformer); ok && mergedConfig != nil {
-		if err := transformer.TransformConfig(mergedConfig); err != nil {
+		if err := transformer.TransformConfig(mergedConfig, rewriter); err != nil {
 			return nil, fmt.Errorf("failed to transform workspace config: %w", err)
 		}
 	}
@@ -374,6 +384,11 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		}
 		// If agent not found in registry, use settings as-is (not all agents may be implemented)
 	}
+
+	// Rewrite localhost URLs in agent settings for container reachability.
+	// This is a runtime concern — agents produce localhost URLs and the
+	// runtime rewrites them based on network topology.
+	agentSettings = containerurl.RewriteSettings(agentSettings, rewriter)
 
 	// Create runtime instance with merged configuration
 	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{

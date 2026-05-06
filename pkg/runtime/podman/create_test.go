@@ -624,10 +624,10 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 
 		// Verify NO_PROXY is injected so local addresses bypass the proxy
-		if !strings.Contains(argsStr, "-e NO_PROXY=localhost,127.0.0.1,host.containers.internal") {
+		if !strings.Contains(argsStr, "-e NO_PROXY=localhost,127.0.0.1,host.containers.internal,native-host.internal") {
 			t.Errorf("Expected NO_PROXY env var in args: %s", argsStr)
 		}
-		if !strings.Contains(argsStr, "-e no_proxy=localhost,127.0.0.1,host.containers.internal") {
+		if !strings.Contains(argsStr, "-e no_proxy=localhost,127.0.0.1,host.containers.internal,native-host.internal") {
 			t.Errorf("Expected no_proxy env var in args: %s", argsStr)
 		}
 

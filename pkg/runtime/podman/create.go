@@ -279,7 +279,9 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 		// Only inject if neither the workspace config nor OneCLI already set NO_PROXY.
 		if !workspaceEnvNames["NO_PROXY"] && !workspaceEnvNames["no_proxy"] &&
 			!onecliEnvNames["NO_PROXY"] && !onecliEnvNames["no_proxy"] {
-			const noProxy = "localhost,127.0.0.1,host.containers.internal"
+			// native-host.internal is a no-op on linux/mac since the hostname
+			// is never injected into /etc/hosts on those platforms.
+			const noProxy = "localhost,127.0.0.1,host.containers.internal,native-host.internal"
 			args = append(args, "-e", "NO_PROXY="+noProxy, "-e", "no_proxy="+noProxy)
 		}
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {

@@ -24,7 +24,6 @@ import (
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	kdnconfig "github.com/openkaiden/kdn/pkg/config"
-	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 const (
@@ -94,8 +93,6 @@ func (o *openCodeAgent) SetModel(settings map[string][]byte, modelID string) (ma
 		resolvedURL := baseURL
 		if resolvedURL == "" {
 			resolvedURL = defaultProviderBaseURLs[provider]
-		} else {
-			resolvedURL = containerurl.RewriteURL(resolvedURL)
 		}
 		config["model"] = provider + "/" + modelName
 		if err := configureProvider(config, provider, modelName, resolvedURL); err != nil {
@@ -166,7 +163,8 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 }
 
 // defaultProviderBaseURLs maps known provider names to their default base URLs.
+// These use localhost — the runtime rewrites them for container reachability.
 var defaultProviderBaseURLs = map[string]string{
-	"ollama":   "http://" + containerurl.ContainerHost + ":11434/v1",
-	"ramalama": "http://" + containerurl.ContainerHost + ":8080/v1",
+	"ollama":   "http://localhost:11434/v1",
+	"ramalama": "http://localhost:8080/v1",
 }

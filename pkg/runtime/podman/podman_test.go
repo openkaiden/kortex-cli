@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 	"github.com/openkaiden/kdn/pkg/system"
@@ -504,7 +505,7 @@ func TestPodmanRuntime_TransformConfig(t *testing.T) {
 			},
 		}
 
-		if err := rt.TransformConfig(config); err != nil {
+		if err := rt.TransformConfig(config, containerurl.DefaultRewriter()); err != nil {
 			t.Fatalf("TransformConfig() error = %v", err)
 		}
 
@@ -519,7 +520,7 @@ func TestPodmanRuntime_TransformConfig(t *testing.T) {
 		t.Parallel()
 
 		rt := &podmanRuntime{}
-		if err := rt.TransformConfig(nil); err != nil {
+		if err := rt.TransformConfig(nil, containerurl.DefaultRewriter()); err != nil {
 			t.Fatalf("TransformConfig(nil) error = %v", err)
 		}
 	})
@@ -529,7 +530,7 @@ func TestPodmanRuntime_TransformConfig(t *testing.T) {
 
 		rt := &podmanRuntime{}
 		config := &workspace.WorkspaceConfiguration{}
-		if err := rt.TransformConfig(config); err != nil {
+		if err := rt.TransformConfig(config, containerurl.DefaultRewriter()); err != nil {
 			t.Fatalf("TransformConfig() error = %v", err)
 		}
 	})

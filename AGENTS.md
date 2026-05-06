@@ -174,6 +174,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 - **Terminal**: Enables interactive terminal sessions with instances (auto-starts if needed)
 - **Dashboard**: Enables runtimes to expose a web dashboard URL (`GetURL(ctx, instanceID) (string, error)`)
 - **FlagProvider**: Enables runtimes to declare runtime-specific CLI flags (`Flags() []FlagDef`). Flag values flow through `AddOptions.RuntimeOptions` and `CreateParams.RuntimeOptions` as `map[string]string`, keeping the command layer runtime-agnostic. The `runtimesetup.ListFlags()` bridge discovers flags from all available runtimes for registration on cobra commands.
+- **ContainerURLRewriterProvider**: Enables runtimes to build a `containerurl.URLRewriter` based on network topology. On WSL2 the Podman runtime probes candidate IPs (Windows host and podman VM) per service port to determine which hostname alias (`native-host.internal` or `host.containers.internal`) can reach each service. On non-WSL2 platforms it returns a default rewriter that always uses `host.containers.internal`.
 - **Experimental**: Signals that a runtime's support is experimental. The `init` command detects this interface via `manager.GetRuntime()` and prints `⚠️  <name> runtime support is experimental` to stderr (suppressed in JSON output mode). No return value — presence of the interface is the signal.
 
 **For detailed runtime implementation guidance, use:** `/working-with-runtime-system`
@@ -344,6 +345,7 @@ A separate mechanism (distinct from env/mount config) allows default dotfiles to
 - **Location:** `~/.kdn/config/<agent>/` (e.g., `~/.kdn/config/claude/`)
 - Files are read by `manager.readAgentSettings()` into a `map[string][]byte` and passed to the runtime via `runtime.CreateParams.AgentSettings`
 - After reading, the manager calls `agent.SkipOnboarding()`, `agent.SetModel()` (if a model is set), and `agent.SetMCPServers()` (if MCP is configured) to further modify the settings map
+- The manager then calls `containerurl.RewriteSettings()` to rewrite all localhost URLs in the settings bytes through the runtime's `URLRewriter`. Agents produce localhost URLs — the runtime owns the rewriting based on network topology
 - The Podman runtime writes these files into the build context as `agent-settings/` and adds `COPY --chown=agent:agent agent-settings/. /home/agent/` to the Containerfile
 - Result: every file under `config/<agent>/` lands at the corresponding path under `/home/agent/` inside the image
 
