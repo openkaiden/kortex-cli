@@ -24,11 +24,10 @@ import (
 const sandboxDataFile = "sandbox-data.json"
 
 type sandboxData struct {
-	SourcePath string   `json:"source_path"`
-	ProjectID  string   `json:"project_id"`
-	Agent      string   `json:"agent"`
-	AllowHosts []string `json:"allow_hosts,omitempty"`
-	Ports      []int    `json:"ports,omitempty"`
+	SourcePath string `json:"source_path"`
+	ProjectID  string `json:"project_id"`
+	Agent      string `json:"agent"`
+	Ports      []int  `json:"ports,omitempty"`
 }
 
 func (r *openshellRuntime) sandboxDataDir(sandboxName string) string {

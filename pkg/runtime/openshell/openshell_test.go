@@ -89,8 +89,8 @@ func TestOpenshellRuntime_Flags(t *testing.T) {
 	rt := &openshellRuntime{}
 	flags := rt.Flags()
 
-	if len(flags) != 2 {
-		t.Fatalf("Expected 2 flags, got %d", len(flags))
+	if len(flags) != 1 {
+		t.Fatalf("Expected 1 flag, got %d", len(flags))
 	}
 
 	if flags[0].Name != "openshell-driver" {
@@ -98,10 +98,6 @@ func TestOpenshellRuntime_Flags(t *testing.T) {
 	}
 	if len(flags[0].Completions) != 2 {
 		t.Errorf("Expected 2 completions for openshell-driver, got %d", len(flags[0].Completions))
-	}
-
-	if flags[1].Name != "openshell-allow-hosts" {
-		t.Errorf("Expected second flag name 'openshell-allow-hosts', got %q", flags[1].Name)
 	}
 }
 

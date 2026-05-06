@@ -58,7 +58,7 @@ func (r *openshellRuntime) Start(ctx context.Context, id string) (runtime.Runtim
 			step.Fail(loadErr)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to load network config: %w", loadErr)
 		}
-		if err := r.applyNetworkPolicy(ctx, id, wsCfg, data.AllowHosts); err != nil {
+		if err := r.applyNetworkPolicy(ctx, id, wsCfg); err != nil {
 			step.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure network policy: %w", err)
 		}

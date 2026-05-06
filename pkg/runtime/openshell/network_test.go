@@ -32,12 +32,12 @@ func TestApplyNetworkPolicy_NilConfig_NoRegistry(t *testing.T) {
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", nil, nil)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", nil)
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
 
-	// No registry and no allow hosts means no endpoints added
+	// No registry and no workspace hosts means no endpoints added
 	for _, call := range fakeExec.RunCalls {
 		for _, arg := range call {
 			if arg == "--add-endpoint" {
@@ -66,7 +66,7 @@ func TestApplyNetworkPolicy_AllowMode_WithRegistry(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, nil)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestApplyNetworkPolicy_AllowMode_WithRegistry(t *testing.T) {
 	assertPolicyUpdateContains(t, fakeExec.RunCalls, "api.anthropic.com:443:full", "api.github.com:443:full")
 }
 
-func TestApplyNetworkPolicy_AllowMode_WithAllowHosts(t *testing.T) {
+func TestApplyNetworkPolicy_AllowMode_WithWorkspaceHosts(t *testing.T) {
 	t.Parallel()
 
 	fakeExec := exec.NewFake()
@@ -85,7 +85,14 @@ func TestApplyNetworkPolicy_AllowMode_WithAllowHosts(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", nil, []string{"github.com", "registry.npmjs.org"})
+	wsHosts := []string{"github.com", "registry.npmjs.org"}
+	cfg := &workspace.WorkspaceConfiguration{
+		Network: &workspace.NetworkConfiguration{
+			Hosts: &wsHosts,
+		},
+	}
+
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -108,7 +115,7 @@ func TestApplyNetworkPolicy_DenyWithHosts(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, nil)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -130,7 +137,7 @@ func TestApplyNetworkPolicy_DenyNoHosts(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, nil)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}

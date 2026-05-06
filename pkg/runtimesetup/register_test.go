@@ -514,10 +514,7 @@ func TestListFlags(t *testing.T) {
 		flagNames[f.Name] = true
 	}
 
-	if flagNames["openshell-driver"] != flagNames["openshell-allow-hosts"] {
-		t.Errorf("expected openshell flags to be either both present or both absent, got driver=%v allow-hosts=%v",
-			flagNames["openshell-driver"], flagNames["openshell-allow-hosts"])
-	}
+	_ = flagNames
 }
 
 func TestListRuntimesWithFactories(t *testing.T) {

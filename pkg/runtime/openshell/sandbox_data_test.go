@@ -86,63 +86,6 @@ func TestRemoveSandboxData(t *testing.T) {
 	}
 }
 
-func TestWriteReadSandboxData_WithAllowHosts(t *testing.T) {
-	t.Parallel()
-
-	rt := newWithDeps(exec.NewFake(), "/fake/gw", t.TempDir())
-
-	data := sandboxData{
-		SourcePath: "/home/user/project",
-		ProjectID:  "abc123",
-		Agent:      "claude",
-		AllowHosts: []string{"github.com", "registry.npmjs.org"},
-	}
-
-	if err := rt.writeSandboxData("kdn-test", data); err != nil {
-		t.Fatalf("writeSandboxData() failed: %v", err)
-	}
-
-	got, err := rt.readSandboxData("kdn-test")
-	if err != nil {
-		t.Fatalf("readSandboxData() failed: %v", err)
-	}
-
-	if len(got.AllowHosts) != 2 {
-		t.Fatalf("AllowHosts length = %d, want 2", len(got.AllowHosts))
-	}
-	if got.AllowHosts[0] != "github.com" {
-		t.Errorf("AllowHosts[0] = %q, want %q", got.AllowHosts[0], "github.com")
-	}
-	if got.AllowHosts[1] != "registry.npmjs.org" {
-		t.Errorf("AllowHosts[1] = %q, want %q", got.AllowHosts[1], "registry.npmjs.org")
-	}
-}
-
-func TestWriteReadSandboxData_WithoutAllowHosts(t *testing.T) {
-	t.Parallel()
-
-	rt := newWithDeps(exec.NewFake(), "/fake/gw", t.TempDir())
-
-	data := sandboxData{
-		SourcePath: "/home/user/project",
-		ProjectID:  "abc123",
-		Agent:      "claude",
-	}
-
-	if err := rt.writeSandboxData("kdn-test", data); err != nil {
-		t.Fatalf("writeSandboxData() failed: %v", err)
-	}
-
-	got, err := rt.readSandboxData("kdn-test")
-	if err != nil {
-		t.Fatalf("readSandboxData() failed: %v", err)
-	}
-
-	if got.AllowHosts != nil {
-		t.Errorf("AllowHosts = %v, want nil", got.AllowHosts)
-	}
-}
-
 func TestReadSandboxData_InvalidJSON(t *testing.T) {
 	t.Parallel()
 

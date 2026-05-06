@@ -94,10 +94,6 @@ func (r *openshellRuntime) Flags() []runtime.FlagDef {
 			Usage:       "OpenShell driver to use (podman, vm)",
 			Completions: []string{"podman", "vm"},
 		},
-		{
-			Name:  "openshell-allow-hosts",
-			Usage: "Additional hosts to allow in the openshell runtime (comma-separated)",
-		},
 	}
 }
 

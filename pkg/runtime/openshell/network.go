@@ -179,10 +179,10 @@ func collectAllRegistryHosts(registry secretservice.Registry) []string {
 // deny-all behavior. Only explicit host patterns are added as rules.
 //
 // In allow mode, hosts are derived from the secret service registry and
-// the allowHosts parameter (from --openshell-allow-hosts).
+// workspace config network.hosts.
 // In deny mode, hosts come from workspace config network.hosts and
 // configured secret host patterns.
-func (r *openshellRuntime) applyNetworkPolicy(ctx context.Context, sandboxName string, wsCfg *workspace.WorkspaceConfiguration, allowHosts []string) error {
+func (r *openshellRuntime) applyNetworkPolicy(ctx context.Context, sandboxName string, wsCfg *workspace.WorkspaceConfiguration) error {
 	l := logger.FromContext(ctx)
 
 	isDenyMode := wsCfg != nil &&
@@ -192,7 +192,11 @@ func (r *openshellRuntime) applyNetworkPolicy(ctx context.Context, sandboxName s
 
 	if !isDenyMode {
 		registryHosts := collectAllRegistryHosts(r.secretServiceRegistry)
-		hosts := mergeHosts(registryHosts, allowHosts)
+		var wsHosts []string
+		if wsCfg != nil && wsCfg.Network != nil && wsCfg.Network.Hosts != nil {
+			wsHosts = *wsCfg.Network.Hosts
+		}
+		hosts := mergeHosts(registryHosts, wsHosts)
 		fmt.Fprintf(l.Stderr(), "Network policy (allow mode): %v\n", hosts)
 		return r.configureNetworkPolicy(ctx, sandboxName, hosts)
 	}

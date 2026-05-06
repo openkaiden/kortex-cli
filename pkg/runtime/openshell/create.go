@@ -39,10 +39,6 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 	}
 
 	driver := params.RuntimeOptions["openshell-driver"]
-	var allowHosts []string
-	if v := params.RuntimeOptions["openshell-allow-hosts"]; v != "" {
-		allowHosts = strings.Split(v, ",")
-	}
 
 	// Update driver in memory so ensureGatewayRunning uses the requested driver.
 	// Config is persisted only after the gateway starts successfully.
@@ -102,7 +98,6 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 		SourcePath: params.SourcePath,
 		ProjectID:  params.ProjectID,
 		Agent:      params.Agent,
-		AllowHosts: allowHosts,
 		Ports:      ports,
 	}); err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to persist sandbox data: %w", err)
@@ -110,7 +105,7 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 
 	// Configure network policy
 	step.Start("Configuring network policy", "Network policy configured")
-	if err := r.applyNetworkPolicy(ctx, name, params.WorkspaceConfig, allowHosts); err != nil {
+	if err := r.applyNetworkPolicy(ctx, name, params.WorkspaceConfig); err != nil {
 		step.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure network policy: %w", err)
 	}
