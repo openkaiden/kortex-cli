@@ -54,21 +54,12 @@ type adcCredentials struct {
 }
 
 // vertexAIFields returns the credential fields for the OneCLI vertex-ai connect API.
-// When QuotaProjectID is empty in the ADC file, falls back to host env vars.
 func (c *adcCredentials) vertexAIFields() map[string]string {
-	quotaProject := c.QuotaProjectID
-	if quotaProject == "" {
-		if p := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID"); p != "" {
-			quotaProject = p
-		} else {
-			quotaProject = os.Getenv("GOOGLE_CLOUD_PROJECT")
-		}
-	}
 	return map[string]string{
 		"refreshToken":   c.RefreshToken,
 		"clientId":       c.ClientID,
 		"clientSecret":   c.ClientSecret,
-		"quotaProjectId": quotaProject,
+		"quotaProjectId": c.QuotaProjectID,
 	}
 }
 
@@ -163,32 +154,6 @@ func (g *gcloudCredential) HostPatterns(_ string) []string {
 	result := make([]string, len(vertexAIHosts))
 	copy(result, vertexAIHosts)
 	return result
-}
-
-// EnvVars reads Google-related env vars from the host and returns the workspace
-// env vars to inject into the container.
-//
-// Mappings:
-//   - CLOUD_ML_REGION      → CLOUD_ML_REGION, VERTEX_LOCATION
-//   - ANTHROPIC_VERTEX_PROJECT_ID (or GOOGLE_CLOUD_PROJECT) → both vars
-func (g *gcloudCredential) EnvVars(_ string) map[string]string {
-	vars := make(map[string]string)
-
-	if region := os.Getenv("CLOUD_ML_REGION"); region != "" {
-		vars["CLOUD_ML_REGION"] = region
-		vars["VERTEX_LOCATION"] = region
-	}
-
-	projectID := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID")
-	if projectID == "" {
-		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
-	}
-	if projectID != "" {
-		vars["ANTHROPIC_VERTEX_PROJECT_ID"] = projectID
-		vars["GOOGLE_CLOUD_PROJECT"] = projectID
-	}
-
-	return vars
 }
 
 // loadADC reads application_default_credentials.json from adcPath.

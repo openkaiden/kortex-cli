@@ -1729,7 +1729,6 @@ type fakeCredentialForDetect struct {
 	intercepted *workspace.Mount
 	fakeContent []byte
 	fakeFileErr error
-	envVars     map[string]string
 }
 
 var _ credential.Credential = (*fakeCredentialForDetect)(nil)
@@ -1745,8 +1744,7 @@ func (f *fakeCredentialForDetect) FakeFile(_ string) ([]byte, error) {
 func (f *fakeCredentialForDetect) Configure(_ context.Context, _ onecli.Client, _ string) error {
 	return nil
 }
-func (f *fakeCredentialForDetect) HostPatterns(_ string) []string     { return nil }
-func (f *fakeCredentialForDetect) EnvVars(_ string) map[string]string { return f.envVars }
+func (f *fakeCredentialForDetect) HostPatterns(_ string) []string { return nil }
 
 func TestCreate_WithActiveCredentials(t *testing.T) {
 	t.Parallel()
@@ -1776,7 +1774,6 @@ func TestCreate_WithActiveCredentials(t *testing.T) {
 			detectPath:  realCredFile,
 			intercepted: &mounts[0],
 			fakeContent: []byte(`{"fake":true}`),
-			envVars:     map[string]string{"CRED_TOKEN": "placeholder"},
 		}
 		reg := credential.NewRegistry()
 		_ = reg.Register(cred)
@@ -1829,11 +1826,6 @@ func TestCreate_WithActiveCredentials(t *testing.T) {
 		expectedCredMount := fmt.Sprintf("-v %s:/fake/mycred:ro,Z", fakePath)
 		if !strings.Contains(argsStr, expectedCredMount) {
 			t.Errorf("Expected credential mount %q in args:\n%s", expectedCredMount, argsStr)
-		}
-
-		// Credential env vars must be injected.
-		if !strings.Contains(argsStr, "-e CRED_TOKEN=placeholder") {
-			t.Errorf("Expected credential env var in args:\n%s", argsStr)
 		}
 
 		// The intercepted mount's container path must NOT appear (mount was suppressed).

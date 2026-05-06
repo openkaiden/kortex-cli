@@ -238,7 +238,6 @@ type containerConfigArgs struct {
 	caFilePath        string
 	caContainerPath   string
 	credMounts        []credentialMount // fake credential files to mount
-	credEnvVars       map[string]string // env vars contributed by active credentials
 	interceptedMounts map[mountKey]bool // original mounts replaced by credentials (must be skipped)
 }
 
@@ -288,9 +287,6 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 		}
 		for _, cm := range ccArgs.credMounts {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", cm.hostPath, cm.containerPath))
-		}
-		for k, v := range ccArgs.credEnvVars {
-			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 		}
 	}
 
@@ -596,12 +592,6 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 				hostPath:      fakePath,
 				containerPath: ac.cred.ContainerFilePath(),
 			})
-			for k, v := range ac.cred.EnvVars(ac.hostPath) {
-				if ccArgs.credEnvVars == nil {
-					ccArgs.credEnvVars = make(map[string]string)
-				}
-				ccArgs.credEnvVars[k] = v
-			}
 		}
 		ccArgs.interceptedMounts = intercepted
 	}

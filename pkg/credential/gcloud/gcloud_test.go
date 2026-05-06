@@ -313,56 +313,21 @@ func TestLoadADC(t *testing.T) {
 }
 
 func TestVertexAIFields(t *testing.T) {
-	t.Run("uses quota_project_id from ADC when present", func(t *testing.T) {
-		t.Parallel()
+	t.Parallel()
 
-		creds := &adcCredentials{
-			RefreshToken:   "tok",
-			ClientID:       "id",
-			ClientSecret:   "sec",
-			QuotaProjectID: "adc-project",
-		}
-		fields := creds.vertexAIFields()
-		if fields["quotaProjectId"] != "adc-project" {
-			t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "adc-project")
-		}
-		if fields["refreshToken"] != "tok" {
-			t.Errorf("refreshToken = %q, want %q", fields["refreshToken"], "tok")
-		}
-	})
-
-	t.Run("falls back to ANTHROPIC_VERTEX_PROJECT_ID when quota_project_id empty", func(t *testing.T) {
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "env-vertex-project")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "should-not-be-used")
-
-		creds := &adcCredentials{RefreshToken: "tok"}
-		fields := creds.vertexAIFields()
-		if fields["quotaProjectId"] != "env-vertex-project" {
-			t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "env-vertex-project")
-		}
-	})
-
-	t.Run("falls back to GOOGLE_CLOUD_PROJECT when ANTHROPIC_VERTEX_PROJECT_ID unset", func(t *testing.T) {
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "gcp-project")
-
-		creds := &adcCredentials{RefreshToken: "tok"}
-		fields := creds.vertexAIFields()
-		if fields["quotaProjectId"] != "gcp-project" {
-			t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "gcp-project")
-		}
-	})
-
-	t.Run("empty quotaProjectId when no env vars set", func(t *testing.T) {
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-
-		creds := &adcCredentials{RefreshToken: "tok"}
-		fields := creds.vertexAIFields()
-		if fields["quotaProjectId"] != "" {
-			t.Errorf("quotaProjectId = %q, want empty string", fields["quotaProjectId"])
-		}
-	})
+	creds := &adcCredentials{
+		RefreshToken:   "tok",
+		ClientID:       "id",
+		ClientSecret:   "sec",
+		QuotaProjectID: "adc-project",
+	}
+	fields := creds.vertexAIFields()
+	if fields["quotaProjectId"] != "adc-project" {
+		t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "adc-project")
+	}
+	if fields["refreshToken"] != "tok" {
+		t.Errorf("refreshToken = %q, want %q", fields["refreshToken"], "tok")
+	}
 }
 
 func TestGcloudCredential_Configure(t *testing.T) {
@@ -446,80 +411,6 @@ func TestGcloudCredential_Configure(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "vertex-ai unavailable") {
 			t.Errorf("error %q does not mention 'vertex-ai unavailable'", err.Error())
-		}
-	})
-}
-
-func TestGcloudCredential_EnvVars(t *testing.T) {
-	t.Run("empty map when no env vars set", func(t *testing.T) {
-		t.Setenv("CLOUD_ML_REGION", "")
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-
-		vars := New().EnvVars("")
-		if len(vars) != 0 {
-			t.Errorf("EnvVars() = %v, want empty map", vars)
-		}
-	})
-
-	t.Run("CLOUD_ML_REGION propagates to CLOUD_ML_REGION and VERTEX_LOCATION", func(t *testing.T) {
-		t.Setenv("CLOUD_ML_REGION", "us-central1")
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-
-		vars := New().EnvVars("")
-		if vars["CLOUD_ML_REGION"] != "us-central1" {
-			t.Errorf("CLOUD_ML_REGION = %q, want %q", vars["CLOUD_ML_REGION"], "us-central1")
-		}
-		if vars["VERTEX_LOCATION"] != "us-central1" {
-			t.Errorf("VERTEX_LOCATION = %q, want %q", vars["VERTEX_LOCATION"], "us-central1")
-		}
-	})
-
-	t.Run("ANTHROPIC_VERTEX_PROJECT_ID propagates to both project vars", func(t *testing.T) {
-		t.Setenv("CLOUD_ML_REGION", "")
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "my-vertex-project")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-
-		vars := New().EnvVars("")
-		if vars["ANTHROPIC_VERTEX_PROJECT_ID"] != "my-vertex-project" {
-			t.Errorf("ANTHROPIC_VERTEX_PROJECT_ID = %q, want %q", vars["ANTHROPIC_VERTEX_PROJECT_ID"], "my-vertex-project")
-		}
-		if vars["GOOGLE_CLOUD_PROJECT"] != "my-vertex-project" {
-			t.Errorf("GOOGLE_CLOUD_PROJECT = %q, want %q", vars["GOOGLE_CLOUD_PROJECT"], "my-vertex-project")
-		}
-	})
-
-	t.Run("GOOGLE_CLOUD_PROJECT used when ANTHROPIC_VERTEX_PROJECT_ID unset", func(t *testing.T) {
-		t.Setenv("CLOUD_ML_REGION", "")
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "gcp-fallback")
-
-		vars := New().EnvVars("")
-		if vars["ANTHROPIC_VERTEX_PROJECT_ID"] != "gcp-fallback" {
-			t.Errorf("ANTHROPIC_VERTEX_PROJECT_ID = %q, want %q", vars["ANTHROPIC_VERTEX_PROJECT_ID"], "gcp-fallback")
-		}
-		if vars["GOOGLE_CLOUD_PROJECT"] != "gcp-fallback" {
-			t.Errorf("GOOGLE_CLOUD_PROJECT = %q, want %q", vars["GOOGLE_CLOUD_PROJECT"], "gcp-fallback")
-		}
-	})
-
-	t.Run("all env vars set produces all four output vars", func(t *testing.T) {
-		t.Setenv("CLOUD_ML_REGION", "europe-west4")
-		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "full-project")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-
-		vars := New().EnvVars("")
-		for _, key := range []string{"CLOUD_ML_REGION", "VERTEX_LOCATION", "ANTHROPIC_VERTEX_PROJECT_ID", "GOOGLE_CLOUD_PROJECT"} {
-			if vars[key] == "" {
-				t.Errorf("EnvVars() missing or empty key %q", key)
-			}
-		}
-		if vars["CLOUD_ML_REGION"] != "europe-west4" {
-			t.Errorf("CLOUD_ML_REGION = %q, want %q", vars["CLOUD_ML_REGION"], "europe-west4")
-		}
-		if vars["GOOGLE_CLOUD_PROJECT"] != "full-project" {
-			t.Errorf("GOOGLE_CLOUD_PROJECT = %q, want %q", vars["GOOGLE_CLOUD_PROJECT"], "full-project")
 		}
 	})
 }

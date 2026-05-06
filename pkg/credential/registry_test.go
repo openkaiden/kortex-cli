@@ -39,7 +39,6 @@ func (f *fakeCredential) Detect(_ []workspace.Mount, _ string) (string, *workspa
 func (f *fakeCredential) FakeFile(_ string) ([]byte, error)                            { return nil, nil }
 func (f *fakeCredential) Configure(_ context.Context, _ onecli.Client, _ string) error { return nil }
 func (f *fakeCredential) HostPatterns(_ string) []string                               { return nil }
-func (f *fakeCredential) EnvVars(_ string) map[string]string                           { return nil }
 
 func TestRegistry_Register(t *testing.T) {
 	t.Parallel()

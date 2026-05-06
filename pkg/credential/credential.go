@@ -58,10 +58,6 @@ type Credential interface {
 	// networking when this credential is active. hostFilePath lets dynamic
 	// implementations extract the server URL from the real credential file.
 	HostPatterns(hostFilePath string) []string
-
-	// EnvVars returns environment variables to inject into the workspace container.
-	// hostFilePath is the path to the real credential on the host.
-	EnvVars(hostFilePath string) map[string]string
 }
 
 // Registry manages Credential implementations.

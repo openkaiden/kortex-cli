@@ -221,7 +221,6 @@ The credential system provides a pluggable architecture for intercepting sensiti
   - `FakeFile(hostFilePath string) ([]byte, error)` — returns placeholder file content (no real credentials)
   - `Configure(ctx, client onecli.Client, hostFilePath string) error` — reads the real file and registers the credential with OneCLI
   - `HostPatterns(hostFilePath string) []string` — hostnames OneCLI must be allowed to reach for this credential
-  - `EnvVars(hostFilePath string) map[string]string` — extra environment variables to inject into the container
 - **Registry** (`pkg/credential/registry.go`): Thread-safe ordered list; `NewRegistry() Registry`; `Register()` rejects nil, empty name, and duplicates
 - **Centralized Registration** (`pkg/credentialsetup/register.go`): `RegisterAll(registrar)` registers all built-in credentials (currently `gcloud`)
 - **`CredentialRegistryAware`** optional runtime interface (`pkg/runtime/runtime.go`): Runtimes that implement `SetCredentialRegistry(credential.Registry)` receive the registry automatically when `manager.RegisterRuntime()` is called
