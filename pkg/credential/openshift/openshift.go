@@ -201,6 +201,10 @@ func (o *openshiftCredential) Configure(ctx context.Context, client onecli.Clien
 		return fmt.Errorf("parsing cluster server URL %q: %w", cluster.Cluster.Server, err)
 	}
 
+	if serverHost == "" {
+		return fmt.Errorf("cluster server URL %q has no hostname", cluster.Cluster.Server)
+	}
+
 	provisioner := onecli.NewSecretProvisioner(client)
 	return provisioner.ProvisionSecrets(ctx, []onecli.CreateSecretInput{
 		{
