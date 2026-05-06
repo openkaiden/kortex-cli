@@ -855,6 +855,10 @@ func TestCollectCredentialHosts(t *testing.T) {
 		if result[0] != "api.example.com" || result[1] != "*.example.com" {
 			t.Errorf("host patterns = %v, want [api.example.com *.example.com]", result)
 		}
+		// Verify that the detected host path is forwarded to HostPatterns.
+		if cred.lastHostPath != "/real/credential" {
+			t.Errorf("HostPatterns received hostPath = %q, want %q", cred.lastHostPath, "/real/credential")
+		}
 	})
 
 	t.Run("only credentials with existing dirs contribute hosts", func(t *testing.T) {
@@ -918,9 +922,11 @@ func TestCollectCredentialHosts(t *testing.T) {
 type fakeCredentialWithHosts struct {
 	fakeCredentialForDetect
 	hostPatterns []string
+	lastHostPath string
 }
 
-func (f *fakeCredentialWithHosts) HostPatterns(_ string) []string {
+func (f *fakeCredentialWithHosts) HostPatterns(hostPath string) []string {
+	f.lastHostPath = hostPath
 	return f.hostPatterns
 }
 

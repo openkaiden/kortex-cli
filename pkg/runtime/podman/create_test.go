@@ -1765,9 +1765,15 @@ func TestCreate_WithActiveCredentials(t *testing.T) {
 		}
 		mounts := []workspace.Mount{interceptedMount}
 
+		// Create a real credential file so os.Stat in detectCredentials succeeds.
+		realCredFile := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(realCredFile, []byte(`{"type":"authorized_user"}`), 0600); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
 		cred := &fakeCredentialForDetect{
 			name:        "mycred",
-			detectPath:  "/host/real/credential",
+			detectPath:  realCredFile,
 			intercepted: &mounts[0],
 			fakeContent: []byte(`{"fake":true}`),
 			envVars:     map[string]string{"CRED_TOKEN": "placeholder"},
@@ -1846,10 +1852,16 @@ func TestCreate_WithActiveCredentials(t *testing.T) {
 		sourcePath := t.TempDir()
 		onecliServer := newOnecliTestServer(t)
 
+		// Create a real credential file so os.Stat in detectCredentials succeeds.
+		realCredFile2 := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(realCredFile2, []byte(`{"type":"authorized_user"}`), 0600); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
 		mounts := []workspace.Mount{{Host: "/host/cred", Target: "/host/cred"}}
 		cred := &fakeCredentialForDetect{
 			name:        "cred2",
-			detectPath:  "/host/cred",
+			detectPath:  realCredFile2,
 			intercepted: &mounts[0],
 			fakeContent: []byte("placeholder"),
 		}
@@ -1967,13 +1979,39 @@ func TestDetectCredentials(t *testing.T) {
 		}
 	})
 
-	t.Run("FakeFile error skips credential", func(t *testing.T) {
+	t.Run("host file missing on host skips credential", func(t *testing.T) {
 		t.Parallel()
 
 		reg := credential.NewRegistry()
 		_ = reg.Register(&fakeCredentialForDetect{
+			name:        "gcloud",
+			detectPath:  "/nonexistent/path/adc.json",
+			fakeContent: []byte(`{"fake":true}`),
+		})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: t.TempDir()}
+
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+		if len(result) != 0 {
+			t.Errorf("Expected empty result when host file is missing, got %v", result)
+		}
+	})
+
+	t.Run("FakeFile error skips credential", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a real file so os.Stat succeeds; FakeFile error is still exercised.
+		realFile := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(realFile, []byte("{}"), 0644); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{
 			name:        "broken",
-			detectPath:  "/some/path",
+			detectPath:  realFile,
 			fakeFileErr: errors.New("cannot generate placeholder"),
 		})
 		p := &podmanRuntime{credentialRegistry: reg, storageDir: t.TempDir()}
@@ -1996,10 +2034,16 @@ func TestDetectCredentials(t *testing.T) {
 			t.Fatalf("setup: %v", err)
 		}
 
+		// Create a real file so os.Stat succeeds; MkdirAll error is still exercised.
+		realFile := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(realFile, []byte("{}"), 0644); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
 		reg := credential.NewRegistry()
 		_ = reg.Register(&fakeCredentialForDetect{
 			name:        "test",
-			detectPath:  "/some/path",
+			detectPath:  realFile,
 			fakeContent: []byte("fake"),
 		})
 		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
@@ -2024,10 +2068,16 @@ func TestDetectCredentials(t *testing.T) {
 			t.Fatalf("setup: %v", err)
 		}
 
+		// Create a real file so os.Stat succeeds; WriteFile error is still exercised.
+		realFile := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(realFile, []byte("{}"), 0644); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
 		reg := credential.NewRegistry()
 		_ = reg.Register(&fakeCredentialForDetect{
 			name:        "test",
-			detectPath:  "/some/path",
+			detectPath:  realFile,
 			fakeContent: []byte("fake"),
 		})
 		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
@@ -2047,10 +2097,16 @@ func TestDetectCredentials(t *testing.T) {
 		storageDir := t.TempDir()
 		interceptedMount := &workspace.Mount{Host: "/real/path", Target: "/container/cred"}
 
+		// Create a real credential file so os.Stat succeeds.
+		realCredFile := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(realCredFile, []byte(`{"type":"authorized_user"}`), 0600); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
 		reg := credential.NewRegistry()
 		cred := &fakeCredentialForDetect{
 			name:        "mycred",
-			detectPath:  "/real/credential/path",
+			detectPath:  realCredFile,
 			intercepted: interceptedMount,
 			fakeContent: []byte(`{"token":"placeholder"}`),
 		}
@@ -2066,8 +2122,8 @@ func TestDetectCredentials(t *testing.T) {
 		if len(result) != 1 {
 			t.Fatalf("Expected 1 active credential, got %d", len(result))
 		}
-		if result[0].hostPath != "/real/credential/path" {
-			t.Errorf("hostPath = %q, want %q", result[0].hostPath, "/real/credential/path")
+		if result[0].hostPath != realCredFile {
+			t.Errorf("hostPath = %q, want %q", result[0].hostPath, realCredFile)
 		}
 		if result[0].intercepted != interceptedMount {
 			t.Errorf("intercepted mount not set correctly")
@@ -2087,11 +2143,18 @@ func TestDetectCredentials(t *testing.T) {
 		t.Parallel()
 
 		storageDir := t.TempDir()
+
+		// Create a real file for the credential that should be detected.
+		realCredFile := filepath.Join(t.TempDir(), "cred.json")
+		if err := os.WriteFile(realCredFile, []byte(`{}`), 0600); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
 		reg := credential.NewRegistry()
 		_ = reg.Register(&fakeCredentialForDetect{name: "missing", detectPath: ""})
 		_ = reg.Register(&fakeCredentialForDetect{
 			name:        "present",
-			detectPath:  "/host/cred",
+			detectPath:  realCredFile,
 			fakeContent: []byte("ok"),
 		})
 		_ = reg.Register(&fakeCredentialForDetect{name: "also-missing", detectPath: ""})

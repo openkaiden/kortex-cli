@@ -370,10 +370,9 @@ func renderPodYAML(data podTemplateData) ([]byte, error) {
 }
 
 // detectCredentials scans the workspace config mounts against each registered
-// credential. For each credential that is detected, the real credential file
-// is read, a fake placeholder is written to the durable credentials directory,
-// and an activeCredential entry is returned. Mounts whose credential file is
-// missing on the host are skipped with a warning.
+// credential. For each credential that is detected, a fake placeholder is written
+// to the durable credentials directory and an activeCredential entry is returned.
+// Credentials whose host file is missing or unreadable are skipped with a warning.
 func (p *podmanRuntime) detectCredentials(params runtime.CreateParams, homeDir string) []activeCredential {
 	if p.credentialRegistry == nil {
 		return nil
@@ -386,6 +385,11 @@ func (p *podmanRuntime) detectCredentials(params runtime.CreateParams, homeDir s
 	for _, cred := range p.credentialRegistry.List() {
 		hostPath, intercepted := cred.Detect(*params.WorkspaceConfig.Mounts, homeDir)
 		if hostPath == "" {
+			continue
+		}
+
+		if _, err := os.Stat(hostPath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: credential %q: %s missing on host: %v; skipping\n", cred.Name(), hostPath, err)
 			continue
 		}
 
