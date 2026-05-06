@@ -20,6 +20,7 @@ package autoconf
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 )
 
@@ -35,6 +36,21 @@ func fullEnv() func(string) (string, bool) {
 			return "us-east5", true
 		}
 		return "", false
+	}
+}
+
+// fullEnvWithGAC returns a lookupEnv stub with all three required Vertex env
+// vars set plus GOOGLE_APPLICATION_CREDENTIALS set to gacPath.
+// When gacPath is empty the variable is reported as absent.
+func fullEnvWithGAC(gacPath string) func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		if name == "GOOGLE_APPLICATION_CREDENTIALS" {
+			if gacPath == "" {
+				return "", false
+			}
+			return gacPath, true
+		}
+		return fullEnv()(name)
 	}
 }
 
@@ -136,6 +152,77 @@ func TestVertexDetector_ADCFileMissing(t *testing.T) {
 	}
 	if cfg != nil {
 		t.Errorf("expected nil when ADC file is absent, got %+v", cfg)
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_UsedWhenSet(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	customCreds := filepath.Join(homeDir, "custom", "creds.json")
+
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcExists, homeDir)
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config when GOOGLE_APPLICATION_CREDENTIALS is set")
+	}
+	want := "$HOME/custom/creds.json"
+	if cfg.ADCHostPath != want {
+		t.Errorf("ADCHostPath: want %q, got %q", want, cfg.ADCHostPath)
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_FileMissing(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	customCreds := filepath.Join(homeDir, "custom", "creds.json")
+
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcMissing, homeDir)
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg != nil {
+		t.Error("expected nil config when GOOGLE_APPLICATION_CREDENTIALS file is missing")
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_EmptyFallsBackToADC(t *testing.T) {
+	t.Parallel()
+
+	// Empty GOOGLE_APPLICATION_CREDENTIALS → fall back to platform-specific ADC path.
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(""), adcExists, "/home/user")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config when falling back to default ADC path")
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_OutsideHome(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	otherDir := t.TempDir() // sibling of homeDir — not under homeDir
+	customCreds := filepath.Join(otherDir, "creds.json")
+
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcExists, homeDir)
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+	// Path is not under homeDir → returned as-is (absolute path).
+	if cfg.ADCHostPath != customCreds {
+		t.Errorf("ADCHostPath: want %q, got %q", customCreds, cfg.ADCHostPath)
 	}
 }
 

@@ -300,15 +300,21 @@ type VertexDetector interface {
     Detect() (*VertexConfig, error)
 }
 ```
-Returns a non-nil `*VertexConfig` only when all three env vars (`CLAUDE_CODE_USE_VERTEX`, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION`) are set and the ADC file exists on disk. Constructor: `NewVertexDetector() (VertexDetector, error)`.
+Returns a non-nil `*VertexConfig` only when all three env vars (`CLAUDE_CODE_USE_VERTEX`, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION`) are set and the credentials file exists on disk. The credentials file path is resolved in this priority order:
+1. `GOOGLE_APPLICATION_CREDENTIALS` — if set and non-empty, the file at that path is used
+2. Platform-specific ADC default — `~/.config/gcloud/application_default_credentials.json` (Linux/macOS) or `%APPDATA%\gcloud\...` (Windows)
+
+Constructor: `NewVertexDetector() (VertexDetector, error)`.
 
 **`VertexConfig`**:
 ```go
 type VertexConfig struct {
     EnvVars     map[string]string // the three detected env var values
-    ADCHostPath string            // host path for the ADC file mount (starts with $HOME)
+    ADCHostPath string            // host path for the credentials file mount
 }
 ```
+
+`ADCHostPath` is expressed as `$HOME/<rel>` when the credentials file is under the user's home directory (portable across machines); otherwise it is the absolute path as-is.
 
 **`ClaudeVertexAutoconf`** (`autoconfclaudevertex.go`):
 ```go
@@ -330,7 +336,7 @@ Important `ClaudeVertexAutoconfOptions` fields:
 | `Yes` | skip confirm + select, defaults to agent target |
 | `Confirm` / `SelectTarget` | injectable for testing |
 
-**`ADCContainerPath`** — `$HOME/.config/gcloud/application_default_credentials.json` — the container path used for the ADC mount target. On Linux/macOS the host path is identical; on Windows it is computed from `%APPDATA%` via `adcConfigHostPath()` (in `adcpath_windows.go`).
+**`ADCContainerPath`** — `$HOME/.config/gcloud/application_default_credentials.json` — the fixed container path where the credentials file is mounted, regardless of where it lives on the host. The helper `credHostPath(p, homeDir)` converts the host path to `$HOME/<rel>` when possible.
 
 ### Env var write order
 

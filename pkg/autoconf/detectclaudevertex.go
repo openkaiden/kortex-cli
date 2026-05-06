@@ -21,6 +21,9 @@ package autoconf
 import (
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 )
 
 // vertexEnvVars lists the environment variables required for Vertex AI configuration,
@@ -89,8 +92,10 @@ func newVertexDetectorWithInjection(lookupEnv func(string) (string, bool), statF
 
 // Detect returns a non-nil VertexConfig when all three required environment
 // variables (CLAUDE_CODE_USE_VERTEX, ANTHROPIC_VERTEX_PROJECT_ID, CLOUD_ML_REGION)
-// are set to non-empty values and the ADC file exists on disk.
-// Returns (nil, nil) when any condition is not met.
+// are set to non-empty values and the credentials file exists on disk.
+// The credentials file is looked up via GOOGLE_APPLICATION_CREDENTIALS first;
+// if that variable is absent or empty the platform-specific ADC default path
+// is used instead. Returns (nil, nil) when any condition is not met.
 func (d *envVertexDetector) Detect() (*VertexConfig, error) {
 	envVarValues := make(map[string]string, len(vertexEnvVars))
 	for _, name := range vertexEnvVars {
@@ -101,18 +106,38 @@ func (d *envVertexDetector) Detect() (*VertexConfig, error) {
 		envVarValues[name] = val
 	}
 
-	detectPath := adcDetectPath(d.homeDir)
-	if detectPath == "" {
-		return nil, nil
+	var detectPath, hostPath string
+	if gac, ok := d.lookupEnv("GOOGLE_APPLICATION_CREDENTIALS"); ok && gac != "" {
+		detectPath = gac
+		hostPath = credHostPath(gac, d.homeDir)
+	} else {
+		detectPath = adcDetectPath(d.homeDir)
+		if detectPath == "" {
+			return nil, nil
+		}
+		hostPath = adcConfigHostPath(d.homeDir)
+		if hostPath == "" {
+			return nil, nil
+		}
 	}
+
 	if err := d.statFile(detectPath); err != nil {
 		return nil, nil
 	}
 
-	hostPath := adcConfigHostPath(d.homeDir)
-	if hostPath == "" {
-		return nil, nil
-	}
-
 	return &VertexConfig{EnvVars: envVarValues, ADCHostPath: hostPath}, nil
+}
+
+// credHostPath converts an absolute credentials file path to the form used in
+// workspace mount entries. When p is under homeDir it is expressed as
+// $HOME/<rel> so the mount works on any machine; otherwise p is returned as-is.
+func credHostPath(p, homeDir string) string {
+	if homeDir == "" {
+		return p
+	}
+	rel, err := filepath.Rel(homeDir, p)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return p
+	}
+	return path.Join("$HOME", filepath.ToSlash(rel))
 }

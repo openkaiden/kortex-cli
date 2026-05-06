@@ -215,8 +215,9 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 **Notes:**
 
 - Run `gcloud auth application-default login` on your host machine before starting the workspace to ensure valid credentials are available
-- kdn automatically intercepts the ADC file mount: a placeholder credential file is written into the container and OneCLI injects the real Application Default Credentials transparently at request time — the actual credential file never touches the container filesystem
-- No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted application default credentials
+- If `GOOGLE_APPLICATION_CREDENTIALS` is set in your shell, `kdn autoconf` uses the file it points to instead of the default ADC path — no extra steps needed
+- kdn automatically intercepts the credentials file mount: a placeholder file is written into the container and OneCLI injects the real credentials transparently at request time — the actual credential file never touches the container filesystem
+- No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted credentials file
 - When `network.mode` is `"deny"`, the Google OAuth and Vertex AI endpoints (`oauth2.googleapis.com`, `aiplatform.googleapis.com`) are automatically added to the allow-list — no explicit `hosts` entry is needed
 - To pin a specific Claude model, use `--model` flag during `init` (e.g., `--model claude-sonnet-4-20250514`), which takes precedence over any model in default settings, or add an `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
 - If you run `kdn autoconf` again after Vertex AI is already configured, it reports the existing configuration location and exits without making changes
