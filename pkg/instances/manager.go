@@ -362,6 +362,24 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		}
 	}
 
+	// Apply agent-specific preset key approvals based on collected secret env var values
+	if opts.Agent != "" && len(secretEnvVars) > 0 {
+		if agentImpl, agentErr := m.agentRegistry.Get(opts.Agent); agentErr == nil {
+			seen := make(map[string]struct{})
+			var approvedKeys []string
+			for _, v := range secretEnvVars {
+				if _, ok := seen[v]; !ok {
+					seen[v] = struct{}{}
+					approvedKeys = append(approvedKeys, v)
+				}
+			}
+			agentSettings, err = agentImpl.ApprovePresetKey(agentSettings, approvedKeys)
+			if err != nil {
+				return nil, fmt.Errorf("failed to apply agent preset key settings: %w", err)
+			}
+		}
+	}
+
 	// Create runtime instance with merged configuration
 	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{
 		Name:               name,

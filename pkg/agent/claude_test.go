@@ -893,3 +893,175 @@ func TestClaude_SetMCPServers_InvalidJSON(t *testing.T) {
 		t.Error("Expected error for invalid JSON, got nil")
 	}
 }
+
+func TestClaude_ApprovePresetKey_NoExistingSettings(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	settings := make(map[string][]byte)
+
+	result, err := agent.ApprovePresetKey(settings, []string{"placeholder"})
+	if err != nil {
+		t.Fatalf("ApprovePresetKey() error = %v", err)
+	}
+
+	claudeJSON, exists := result[ClaudeJSONPath]
+	if !exists {
+		t.Fatalf("Expected %s to be created", ClaudeJSONPath)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(claudeJSON, &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	resp, ok := config["customApiKeyResponses"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("customApiKeyResponses missing or wrong type: %v", config["customApiKeyResponses"])
+	}
+	approved, ok := resp["approved"].([]interface{})
+	if !ok || len(approved) != 1 || approved[0] != "placeholder" {
+		t.Errorf("approved = %v, want [placeholder]", resp["approved"])
+	}
+}
+
+func TestClaude_ApprovePresetKey_NilSettings(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	result, err := agent.ApprovePresetKey(nil, []string{"placeholder"})
+	if err != nil {
+		t.Fatalf("ApprovePresetKey() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected non-nil result map")
+	}
+
+	if _, exists := result[ClaudeJSONPath]; !exists {
+		t.Errorf("Expected %s to be created", ClaudeJSONPath)
+	}
+}
+
+func TestClaude_ApprovePresetKey_EmptyKeys(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	settings := map[string][]byte{
+		ClaudeJSONPath: []byte(`{"existingField": "value"}`),
+	}
+
+	result, err := agent.ApprovePresetKey(settings, []string{})
+	if err != nil {
+		t.Fatalf("ApprovePresetKey() error = %v", err)
+	}
+
+	// settings returned unchanged — no customApiKeyResponses added
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+	if _, ok := config["customApiKeyResponses"]; ok {
+		t.Error("customApiKeyResponses should not be present when no keys provided")
+	}
+}
+
+func TestClaude_ApprovePresetKey_PreservesExistingFields(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	existing := map[string]interface{}{
+		"hasCompletedOnboarding": true,
+		"someOtherField":         "keep me",
+	}
+	existingJSON, _ := json.Marshal(existing)
+
+	result, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: existingJSON}, []string{"placeholder"})
+	if err != nil {
+		t.Fatalf("ApprovePresetKey() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	if v, ok := config["hasCompletedOnboarding"].(bool); !ok || !v {
+		t.Errorf("hasCompletedOnboarding = %v, want true", config["hasCompletedOnboarding"])
+	}
+	if v, ok := config["someOtherField"].(string); !ok || v != "keep me" {
+		t.Errorf("someOtherField = %v, want %q", config["someOtherField"], "keep me")
+	}
+}
+
+func TestClaude_ApprovePresetKey_MergesWithExisting(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	existing := map[string]interface{}{
+		"customApiKeyResponses": map[string]interface{}{
+			"approved": []interface{}{"existing-key"},
+		},
+	}
+	existingJSON, _ := json.Marshal(existing)
+
+	result, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: existingJSON}, []string{"placeholder"})
+	if err != nil {
+		t.Fatalf("ApprovePresetKey() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	resp := config["customApiKeyResponses"].(map[string]interface{})
+	approved := resp["approved"].([]interface{})
+	if len(approved) != 2 {
+		t.Fatalf("approved len = %d, want 2: %v", len(approved), approved)
+	}
+	// sorted: existing-key, placeholder
+	if approved[0] != "existing-key" || approved[1] != "placeholder" {
+		t.Errorf("approved = %v, want [existing-key placeholder]", approved)
+	}
+}
+
+func TestClaude_ApprovePresetKey_Deduplicates(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	existing := map[string]interface{}{
+		"customApiKeyResponses": map[string]interface{}{
+			"approved": []interface{}{"placeholder"},
+		},
+	}
+	existingJSON, _ := json.Marshal(existing)
+
+	result, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: existingJSON}, []string{"placeholder", "placeholder"})
+	if err != nil {
+		t.Fatalf("ApprovePresetKey() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	resp := config["customApiKeyResponses"].(map[string]interface{})
+	approved := resp["approved"].([]interface{})
+	if len(approved) != 1 || approved[0] != "placeholder" {
+		t.Errorf("approved = %v, want [placeholder]", approved)
+	}
+}
+
+func TestClaude_ApprovePresetKey_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	_, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: []byte("invalid json {{{")}, []string{"placeholder"})
+	if err == nil {
+		t.Error("Expected error for invalid JSON, got nil")
+	}
+}

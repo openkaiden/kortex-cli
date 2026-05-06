@@ -83,6 +83,12 @@ func (c *cursorAgent) SetMCPServers(settings map[string][]byte, _ *workspace.Mcp
 	return settings, nil
 }
 
+// ApprovePresetKey returns the settings unchanged, as Cursor does not support preset key approval
+// through agent settings files.
+func (c *cursorAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
+	return settings, nil
+}
+
 // SetModel configures the model ID in Cursor settings.
 // It sets the model object in cli-config.json with the specified model ID.
 // All other fields in the settings file are preserved.

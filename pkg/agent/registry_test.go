@@ -50,6 +50,10 @@ func (f *fakeAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpCo
 	return settings, nil
 }
 
+func (f *fakeAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
+	return settings, nil
+}
+
 func TestNewRegistry(t *testing.T) {
 	t.Parallel()
 

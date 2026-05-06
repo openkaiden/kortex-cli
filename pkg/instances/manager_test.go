@@ -297,6 +297,10 @@ func (t *trackingAgent) SetMCPServers(settings map[string][]byte, _ *workspace.M
 	return settings, nil
 }
 
+func (t *trackingAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
+	return settings, nil
+}
+
 func (t *trackingAgent) WasSetMCPServersCalled() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -345,6 +349,10 @@ func (e *erroringSetModelAgent) SkillsDir() string {
 }
 
 func (e *erroringSetModelAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+	return settings, nil
+}
+
+func (e *erroringSetModelAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 

@@ -125,6 +125,12 @@ func (o *openCodeAgent) SetMCPServers(settings map[string][]byte, _ *workspace.M
 	return settings, nil
 }
 
+// ApprovePresetKey returns the settings unchanged, as OpenCode does not support preset key approval
+// through agent settings files.
+func (o *openCodeAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
+	return settings, nil
+}
+
 // configureProvider adds a provider block with the given base URL and registers the model.
 func configureProvider(config map[string]interface{}, provider, modelName, baseURL string) error {
 	providers, _ := config["provider"].(map[string]interface{})

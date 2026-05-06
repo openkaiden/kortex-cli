@@ -49,4 +49,11 @@ type Agent interface {
 	// If mcp is nil, settings are returned unchanged.
 	// Returns the modified settings map, or an error if modification fails.
 	SetMCPServers(settings map[string][]byte, mcp *workspace.McpConfiguration) (map[string][]byte, error)
+	// ApprovePresetKey adds the given key values to the agent's approved preset API keys list.
+	// It takes the current agent settings map (path -> content) and a list of key values to approve,
+	// and returns the modified settings with the keys added to the approved list.
+	// If the agent does not support preset key approval, settings are returned unchanged.
+	// If approvedKeys is empty, settings are returned unchanged.
+	// Returns the modified settings map, or an error if modification fails.
+	ApprovePresetKey(settings map[string][]byte, approvedKeys []string) (map[string][]byte, error)
 }

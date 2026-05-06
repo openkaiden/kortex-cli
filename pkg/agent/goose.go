@@ -94,6 +94,12 @@ func (g *gooseAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpC
 	return settings, nil
 }
 
+// ApprovePresetKey returns the settings unchanged, as Goose does not support preset key approval
+// through agent settings files.
+func (g *gooseAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
+	return settings, nil
+}
+
 // SetModel configures the model ID in Goose settings.
 // It sets the GOOSE_MODEL key in the config file.
 // All other fields in the settings file are preserved.

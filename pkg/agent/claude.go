@@ -21,6 +21,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	kdnconfig "github.com/openkaiden/kdn/pkg/config"
@@ -185,6 +186,66 @@ func (c *claudeAgent) SetMCPServers(settings map[string][]byte, mcp *workspace.M
 	if len(mcpServers) > 0 {
 		config["mcpServers"] = mcpServers
 	}
+
+	modifiedContent, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified %s: %w", ClaudeJSONPath, err)
+	}
+
+	settings[ClaudeJSONPath] = modifiedContent
+	return settings, nil
+}
+
+// ApprovePresetKey adds the given key values to customApiKeyResponses.approved in .claude.json.
+// Existing approved entries are preserved; duplicates are removed.
+func (c *claudeAgent) ApprovePresetKey(settings map[string][]byte, approvedKeys []string) (map[string][]byte, error) {
+	if len(approvedKeys) == 0 {
+		return settings, nil
+	}
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+
+	var existingContent []byte
+	var exists bool
+	if existingContent, exists = settings[ClaudeJSONPath]; !exists {
+		existingContent = []byte("{}")
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(existingContent, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse existing %s: %w", ClaudeJSONPath, err)
+	}
+
+	customApiKeyResponses := make(map[string]interface{})
+	if raw, ok := config["customApiKeyResponses"]; ok {
+		if m, ok := raw.(map[string]interface{}); ok {
+			customApiKeyResponses = m
+		}
+	}
+
+	seen := make(map[string]struct{})
+	if raw, ok := customApiKeyResponses["approved"]; ok {
+		if slice, ok := raw.([]interface{}); ok {
+			for _, v := range slice {
+				if s, ok := v.(string); ok {
+					seen[s] = struct{}{}
+				}
+			}
+		}
+	}
+	for _, k := range approvedKeys {
+		seen[k] = struct{}{}
+	}
+
+	approved := make([]string, 0, len(seen))
+	for k := range seen {
+		approved = append(approved, k)
+	}
+	sort.Strings(approved)
+
+	customApiKeyResponses["approved"] = approved
+	config["customApiKeyResponses"] = customApiKeyResponses
 
 	modifiedContent, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
