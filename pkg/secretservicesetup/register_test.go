@@ -258,7 +258,7 @@ func TestAvailableSecretServicesContainGemini(t *testing.T) {
 	}
 
 	envVars := svc.EnvVars()
-	if len(envVars) != 2 {
+	if len(envVars) != 3 {
 		t.Fatalf("EnvVars() has %d entries, want 2", len(envVars))
 	}
 	if envVars[0] != "GEMINI_API_KEY" {
@@ -266,6 +266,9 @@ func TestAvailableSecretServicesContainGemini(t *testing.T) {
 	}
 	if envVars[1] != "GOOGLE_API_KEY" {
 		t.Errorf("EnvVars()[1] = %q, want %q", envVars[1], "GOOGLE_API_KEY")
+	}
+	if envVars[2] != "GOOGLE_GENERATIVE_AI_API_KEY" {
+		t.Errorf("EnvVars()[2] = %q, want %q", envVars[2], "GOOGLE_GENERATIVE_AI_API_KEY")
 	}
 }
 
