@@ -30,6 +30,8 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/credential"
+	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
@@ -1715,6 +1717,238 @@ func TestPrepareFeatures(t *testing.T) {
 		// Verify containerEnv was returned.
 		if info.envVars["MY_FEATURE_HOME"] != "/opt/my-feature" {
 			t.Errorf("Expected MY_FEATURE_HOME=/opt/my-feature, got %q", info.envVars["MY_FEATURE_HOME"])
+		}
+	})
+}
+
+// fakeCredentialForDetect is a configurable test double for credential.Credential.
+// Only Detect and FakeFile behaviour can be controlled; Configure is a no-op.
+type fakeCredentialForDetect struct {
+	name        string
+	detectPath  string // returned as hostFilePath by Detect; "" means not detected
+	intercepted *workspace.Mount
+	fakeContent []byte
+	fakeFileErr error
+}
+
+var _ credential.Credential = (*fakeCredentialForDetect)(nil)
+
+func (f *fakeCredentialForDetect) Name() string              { return f.name }
+func (f *fakeCredentialForDetect) ContainerFilePath() string { return "/fake/" + f.name }
+func (f *fakeCredentialForDetect) Detect(_ []workspace.Mount, _ string) (string, *workspace.Mount) {
+	return f.detectPath, f.intercepted
+}
+func (f *fakeCredentialForDetect) FakeFile(_ string) ([]byte, error) {
+	return f.fakeContent, f.fakeFileErr
+}
+func (f *fakeCredentialForDetect) Configure(_ context.Context, _ onecli.Client, _ string) error {
+	return nil
+}
+func (f *fakeCredentialForDetect) HostPatterns(_ string) []string     { return nil }
+func (f *fakeCredentialForDetect) EnvVars(_ string) map[string]string { return nil }
+
+func TestDetectCredentials(t *testing.T) {
+	t.Parallel()
+
+	emptyMounts := []workspace.Mount{}
+	configWithMounts := func(mounts []workspace.Mount) *workspace.WorkspaceConfiguration {
+		return &workspace.WorkspaceConfiguration{Mounts: &mounts}
+	}
+
+	t.Run("nil registry returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("nil WorkspaceConfig returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		reg := credential.NewRegistry()
+		p := &podmanRuntime{credentialRegistry: reg}
+		result := p.detectCredentials(runtime.CreateParams{Name: "ws"}, "/home/user")
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("nil Mounts returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		reg := credential.NewRegistry()
+		p := &podmanRuntime{credentialRegistry: reg}
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{},
+		}, "/home/user")
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("credential not detected is skipped", func(t *testing.T) {
+		t.Parallel()
+
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{name: "unmatched", detectPath: ""})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: t.TempDir()}
+
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+		if len(result) != 0 {
+			t.Errorf("Expected empty result for undetected credential, got %v", result)
+		}
+	})
+
+	t.Run("FakeFile error skips credential", func(t *testing.T) {
+		t.Parallel()
+
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{
+			name:        "broken",
+			detectPath:  "/some/path",
+			fakeFileErr: errors.New("cannot generate placeholder"),
+		})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: t.TempDir()}
+
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+		if len(result) != 0 {
+			t.Errorf("Expected empty result when FakeFile fails, got %v", result)
+		}
+	})
+
+	t.Run("MkdirAll error skips credential", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		// Block MkdirAll by placing a regular file where the credentials dir would be.
+		if err := os.WriteFile(filepath.Join(storageDir, "credentials"), []byte("not a dir"), 0644); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{
+			name:        "test",
+			detectPath:  "/some/path",
+			fakeContent: []byte("fake"),
+		})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+		if len(result) != 0 {
+			t.Errorf("Expected empty result when MkdirAll fails, got %v", result)
+		}
+	})
+
+	t.Run("WriteFile error skips credential", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		// Pre-create the credential dir but make the "credential" leaf a directory
+		// so os.WriteFile cannot overwrite it.
+		credDir := filepath.Join(storageDir, "credentials", "ws", "test")
+		if err := os.MkdirAll(filepath.Join(credDir, "credential"), 0755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{
+			name:        "test",
+			detectPath:  "/some/path",
+			fakeContent: []byte("fake"),
+		})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+		if len(result) != 0 {
+			t.Errorf("Expected empty result when WriteFile fails, got %v", result)
+		}
+	})
+
+	t.Run("successful detection returns active credential", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		interceptedMount := &workspace.Mount{Host: "/real/path", Target: "/container/cred"}
+
+		reg := credential.NewRegistry()
+		cred := &fakeCredentialForDetect{
+			name:        "mycred",
+			detectPath:  "/real/credential/path",
+			intercepted: interceptedMount,
+			fakeContent: []byte(`{"token":"placeholder"}`),
+		}
+		_ = reg.Register(cred)
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+
+		mounts := []workspace.Mount{{Host: "/real/path", Target: "/container/cred"}}
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(mounts),
+		}, "/home/user")
+
+		if len(result) != 1 {
+			t.Fatalf("Expected 1 active credential, got %d", len(result))
+		}
+		if result[0].hostPath != "/real/credential/path" {
+			t.Errorf("hostPath = %q, want %q", result[0].hostPath, "/real/credential/path")
+		}
+		if result[0].intercepted != interceptedMount {
+			t.Errorf("intercepted mount not set correctly")
+		}
+
+		fakePath := filepath.Join(storageDir, "credentials", "ws", "mycred", "credential")
+		content, err := os.ReadFile(fakePath)
+		if err != nil {
+			t.Fatalf("Expected fake credential file at %s: %v", fakePath, err)
+		}
+		if string(content) != `{"token":"placeholder"}` {
+			t.Errorf("fake file content = %q, want %q", string(content), `{"token":"placeholder"}`)
+		}
+	})
+
+	t.Run("only detected credentials are returned", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{name: "missing", detectPath: ""})
+		_ = reg.Register(&fakeCredentialForDetect{
+			name:        "present",
+			detectPath:  "/host/cred",
+			fakeContent: []byte("ok"),
+		})
+		_ = reg.Register(&fakeCredentialForDetect{name: "also-missing", detectPath: ""})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+
+		result := p.detectCredentials(runtime.CreateParams{
+			Name:            "ws",
+			WorkspaceConfig: configWithMounts(emptyMounts),
+		}, "/home/user")
+
+		if len(result) != 1 {
+			t.Fatalf("Expected 1 active credential, got %d", len(result))
+		}
+		if result[0].cred.Name() != "present" {
+			t.Errorf("Expected 'present' credential, got %q", result[0].cred.Name())
 		}
 	})
 }
