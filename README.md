@@ -398,6 +398,7 @@ EOF
 **Fields:**
 
 - `GOOSE_MODEL` - The model identifier Goose uses for its AI interactions. Alternatively, use `--model` flag during `init` to set this (the flag takes precedence over this setting)
+- `GOOSE_PROVIDER` - The LLM provider Goose uses (e.g. `anthropic`, `openai`, `google`). When using `--model` with the `provider::model` format, kdn sets this automatically: `claude` is mapped to `anthropic`, `gemini` is mapped to `google`, and all other values are kept identical. If no provider is specified, it defaults to `openai`.
 - `GOOSE_TELEMETRY_ENABLED` - Whether Goose sends usage telemetry; set to `true` to opt in, or omit to have kdn default it to `false`
 
 **Step 3: Register and start the workspace**

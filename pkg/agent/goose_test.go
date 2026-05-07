@@ -208,6 +208,10 @@ func TestGoose_SetModel_NoExistingSettings(t *testing.T) {
 	if model, ok := config[gooseModelKey].(string); !ok || model != "model-from-flag" {
 		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "model-from-flag")
 	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "openai" {
+		t.Errorf("%s = %v, want %q (default)", gooseProviderKey, config[gooseProviderKey], "openai")
+	}
 }
 
 func TestGoose_SetModel_NilSettings(t *testing.T) {
@@ -259,8 +263,8 @@ func TestGoose_SetModel_PreservesExistingFields(t *testing.T) {
 		t.Errorf("%s = %v, want false", gooseTelemetryKey, val)
 	}
 
-	if provider, ok := config["GOOSE_PROVIDER"].(string); !ok || provider != "anthropic" {
-		t.Errorf("GOOSE_PROVIDER = %v, want %q", config["GOOSE_PROVIDER"], "anthropic")
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "openai" {
+		t.Errorf("%s = %v, want %q (empty provider defaults to openai)", gooseProviderKey, config[gooseProviderKey], "openai")
 	}
 }
 
@@ -308,6 +312,10 @@ func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
 	if val, ok := config[gooseTelemetryKey]; !ok || val != false {
 		t.Errorf("%s = %v, want false", gooseTelemetryKey, val)
 	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "openai" {
+		t.Errorf("%s = %v, want %q (default)", gooseProviderKey, config[gooseProviderKey], "openai")
+	}
 }
 
 func TestGoose_SetModel_ProviderModelFormat(t *testing.T) {
@@ -329,6 +337,10 @@ func TestGoose_SetModel_ProviderModelFormat(t *testing.T) {
 	if model, ok := config[gooseModelKey].(string); !ok || model != "gemma2:7b" {
 		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "gemma2:7b")
 	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "goose" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "goose")
+	}
 }
 
 func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
@@ -349,6 +361,135 @@ func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
 
 	if model, ok := config[gooseModelKey].(string); !ok || model != "gemma2:7b" {
 		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "gemma2:7b")
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "goose" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "goose")
+	}
+}
+
+func TestGoose_SetModel_EmptyProviderDefaultsToOpenAI(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	existingContent := []byte("GOOSE_PROVIDER: \"anthropic\"\n")
+	settings := map[string]SettingsFile{
+		GooseConfigPath: {Content: existingContent},
+	}
+
+	result, err := agent.SetModel(settings, "claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "claude-sonnet-4-6" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "claude-sonnet-4-6")
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "openai" {
+		t.Errorf("%s = %v, want %q (empty provider defaults to openai)", gooseProviderKey, config[gooseProviderKey], "openai")
+	}
+}
+
+func TestGoose_SetModel_ClaudeProviderMapsToAnthropic(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	result, err := agent.SetModel(make(map[string]SettingsFile), "claude::claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "claude-sonnet-4-6" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "claude-sonnet-4-6")
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "anthropic" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "anthropic")
+	}
+}
+
+func TestGoose_SetModel_GeminiProviderMapsToGoogle(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	result, err := agent.SetModel(make(map[string]SettingsFile), "gemini::gemini-2.5-pro")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "gemini-2.5-pro" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "gemini-2.5-pro")
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "google" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "google")
+	}
+}
+
+func TestGoose_SetModel_OpenAIProviderPassesThrough(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	result, err := agent.SetModel(make(map[string]SettingsFile), "openai::gpt-4o")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "gpt-4o" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "gpt-4o")
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "openai" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "openai")
+	}
+}
+
+func TestGoose_SetModel_MistralProviderPassesThrough(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	result, err := agent.SetModel(make(map[string]SettingsFile), "mistral::mistral-large")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "mistral-large" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "mistral-large")
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "mistral" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "mistral")
 	}
 }
 

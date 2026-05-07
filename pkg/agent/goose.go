@@ -30,9 +30,19 @@ const (
 	// GooseConfigPath is the relative path to the Goose configuration file.
 	GooseConfigPath = ".config/goose/config.yaml"
 
-	gooseTelemetryKey = "GOOSE_TELEMETRY_ENABLED"
-	gooseModelKey     = "GOOSE_MODEL"
+	gooseTelemetryKey    = "GOOSE_TELEMETRY_ENABLED"
+	gooseModelKey        = "GOOSE_MODEL"
+	gooseProviderKey     = "GOOSE_PROVIDER"
+	gooseDefaultProvider = "openai"
 )
+
+// gooseProviderMapping translates kdn provider IDs to the names Goose expects.
+var gooseProviderMapping = map[string]string{
+	"openai":  "openai",
+	"claude":  "anthropic",
+	"gemini":  "google",
+	"mistral": "mistral",
+}
 
 // gooseAgent is the implementation of Agent for Goose.
 type gooseAgent struct{}
@@ -108,8 +118,18 @@ func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string) 
 		config = make(map[string]interface{})
 	}
 
-	_, modelName, _ := kdnconfig.ParseModelID(modelID)
+	provider, modelName, _ := kdnconfig.ParseModelID(modelID)
 	config[gooseModelKey] = modelName
+
+	gooseProvider := gooseDefaultProvider
+	if provider != "" {
+		if mapped, ok := gooseProviderMapping[provider]; ok {
+			gooseProvider = mapped
+		} else {
+			gooseProvider = provider
+		}
+	}
+	config[gooseProviderKey] = gooseProvider
 
 	modifiedContent, err := yaml.Marshal(config)
 	if err != nil {
