@@ -163,6 +163,11 @@ func (r *openshellRuntime) downloadBinaries() error {
 	return nil
 }
 
+// DisplayName returns the display name of the OpenShell runtime.
+func (r *openshellRuntime) DisplayName() string {
+	return "OpenShell"
+}
+
 // Type returns the runtime type identifier.
 func (r *openshellRuntime) Type() string {
 	return "openshell"

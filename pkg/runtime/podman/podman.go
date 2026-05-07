@@ -257,6 +257,11 @@ func (p *podmanRuntime) ListAgents() ([]string, error) {
 	return p.config.ListAgents()
 }
 
+// DisplayName returns the display name of the Podman runtime.
+func (p *podmanRuntime) DisplayName() string {
+	return "Podman"
+}
+
 // Type returns the runtime type identifier.
 func (p *podmanRuntime) Type() string {
 	return "podman"

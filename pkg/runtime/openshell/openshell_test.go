@@ -74,6 +74,15 @@ func TestOpenshellRuntime_Type(t *testing.T) {
 	}
 }
 
+func TestOpenshellRuntime_DisplayName(t *testing.T) {
+	t.Parallel()
+
+	rt := newWithDeps(exec.NewFake(), "/fake/openshell-gateway", t.TempDir())
+	if rt.DisplayName() != "OpenShell" {
+		t.Errorf("DisplayName() = %q, want %q", rt.DisplayName(), "OpenShell")
+	}
+}
+
 func TestOpenshellRuntime_InterfaceCompliance(t *testing.T) {
 	t.Parallel()
 

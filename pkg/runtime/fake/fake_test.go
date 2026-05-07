@@ -36,6 +36,15 @@ func TestFakeRuntime_Type(t *testing.T) {
 	}
 }
 
+func TestFakeRuntime_DisplayName(t *testing.T) {
+	t.Parallel()
+
+	rt := New()
+	if rt.DisplayName() != "fake" {
+		t.Errorf("DisplayName() = %q, want %q", rt.DisplayName(), "fake")
+	}
+}
+
 func TestFakeRuntime_WorkspaceSourcesPath(t *testing.T) {
 	t.Parallel()
 

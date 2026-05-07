@@ -2888,6 +2888,7 @@ type invalidStateRuntime struct {
 }
 
 func (r *invalidStateRuntime) Type() string        { return "invalid-state-runtime" }
+func (r *invalidStateRuntime) DisplayName() string { return "invalid-state-runtime" }
 func (r *invalidStateRuntime) Description() string { return "invalid state runtime for testing" }
 func (r *invalidStateRuntime) Local() bool         { return true }
 
@@ -3830,6 +3831,7 @@ func newSpyRuntime(wrapped runtime.Runtime) *spyRuntime {
 }
 
 func (s *spyRuntime) Type() string                 { return s.wrapped.Type() }
+func (s *spyRuntime) DisplayName() string          { return s.wrapped.DisplayName() }
 func (s *spyRuntime) Description() string          { return s.wrapped.Description() }
 func (s *spyRuntime) Local() bool                  { return s.wrapped.Local() }
 func (s *spyRuntime) WorkspaceSourcesPath() string { return s.wrapped.WorkspaceSourcesPath() }

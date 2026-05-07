@@ -47,6 +47,8 @@ type testRuntime struct {
 
 func (t *testRuntime) Type() string { return t.runtimeType }
 
+func (t *testRuntime) DisplayName() string { return t.runtimeType }
+
 func (t *testRuntime) Description() string { return t.description }
 
 func (t *testRuntime) Local() bool { return t.local }

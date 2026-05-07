@@ -237,8 +237,10 @@ type Experimental interface {
 When the `init` command runs, it calls `manager.GetRuntime(runtimeType)` and checks for this interface. If present, it prints a warning to stderr before creating the workspace:
 
 ```text
-⚠️  <name> runtime support is experimental
+⚠️  <DisplayName> runtime support is experimental
 ```
+
+The `<DisplayName>` comes from the runtime's `DisplayName()` method, not its `Type()` identifier.
 
 The warning is suppressed in JSON output mode (`--output json`).
 

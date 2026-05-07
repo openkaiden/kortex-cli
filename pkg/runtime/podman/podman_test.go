@@ -416,6 +416,15 @@ func TestFindFreePorts(t *testing.T) {
 	})
 }
 
+func TestPodmanRuntime_DisplayName(t *testing.T) {
+	t.Parallel()
+
+	rt := New()
+	if rt.DisplayName() != "Podman" {
+		t.Errorf("DisplayName() = %q, want %q", rt.DisplayName(), "Podman")
+	}
+}
+
 func TestPodmanRuntime_WorkspaceSourcesPath(t *testing.T) {
 	t.Parallel()
 

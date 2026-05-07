@@ -63,6 +63,11 @@ func (r *<runtime-name>Runtime) Type() string {
     return "<runtime-name>"
 }
 
+// DisplayName returns the human-readable display name (e.g., "Podman", "OpenShell").
+func (r *<runtime-name>Runtime) DisplayName() string {
+    return "<Pretty Runtime Name>"
+}
+
 // Description returns a human-readable description of the runtime.
 func (r *<runtime-name>Runtime) Description() string {
     return "<short description of what this runtime provides>"
@@ -325,6 +330,10 @@ func TestNew(t *testing.T) {
     if rt.Type() != "<runtime-name>" {
         t.Errorf("Expected type '<runtime-name>', got %s", rt.Type())
     }
+
+    if rt.DisplayName() != "<Pretty Runtime Name>" {
+        t.Errorf("DisplayName() = %q, want %q", rt.DisplayName(), "<Pretty Runtime Name>")
+    }
 }
 
 func TestCreate(t *testing.T) {
@@ -419,6 +428,7 @@ All runtimes MUST implement:
 ```go
 type Runtime interface {
     Type() string
+    DisplayName() string
     Description() string
     Local() bool
     WorkspaceSourcesPath() string

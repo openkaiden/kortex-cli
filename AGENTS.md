@@ -174,7 +174,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 - **Terminal**: Enables interactive terminal sessions with instances (auto-starts if needed)
 - **Dashboard**: Enables runtimes to expose a web dashboard URL (`GetURL(ctx, instanceID) (string, error)`)
 - **FlagProvider**: Enables runtimes to declare runtime-specific CLI flags (`Flags() []FlagDef`). Flag values flow through `AddOptions.RuntimeOptions` and `CreateParams.RuntimeOptions` as `map[string]string`, keeping the command layer runtime-agnostic. The `runtimesetup.ListFlags()` bridge discovers flags from all available runtimes for registration on cobra commands.
-- **Experimental**: Signals that a runtime's support is experimental. The `init` command detects this interface via `manager.GetRuntime()` and prints `⚠️  <name> runtime support is experimental` to stderr (suppressed in JSON output mode). No return value — presence of the interface is the signal. Currently implemented by: `openshell`.
+- **Experimental**: Signals that a runtime's support is experimental. The `init` command detects this interface via `manager.GetRuntime()` and prints `⚠️  <DisplayName> runtime support is experimental` to stderr using the runtime's `DisplayName()` (suppressed in JSON output mode). No return value — presence of the interface is the signal. Currently implemented by: `openshell`.
 
 **For detailed runtime implementation guidance, use:** `/working-with-runtime-system`
 

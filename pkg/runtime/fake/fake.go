@@ -161,6 +161,11 @@ func (f *fakeRuntime) saveToDisk() error {
 	return nil
 }
 
+// DisplayName returns the display name of the fake runtime.
+func (f *fakeRuntime) DisplayName() string {
+	return "fake"
+}
+
 // Type returns the runtime type identifier.
 func (f *fakeRuntime) Type() string {
 	return "fake"

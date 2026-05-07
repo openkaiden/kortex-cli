@@ -35,3 +35,25 @@ func NewWithExperimental() runtime.Runtime {
 
 // IsExperimental implements runtime.Experimental.
 func (r *runtimeWithExperimental) IsExperimental() {}
+
+// runtimeWithExperimentalAndDisplayName wraps runtimeWithExperimental and overrides DisplayName.
+type runtimeWithExperimentalAndDisplayName struct {
+	*runtimeWithExperimental
+	displayName string
+}
+
+// NewWithExperimentalAndDisplayName creates a fake experimental runtime with a custom DisplayName.
+// Use this in tests that need to verify DisplayName is used separately from Type.
+func NewWithExperimentalAndDisplayName(displayName string) runtime.Runtime {
+	return &runtimeWithExperimentalAndDisplayName{
+		runtimeWithExperimental: &runtimeWithExperimental{
+			fakeRuntime: New().(*fakeRuntime),
+		},
+		displayName: displayName,
+	}
+}
+
+// DisplayName overrides the embedded runtime's DisplayName.
+func (r *runtimeWithExperimentalAndDisplayName) DisplayName() string {
+	return r.displayName
+}

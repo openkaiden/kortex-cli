@@ -34,6 +34,10 @@ type Runtime interface {
 	// Type returns the runtime type identifier (e.g., "podman", "docker", "process", "fake").
 	Type() string
 
+	// DisplayName returns a human-readable name for the runtime (e.g., "Podman", "OpenShell").
+	// Unlike Type(), this is suitable for display in UI messages and warnings.
+	DisplayName() string
+
 	// Description returns a human-readable description of the runtime.
 	Description() string
 

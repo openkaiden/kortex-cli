@@ -230,7 +230,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	// Warn when the selected runtime is experimental
 	if rt, err := i.manager.GetRuntime(i.runtime); err == nil {
 		if _, ok := rt.(runtime.Experimental); ok && i.output != "json" {
-			fmt.Fprintf(cmd.ErrOrStderr(), "⚠️  %s runtime support is experimental\n", i.runtime)
+			fmt.Fprintf(cmd.ErrOrStderr(), "⚠️  %s runtime support is experimental\n", rt.DisplayName())
 		}
 	}
 

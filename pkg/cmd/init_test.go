@@ -2662,6 +2662,49 @@ func TestInitCmd_ExperimentalWarning(t *testing.T) {
 			t.Errorf("Expected no experimental warning in JSON mode, got: %q", stderrStr)
 		}
 	})
+
+	t.Run("uses DisplayName not Type in warning", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.NewWithExperimentalAndDisplayName("My Runtime")); err != nil {
+			t.Fatalf("Failed to register experimental runtime: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:        "fake",
+			agent:          "test-agent",
+			absSourcesDir:  sourcesDir,
+			absConfigDir:   filepath.Join(sourcesDir, ".kaiden"),
+			manager:        manager,
+			runtimeOptions: map[string]string{},
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		cmd.SetOut(stdout)
+		cmd.SetErr(stderr)
+
+		if err := c.run(cmd, nil); err != nil {
+			t.Fatalf("run() failed: %v", err)
+		}
+
+		stderrStr := stderr.String()
+		if !strings.Contains(stderrStr, "My Runtime runtime support is experimental") {
+			t.Errorf("Expected display name in warning, got: %q", stderrStr)
+		}
+		if strings.Contains(stderrStr, "fake runtime support is experimental") {
+			t.Errorf("Expected display name (not type ID) in warning, got: %q", stderrStr)
+		}
+	})
 }
 
 func TestRegisterRuntimeFlags(t *testing.T) {

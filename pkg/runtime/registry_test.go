@@ -29,6 +29,7 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Type() string        { return f.typeID }
+func (f *fakeRuntime) DisplayName() string { return f.typeID }
 func (f *fakeRuntime) Description() string { return "fake runtime for testing" }
 func (f *fakeRuntime) Local() bool         { return true }
 func (f *fakeRuntime) WorkspaceSourcesPath() string {
@@ -350,6 +351,7 @@ type storageAwareRuntime struct {
 }
 
 func (s *storageAwareRuntime) Type() string        { return s.typeID }
+func (s *storageAwareRuntime) DisplayName() string { return s.typeID }
 func (s *storageAwareRuntime) Description() string { return "storage-aware runtime for testing" }
 func (s *storageAwareRuntime) Local() bool         { return true }
 func (s *storageAwareRuntime) WorkspaceSourcesPath() string {
