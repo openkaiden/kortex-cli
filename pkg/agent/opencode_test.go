@@ -488,19 +488,8 @@ func TestOpenCode_SetModel(t *testing.T) {
 			t.Errorf("model = %v, want %q", config["model"], "google/gemini-2.0-flash")
 		}
 
-		providers := config["provider"].(map[string]interface{})
-		if _, ok := providers["gemini"]; ok {
-			t.Error("Provider key should be 'google', not 'gemini'")
-		}
-		google, ok := providers["google"].(map[string]interface{})
-		if !ok {
-			t.Fatal("Expected 'google' provider entry")
-		}
-
-		models := google["models"].(map[string]interface{})
-		modelEntry := models["gemini-2.0-flash"].(map[string]interface{})
-		if name := modelEntry["name"].(string); name != "gemini-2.0-flash" {
-			t.Errorf("model name = %q, want %q", name, "gemini-2.0-flash")
+		if _, hasProvider := config["provider"]; hasProvider {
+			t.Error("gemini alias resolves to native google provider: no provider block should be created without a custom baseURL")
 		}
 	})
 
