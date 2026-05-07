@@ -81,6 +81,9 @@ func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID strin
 		if modelName == "" {
 			return nil, fmt.Errorf("invalid model ID %q: expected provider::model or provider::model::baseURL", modelID)
 		}
+		if alias, ok := providerAliases[provider]; ok {
+			provider = alias
+		}
 		resolvedURL := baseURL
 		if resolvedURL == "" {
 			resolvedURL = defaultProviderBaseURLs[provider]
@@ -159,4 +162,11 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 var defaultProviderBaseURLs = map[string]string{
 	"ollama":   "http://" + containerurl.ContainerHost + ":11434/v1",
 	"ramalama": "http://" + containerurl.ContainerHost + ":8080/v1",
+}
+
+// providerAliases maps provider names used in kdn model IDs to the provider
+// names expected by OpenCode. For example, "gemini" maps to "google" because
+// OpenCode uses the "@ai-sdk/google" package under the "google" key.
+var providerAliases = map[string]string{
+	"gemini": "google",
 }
