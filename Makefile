@@ -28,8 +28,6 @@ endif
 BUILD_DIR=.
 # Go command
 GO=go
-# Go files
-GOFILES=$(shell find . -type f -name '*.go' -not -path "./vendor/*")
 
 # Default target
 all: build
@@ -68,7 +66,7 @@ test-coverage: ## Run tests with coverage report
 
 fmt: ## Format code with gofmt
 	@echo "Formatting code..."
-	@gofmt -w $(GOFILES)
+	@gofmt -w .
 
 vet: ## Run go vet
 	@echo "Running go vet..."
@@ -76,13 +74,7 @@ vet: ## Run go vet
 
 check-fmt: ## Check if code is formatted (for CI)
 	@echo "Checking code formatting..."
-	@unformatted=$$(gofmt -l $(GOFILES)); \
-	if [ -n "$$unformatted" ]; then \
-		echo "The following files are not formatted:"; \
-		echo "$$unformatted"; \
-		echo "Run 'make fmt' to format the code."; \
-		exit 1; \
-	fi
+	@unformatted=$$(gofmt -l .); [ -z "$$unformatted" ] || { echo "The following files are not formatted:"; echo "$$unformatted"; echo "Run 'make fmt' to format the code."; exit 1; }
 	@echo "All files are properly formatted."
 
 check-vet: ## Run go vet and fail on issues (for CI)
