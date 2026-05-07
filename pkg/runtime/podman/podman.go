@@ -115,11 +115,13 @@ func (p *podmanRuntime) SetCredentialRegistry(reg credential.Registry) {
 }
 
 // TransformConfig implements runtime.ConfigTransformer.
-// It rewrites localhost URLs in MCP command args to host.containers.internal
-// so that MCP servers spawned inside the container can reach host services.
-func (p *podmanRuntime) TransformConfig(config *workspace.WorkspaceConfiguration) error {
+// It rewrites localhost URLs in MCP command args so that MCP servers spawned
+// inside the container can reach host services. The rewriter handles topology-
+// aware host selection (e.g. probing native-host.internal vs
+// host.containers.internal on WSL2).
+func (p *podmanRuntime) TransformConfig(config *workspace.WorkspaceConfiguration, rewriter containerurl.URLRewriter) error {
 	if config != nil && config.Mcp != nil {
-		containerurl.RewriteMCPCommandArgs(config.Mcp)
+		containerurl.RewriteMCPCommandArgs(config.Mcp, rewriter)
 	}
 	return nil
 }

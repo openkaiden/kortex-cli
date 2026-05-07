@@ -26,6 +26,7 @@ import (
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservice"
@@ -335,29 +336,106 @@ func (p *podmanRuntime) resolveWSLHostIP(ctx context.Context) string {
 	return ""
 }
 
-// injectWSLHostEntry adds or updates a host.containers.internal entry in
-// /etc/hosts inside the workspace container, mapping it to the Windows
-// host IP read from the podman machine's /etc/resolv.conf via SSH.
-// Filters out any existing entry before appending so repeated Start()
-// calls don't accumulate stale lines.
+// resolvePodmanMachineIP returns the podman machine's own IPv4 address by
+// running hostname -I via SSH. It prefers RFC1918 addresses to avoid picking
+// up VPN or public IPs, and skips 127.0.0.1.
+func (p *podmanRuntime) resolvePodmanMachineIP(ctx context.Context) string {
+	out, err := p.executor.Output(ctx, io.Discard,
+		"machine", "ssh", "hostname", "-I",
+	)
+	if err != nil {
+		return ""
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	var fallback string
+	for _, f := range fields {
+		ip := parseIPv4(f)
+		if ip == "" || ip == "127.0.0.1" {
+			continue
+		}
+		if isRFC1918(ip) {
+			return ip
+		}
+		if fallback == "" {
+			fallback = ip
+		}
+	}
+	return fallback
+}
+
+// isRFC1918 reports whether ip falls in a private address range
+// (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16).
+func isRFC1918(s string) bool {
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return false
+	}
+	for _, cidr := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"} {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// BuildURLRewriter returns a URLRewriter that probes container-host
+// reachability on WSL2. On non-WSL2 platforms it returns a default rewriter
+// that always uses host.containers.internal.
+func (p *podmanRuntime) BuildURLRewriter(ctx context.Context) containerurl.URLRewriter {
+	if !p.isPodmanWSL(ctx) {
+		return containerurl.DefaultRewriter()
+	}
+
+	windowsHostIP := p.resolveWSLHostIP(ctx)
+	podmanIP := p.resolvePodmanMachineIP(ctx)
+
+	var targets []containerurl.ReachabilityTarget
+	if windowsHostIP != "" {
+		targets = append(targets, containerurl.ReachabilityTarget{
+			Alias: containerurl.NativeHost,
+			IP:    windowsHostIP,
+		})
+	}
+	if podmanIP != "" {
+		targets = append(targets, containerurl.ReachabilityTarget{
+			Alias: containerurl.ContainerHost,
+			IP:    podmanIP,
+		})
+	}
+
+	if len(targets) == 0 {
+		return containerurl.DefaultRewriter()
+	}
+	return containerurl.NewResolver(targets)
+}
+
+// injectHostEntry adds or replaces an /etc/hosts entry inside the given
+// container, mapping hostname to ip. Existing lines for the hostname are
+// removed first so repeated Start() calls don't accumulate stale entries.
+func (p *podmanRuntime) injectHostEntry(ctx context.Context, containerID, hostname, ip string) error {
+	escaped := strings.ReplaceAll(hostname, ".", "\\.")
+	cmd := fmt.Sprintf(
+		"grep -v '%s' /etc/hosts > /tmp/hosts.tmp && cp /tmp/hosts.tmp /etc/hosts && rm /tmp/hosts.tmp && echo '%s %s' >> /etc/hosts",
+		escaped, ip, hostname,
+	)
+	if err := p.executor.Run(ctx, io.Discard, io.Discard,
+		"exec", "--user", "root", containerID, "sh", "-c", cmd,
+	); err != nil {
+		return fmt.Errorf("failed to inject %s entry: %w", hostname, err)
+	}
+	return nil
+}
+
+// injectWSLHostEntry adds a native-host.internal entry to /etc/hosts inside
+// the given container, mapping it to the Windows gateway IP so that host-native
+// services (e.g. Ollama) are reachable.
 func (p *podmanRuntime) injectWSLHostEntry(ctx context.Context, containerID string) error {
 	hostIP := p.resolveWSLHostIP(ctx)
 	if hostIP == "" {
 		return fmt.Errorf("failed to resolve Windows host IP from podman machine")
 	}
-
-	// /etc/hosts is a mount in containers — sed -i fails because it tries to
-	// rename a temp file over the mount. Use grep + tee to modify in-place.
-	cmd := fmt.Sprintf(
-		"grep -v 'host\\.containers\\.internal' /etc/hosts > /tmp/hosts.tmp && cp /tmp/hosts.tmp /etc/hosts && rm /tmp/hosts.tmp && echo '%s host.containers.internal' >> /etc/hosts",
-		hostIP,
-	)
-	if err := p.executor.Run(ctx, io.Discard, io.Discard,
-		"exec", "--user", "root", containerID, "sh", "-c", cmd,
-	); err != nil {
-		return fmt.Errorf("failed to update /etc/hosts entry: %w", err)
-	}
-	return nil
+	return p.injectHostEntry(ctx, containerID, "native-host.internal", hostIP)
 }
 
 // buildNftScript generates the shell script that sets up nftables OUTPUT rules.

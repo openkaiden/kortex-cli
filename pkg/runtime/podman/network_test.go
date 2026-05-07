@@ -885,14 +885,14 @@ func TestInjectWSLHostEntry(t *testing.T) {
 		for _, call := range fakeExec.RunCalls {
 			if len(call) >= 7 && call[0] == "exec" && call[1] == "--user" && call[2] == "root" && call[3] == "test-container" && call[4] == "sh" && call[5] == "-c" {
 				script := call[6]
-				if strings.Contains(script, "grep -v") && strings.Contains(script, "10.255.0.1 host.containers.internal") {
+				if strings.Contains(script, "grep -v") && strings.Contains(script, "10.255.0.1 native-host.internal") {
 					found = true
 					break
 				}
 			}
 		}
 		if !found {
-			t.Error("expected exec call with sed + echo writing host.containers.internal to /etc/hosts")
+			t.Error("expected exec call writing native-host.internal to /etc/hosts")
 		}
 	})
 

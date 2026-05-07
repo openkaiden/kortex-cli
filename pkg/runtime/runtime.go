@@ -22,6 +22,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/secretservice"
@@ -247,18 +248,18 @@ type FlagProvider interface {
 // TransformConfig is called after configuration merging but before
 // agent settings are generated (e.g., before SetMCPServers bakes MCP
 // config into agent setting files). Implementations should mutate the
-// config in place.
-//
-// Example implementation:
-//
-//	func (r *myRuntime) TransformConfig(config *workspace.WorkspaceConfiguration) error {
-//	    if config.Mcp != nil {
-//	        rewriteLocalhostURLs(config.Mcp)
-//	    }
-//	    return nil
-//	}
+// config in place. The rewriter handles localhost-to-container-host
+// URL rewriting; the runtime owns the topology knowledge, not the
+// config layer.
 type ConfigTransformer interface {
-	TransformConfig(config *workspace.WorkspaceConfiguration) error
+	TransformConfig(config *workspace.WorkspaceConfiguration, rewriter containerurl.URLRewriter) error
+}
+
+// ContainerURLRewriterProvider is an optional interface for runtimes that
+// can build a URLRewriter based on network topology (e.g. probing whether
+// services are reachable via the podman VM or the native host on WSL2).
+type ContainerURLRewriterProvider interface {
+	BuildURLRewriter(ctx context.Context) containerurl.URLRewriter
 }
 
 // Experimental is an optional interface for runtimes whose support is experimental.

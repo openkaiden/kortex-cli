@@ -132,9 +132,8 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start network-guard container: %w", err)
 	}
 
-	// On WSL2, host.containers.internal does not resolve because the WSL2
-	// provider does not update /etc/hosts like macOS/Hyper-V VMs do. Patch
-	// the network-guard container so resolveHostGateway's getent succeeds.
+	// On WSL2, inject native-host.internal so host-native services
+	// (e.g. Ollama on Windows) are reachable.
 	isWSL := p.isPodmanWSL(ctx)
 	if isWSL {
 		if err := p.injectWSLHostEntry(ctx, networkGuardContainer); err != nil {

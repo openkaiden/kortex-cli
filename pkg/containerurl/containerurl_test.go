@@ -55,23 +55,24 @@ func TestRewriteURL(t *testing.T) {
 
 func TestRewriteMCPCommandArgs(t *testing.T) {
 	t.Parallel()
+	rewriter := DefaultRewriter()
 
 	t.Run("nil mcp", func(t *testing.T) {
 		t.Parallel()
-		RewriteMCPCommandArgs(nil)
+		RewriteMCPCommandArgs(nil, rewriter)
 	})
 
 	t.Run("nil commands", func(t *testing.T) {
 		t.Parallel()
 		mcp := &workspace.McpConfiguration{}
-		RewriteMCPCommandArgs(mcp)
+		RewriteMCPCommandArgs(mcp, rewriter)
 	})
 
 	t.Run("nil args", func(t *testing.T) {
 		t.Parallel()
 		cmds := []workspace.McpCommand{{Name: "test", Command: "uvx"}}
 		mcp := &workspace.McpConfiguration{Commands: &cmds}
-		RewriteMCPCommandArgs(mcp)
+		RewriteMCPCommandArgs(mcp, rewriter)
 		if (*mcp.Commands)[0].Args != nil {
 			t.Error("expected args to remain nil")
 		}
@@ -91,7 +92,7 @@ func TestRewriteMCPCommandArgs(t *testing.T) {
 		}}
 		mcp := &workspace.McpConfiguration{Commands: &cmds}
 
-		RewriteMCPCommandArgs(mcp)
+		RewriteMCPCommandArgs(mcp, rewriter)
 
 		got := (*mcp.Commands)[0].Args
 		expected := []string{
@@ -114,7 +115,7 @@ func TestRewriteMCPCommandArgs(t *testing.T) {
 		}}
 		mcp := &workspace.McpConfiguration{Servers: &servers}
 
-		RewriteMCPCommandArgs(mcp)
+		RewriteMCPCommandArgs(mcp, rewriter)
 
 		if (*mcp.Servers)[0].Url != "https://api.githubcopilot.com/mcp" {
 			t.Errorf("server URL was modified: %q", (*mcp.Servers)[0].Url)
@@ -131,7 +132,7 @@ func TestRewriteMCPCommandArgs(t *testing.T) {
 		}
 		mcp := &workspace.McpConfiguration{Commands: &cmds}
 
-		RewriteMCPCommandArgs(mcp)
+		RewriteMCPCommandArgs(mcp, rewriter)
 
 		if (*(*mcp.Commands)[0].Args)[1] != "http://host.containers.internal:8080" {
 			t.Errorf("cmd1 arg not rewritten: %q", (*(*mcp.Commands)[0].Args)[1])
