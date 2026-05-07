@@ -81,6 +81,7 @@ func TestOpenshellRuntime_InterfaceCompliance(t *testing.T) {
 	var _ runtime.StorageAware = (*openshellRuntime)(nil)
 	var _ runtime.Terminal = (*openshellRuntime)(nil)
 	var _ runtime.FlagProvider = (*openshellRuntime)(nil)
+	var _ runtime.Experimental = (*openshellRuntime)(nil)
 }
 
 func TestOpenshellRuntime_Flags(t *testing.T) {

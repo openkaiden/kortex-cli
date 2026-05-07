@@ -61,6 +61,9 @@ var _ runtime.SecretServiceRegistryAware = (*openshellRuntime)(nil)
 // Ensure openshellRuntime implements runtime.FlagProvider at compile time.
 var _ runtime.FlagProvider = (*openshellRuntime)(nil)
 
+// Ensure openshellRuntime implements runtime.Experimental at compile time.
+var _ runtime.Experimental = (*openshellRuntime)(nil)
+
 // New creates a new OpenShell Gateway runtime instance.
 func New() runtime.Runtime {
 	return &openshellRuntime{}
@@ -79,6 +82,9 @@ func newWithDeps(executor exec.Executor, gatewayBinaryPath, storageDir string) *
 	rt.binariesOnce.Do(func() {})
 	return rt
 }
+
+// IsExperimental implements runtime.Experimental.
+func (r *openshellRuntime) IsExperimental() {}
 
 // Available reports whether the OpenShell Gateway runtime is supported on the current platform.
 func (r *openshellRuntime) Available() bool {
