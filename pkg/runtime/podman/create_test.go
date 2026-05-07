@@ -417,7 +417,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -472,7 +472,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -521,7 +521,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -558,7 +558,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -609,7 +609,10 @@ func TestBuildContainerArgs(t *testing.T) {
 			caContainerPath: "/etc/ssl/certs/onecli-ca.pem",
 		}
 
-		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		clawConfig := &config.AgentConfig{
+			EnvVars: map[string]string{"OPENCLAW_PROXY_ACTIVE": "1"},
+		}
+		args, err := p.buildContainerArgs(params, imageName, ccArgs, clawConfig)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -630,6 +633,11 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		if !strings.Contains(argsStr, "-e no_proxy=localhost,127.0.0.1,host.containers.internal") {
 			t.Errorf("Expected no_proxy env var in args: %s", argsStr)
+		}
+
+		// Verify agent env vars are injected when proxy is active
+		if !strings.Contains(argsStr, "-e OPENCLAW_PROXY_ACTIVE=1") {
+			t.Errorf("Expected OPENCLAW_PROXY_ACTIVE=1 env var in args: %s", argsStr)
 		}
 
 		// Verify CA cert volume mount
@@ -659,7 +667,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			},
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -696,7 +704,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			envVars: map[string]string{"HTTP_PROXY": "http://proxy:8080"},
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -722,7 +730,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			Agent:      "test_agent",
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", nil)
+		args, err := p.buildContainerArgs(params, "kdn-test", nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -758,7 +766,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			},
 		}
 
-		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		args, err := p.buildContainerArgs(params, imageName, ccArgs, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -821,7 +829,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -880,7 +888,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -917,7 +925,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, nil, &config.AgentConfig{})
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -2334,6 +2342,50 @@ func TestBuildForwards(t *testing.T) {
 			if fwd.Port <= 0 || fwd.Port > 65535 {
 				t.Errorf("Forward %d: Port %d is out of valid range", i, fwd.Port)
 			}
+		}
+	})
+
+	t.Run("includes agent default ports for openclaw with same host port", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		params := runtime.CreateParams{
+			Agent: "openclaw",
+		}
+
+		forwards, err := p.buildForwards(params)
+		if err != nil {
+			t.Fatalf("buildForwards() failed: %v", err)
+		}
+		if len(forwards) != 1 {
+			t.Fatalf("Expected 1 forward, got %d", len(forwards))
+		}
+		if forwards[0].Target != openclawDefaultPort {
+			t.Errorf("Expected target port %d, got %d", openclawDefaultPort, forwards[0].Target)
+		}
+		if forwards[0].Port != openclawDefaultPort {
+			t.Errorf("Expected host port %d, got %d", openclawDefaultPort, forwards[0].Port)
+		}
+	})
+
+	t.Run("deduplicates workspace and agent default ports", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		ports := []int{openclawDefaultPort, 3000}
+		params := runtime.CreateParams{
+			Agent: "openclaw",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Ports: &ports,
+			},
+		}
+
+		forwards, err := p.buildForwards(params)
+		if err != nil {
+			t.Fatalf("buildForwards() failed: %v", err)
+		}
+		if len(forwards) != 2 {
+			t.Fatalf("Expected 2 forwards (deduplicated), got %d", len(forwards))
 		}
 	})
 }

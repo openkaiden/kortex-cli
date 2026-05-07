@@ -250,7 +250,7 @@ type containerConfigArgs struct {
 type mountKey struct{ host, target string }
 
 // buildContainerArgs builds the arguments for creating the workspace container inside the pod.
-func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
+func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs, agentConfig *config.AgentConfig) ([]string, error) {
 	args := []string{"create", "--pod", params.Name, "--name", params.Name, "--device", "/dev/fuse"}
 
 	// Collect workspace env var names for collision detection
@@ -286,6 +286,11 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 			!onecliEnvNames["NO_PROXY"] && !onecliEnvNames["no_proxy"] {
 			const noProxy = "localhost,127.0.0.1,host.containers.internal"
 			args = append(args, "-e", "NO_PROXY="+noProxy, "-e", "no_proxy="+noProxy)
+		}
+		for k, v := range agentConfig.EnvVars {
+			if !workspaceEnvNames[k] && !onecliEnvNames[k] {
+				args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+			}
 		}
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
@@ -603,7 +608,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 
 	// Build workspace container args with proxy env vars and CA cert mount from OneCLI
 	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", params.Name), "Workspace container created")
-	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs)
+	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs, agentConfig)
 	if err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
@@ -652,24 +657,54 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}, nil
 }
 
-// buildForwards allocates a free host port for each container port in WorkspaceConfig.Ports
-// and returns the resulting WorkspaceForward slice. Returns nil when no ports are configured.
+const openclawDefaultPort = 18789
+
+var agentDefaultPorts = map[string][]int{
+	"openclaw": {openclawDefaultPort},
+}
+
+// buildForwards combines workspace config ports with agent-specific defaults
+// and returns the resulting WorkspaceForward slice. Agent default ports use
+// the same port number on host and container (e.g. 18789:18789). User-configured
+// ports get a random free host port. Returns nil when no ports are configured.
 func (p *podmanRuntime) buildForwards(params runtime.CreateParams) ([]api.WorkspaceForward, error) {
-	if params.WorkspaceConfig == nil || params.WorkspaceConfig.Ports == nil || len(*params.WorkspaceConfig.Ports) == 0 {
-		return nil, nil
-	}
-	containerPorts := *params.WorkspaceConfig.Ports
-	hostPorts, err := findFreePorts(len(containerPorts))
-	if err != nil {
-		return nil, fmt.Errorf("failed to allocate host ports: %w", err)
-	}
-	forwards := make([]api.WorkspaceForward, len(containerPorts))
-	for i, containerPort := range containerPorts {
-		forwards[i] = api.WorkspaceForward{
-			Bind:   "127.0.0.1",
-			Port:   hostPorts[i],
-			Target: containerPort,
+	seen := make(map[int]bool)
+	var forwards []api.WorkspaceForward
+
+	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Ports != nil {
+		for _, port := range *params.WorkspaceConfig.Ports {
+			if !seen[port] {
+				seen[port] = true
+			}
 		}
+		userPorts := *params.WorkspaceConfig.Ports
+		if len(userPorts) > 0 {
+			hostPorts, err := findFreePorts(len(userPorts))
+			if err != nil {
+				return nil, fmt.Errorf("failed to allocate host ports: %w", err)
+			}
+			for i, containerPort := range userPorts {
+				forwards = append(forwards, api.WorkspaceForward{
+					Bind:   "127.0.0.1",
+					Port:   hostPorts[i],
+					Target: containerPort,
+				})
+			}
+		}
+	}
+
+	for _, port := range agentDefaultPorts[params.Agent] {
+		if !seen[port] {
+			forwards = append(forwards, api.WorkspaceForward{
+				Bind:   "127.0.0.1",
+				Port:   port,
+				Target: port,
+			})
+		}
+	}
+
+	if len(forwards) == 0 {
+		return nil, nil
 	}
 	return forwards, nil
 }

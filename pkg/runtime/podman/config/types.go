@@ -24,7 +24,8 @@ type ImageConfig struct {
 
 // AgentConfig represents agent-specific configuration.
 type AgentConfig struct {
-	Packages        []string `json:"packages"`
-	RunCommands     []string `json:"run_commands"`
-	TerminalCommand []string `json:"terminal_command"`
+	Packages        []string          `json:"packages"`
+	RunCommands     []string          `json:"run_commands"`
+	TerminalCommand []string          `json:"terminal_command"`
+	EnvVars         map[string]string `json:"env_vars,omitempty"`
 }
