@@ -364,6 +364,35 @@ func TestOpenCode_SetModel(t *testing.T) {
 		}
 	})
 
+	t.Run("anthropic native provider does not set npm field", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := make(map[string]SettingsFile)
+
+		result, err := agent.SetModel(settings, "anthropic::claude-opus-4-7")
+		if err != nil {
+			t.Fatalf("SetModel() error = %v", err)
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(result[OpenCodeConfigPath].Content, &config); err != nil {
+			t.Fatalf("Failed to parse result JSON: %v", err)
+		}
+
+		providers := config["provider"].(map[string]interface{})
+		anthropic := providers["anthropic"].(map[string]interface{})
+
+		if _, hasNPM := anthropic["npm"]; hasNPM {
+			t.Error("Native anthropic provider should not have npm field")
+		}
+
+		models := anthropic["models"].(map[string]interface{})
+		if _, exists := models["claude-opus-4-7"]; !exists {
+			t.Error("Expected model entry for claude-opus-4-7")
+		}
+	})
+
 	t.Run("provider with empty model name returns error", func(t *testing.T) {
 		t.Parallel()
 

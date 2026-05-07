@@ -115,6 +115,21 @@ func (o *openCodeAgent) SetMCPServers(settings map[string]SettingsFile, _ *works
 	return settings, nil
 }
 
+// nativeProviders lists providers that OpenCode supports natively via bundled SDKs.
+// These do not need the "npm": "@ai-sdk/openai-compatible" field.
+var nativeProviders = map[string]bool{
+	"anthropic":      true,
+	"openai":         true,
+	"google-vertex":  true,
+	"amazon-bedrock": true,
+	"azure":          true,
+	"cerebras":       true,
+	"groq":           true,
+	"huggingface":    true,
+	"mistral":        true,
+	"together":       true,
+}
+
 // configureProvider adds a provider block with the given base URL and registers the model.
 func configureProvider(config map[string]interface{}, provider, modelName, baseURL string) error {
 	providers, _ := config["provider"].(map[string]interface{})
@@ -127,7 +142,9 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 	if providerEntry == nil {
 		providerEntry = map[string]interface{}{
 			"name": provider,
-			"npm":  "@ai-sdk/openai-compatible",
+		}
+		if !nativeProviders[provider] {
+			providerEntry["npm"] = "@ai-sdk/openai-compatible"
 		}
 	}
 	if baseURL != "" {
