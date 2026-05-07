@@ -31,6 +31,8 @@ import (
 	"github.com/openkaiden/kdn/pkg/cmd/testutil"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/runtime/fake"
+	"github.com/openkaiden/kdn/pkg/secretservice"
+	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/spf13/cobra"
 )
 
@@ -166,6 +168,31 @@ func TestWorkspaceStartCmd_PreRun(t *testing.T) {
 
 		if !strings.Contains(err.Error(), "--show-logs") {
 			t.Errorf("Expected error to mention '--show-logs', got: %v", err)
+		}
+	})
+
+	t.Run("registers all secret services so known types resolve on start", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		c := &workspaceStartCmd{}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		if err := c.preRun(cmd, []string{"test-id"}); err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		// All services from secretservices.json must already be registered.
+		// Attempting to re-register any of them must return an "already registered" error.
+		for _, name := range secretservicesetup.ListAvailable() {
+			svc := secretservice.NewSecretService(name, nil, "", nil, "", "", "")
+			err := c.manager.RegisterSecretService(svc)
+			if err == nil {
+				t.Errorf("secret service %q was not registered by preRun (re-registration succeeded)", name)
+			} else if !strings.Contains(err.Error(), "already registered") {
+				t.Errorf("secret service %q: unexpected error: %v", name, err)
+			}
 		}
 	})
 

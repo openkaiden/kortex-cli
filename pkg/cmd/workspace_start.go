@@ -25,9 +25,12 @@ import (
 	"path/filepath"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	"github.com/openkaiden/kdn/pkg/agentsetup"
+	"github.com/openkaiden/kdn/pkg/credentialsetup"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
+	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/openkaiden/kdn/pkg/steplogger"
 	"github.com/spf13/cobra"
 )
@@ -80,6 +83,18 @@ func (w *workspaceStartCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Register all available runtimes
 	if err := runtimesetup.RegisterAll(manager); err != nil {
 		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to register runtimes: %w", err))
+	}
+
+	if err := agentsetup.RegisterAll(manager); err != nil {
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to register agents: %w", err))
+	}
+
+	if err := secretservicesetup.RegisterAll(manager); err != nil {
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to register secret services: %w", err))
+	}
+
+	if err := credentialsetup.RegisterAll(manager); err != nil {
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to register credentials: %w", err))
 	}
 
 	w.manager = manager

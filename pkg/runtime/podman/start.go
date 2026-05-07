@@ -104,7 +104,7 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 
 	// Automatically add host patterns from secrets so users do not need to
 	// list them explicitly under network.hosts.
-	secretHosts, err := collectSecretHosts(wsCfg, p.secretStore, p.secretServiceRegistry)
+	secretHosts, err := collectSecretHosts(ctx, wsCfg, p.secretStore, p.secretServiceRegistry)
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to collect secret hosts: %w", err)
 	}
@@ -113,6 +113,7 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	// The credential directory acts as a signal that the credential was successfully set up.
 	credentialHosts := p.collectCredentialHosts(tmplData.Name, wsCfg)
 	allHosts := mergeHosts(explicitHosts, mergeHosts(secretHosts, credentialHosts))
+	fmt.Fprintf(l.Stderr(), "[network] allowed hosts for approval-handler: %v\n", allHosts)
 
 	// Networking rules are configured whenever mode is explicitly deny, regardless
 	// of whether any hosts are allowed. An empty host list causes the

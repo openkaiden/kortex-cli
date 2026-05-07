@@ -23,8 +23,11 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/openkaiden/kdn/pkg/agentsetup"
+	"github.com/openkaiden/kdn/pkg/credentialsetup"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
+	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/spf13/cobra"
 )
 
@@ -67,6 +70,18 @@ func (w *workspaceTerminalCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Register all available runtimes
 	if err := runtimesetup.RegisterAll(manager); err != nil {
 		return fmt.Errorf("failed to register runtimes: %w", err)
+	}
+
+	if err := agentsetup.RegisterAll(manager); err != nil {
+		return fmt.Errorf("failed to register agents: %w", err)
+	}
+
+	if err := secretservicesetup.RegisterAll(manager); err != nil {
+		return fmt.Errorf("failed to register secret services: %w", err)
+	}
+
+	if err := credentialsetup.RegisterAll(manager); err != nil {
+		return fmt.Errorf("failed to register credentials: %w", err)
 	}
 
 	w.manager = manager
