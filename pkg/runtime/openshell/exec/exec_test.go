@@ -17,8 +17,6 @@ package exec
 import (
 	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -38,29 +36,11 @@ func falseCommand() (string, []string) {
 	return "false", nil
 }
 
-func stderrFailCommand(t *testing.T) (string, []string) {
-	t.Helper()
+func stderrFailCommand(_ *testing.T) (string, []string) {
 	if runtime.GOOS == "windows" {
 		return "cmd", []string{"/c", "echo error message >&2 & exit /b 1"}
 	}
-	dir := t.TempDir()
-	script := filepath.Join(dir, "fail.sh")
-	f, err := os.OpenFile(script, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Write([]byte("#!/bin/sh\necho 'error message' >&2\nexit 1\n")); err != nil {
-		f.Close()
-		t.Fatal(err)
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return "sh", []string{script}
+	return "sh", []string{"-c", "echo 'error message' >&2; exit 1"}
 }
 
 func TestNew(t *testing.T) {
