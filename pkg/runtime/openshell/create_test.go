@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,7 +122,7 @@ func TestCreateSandbox_PodmanIncludesFromBase(t *testing.T) {
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 	rt.config.Driver = DriverPodman
 
-	_ = rt.createSandbox(context.Background(), "kdn-test", "claude", noopLogger{})
+	_ = rt.createSandbox(context.Background(), "kdn-test", "claude", nil, noopLogger{})
 
 	if len(fakeExec.RunCalls) < 1 {
 		t.Fatal("Expected at least 1 Run call")
@@ -147,7 +148,7 @@ func TestCreateSandbox_PodmanUsesAgentImage(t *testing.T) {
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 	rt.config.Driver = DriverPodman
 
-	_ = rt.createSandbox(context.Background(), "kdn-test", "gemini", noopLogger{})
+	_ = rt.createSandbox(context.Background(), "kdn-test", "gemini", nil, noopLogger{})
 
 	if len(fakeExec.RunCalls) < 1 {
 		t.Fatal("Expected at least 1 Run call")
@@ -166,6 +167,36 @@ func TestCreateSandbox_PodmanUsesAgentImage(t *testing.T) {
 	}
 }
 
+func TestCreateSandbox_WithProviders(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
+	rt.config.Driver = DriverPodman
+
+	providers := []string{"kdn-github-token", "kdn-anthropic-key"}
+	_ = rt.createSandbox(context.Background(), "kdn-test", "claude", providers, noopLogger{})
+
+	if len(fakeExec.RunCalls) < 1 {
+		t.Fatal("Expected at least 1 Run call")
+	}
+
+	call := fakeExec.RunCalls[0]
+	providerCount := 0
+	for i, arg := range call {
+		if arg == "--provider" && i+1 < len(call) {
+			providerCount++
+		}
+	}
+	if providerCount != 2 {
+		t.Errorf("Expected 2 --provider flags, got %d in: %v", providerCount, call)
+	}
+
+	if !slices.Contains(call, "kdn-github-token") || !slices.Contains(call, "kdn-anthropic-key") {
+		t.Errorf("Expected provider names in create call: %v", call)
+	}
+}
+
 func TestCreateSandbox_PodmanRejectsUnknownAgent(t *testing.T) {
 	t.Parallel()
 
@@ -173,7 +204,7 @@ func TestCreateSandbox_PodmanRejectsUnknownAgent(t *testing.T) {
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 	rt.config.Driver = DriverPodman
 
-	err := rt.createSandbox(context.Background(), "kdn-test", "unknown-agent", noopLogger{})
+	err := rt.createSandbox(context.Background(), "kdn-test", "unknown-agent", nil, noopLogger{})
 	if err == nil {
 		t.Error("Expected error for unsupported agent")
 	}
@@ -226,7 +257,7 @@ func TestCreateSandbox_VMOmitsFromBase(t *testing.T) {
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 	rt.config.Driver = DriverVM
 
-	_ = rt.createSandbox(context.Background(), "kdn-test", "claude", noopLogger{})
+	_ = rt.createSandbox(context.Background(), "kdn-test", "claude", nil, noopLogger{})
 
 	if len(fakeExec.RunCalls) < 1 {
 		t.Fatal("Expected at least 1 Run call")
@@ -584,7 +615,7 @@ func TestCreateSandbox_ReadinessTimeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := rt.createSandbox(ctx, "kdn-test", "claude", noopLogger{})
+	err := rt.createSandbox(ctx, "kdn-test", "claude", nil, noopLogger{})
 	if err == nil {
 		t.Error("Expected error when context is cancelled")
 	}
@@ -604,7 +635,7 @@ func TestCreateSandbox_RetriesUntilReady(t *testing.T) {
 	}
 
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
-	err := rt.createSandbox(context.Background(), "kdn-test", "claude", noopLogger{})
+	err := rt.createSandbox(context.Background(), "kdn-test", "claude", nil, noopLogger{})
 	if err != nil {
 		t.Fatalf("createSandbox should succeed after retry: %v", err)
 	}
@@ -619,7 +650,7 @@ func TestCreateSandbox_SucceedsFirstTry(t *testing.T) {
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 
-	err := rt.createSandbox(context.Background(), "kdn-test", "claude", noopLogger{})
+	err := rt.createSandbox(context.Background(), "kdn-test", "claude", nil, noopLogger{})
 	if err != nil {
 		t.Fatalf("createSandbox should succeed on first try: %v", err)
 	}

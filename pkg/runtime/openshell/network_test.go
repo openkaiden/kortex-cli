@@ -516,14 +516,24 @@ func assertPolicyUpdateNotContains(t *testing.T, calls [][]string, endpoints ...
 
 // fakeSecretStore implements secret.Store for testing.
 type fakeSecretStore struct {
-	items []secret.ListItem
-	err   error
+	items  []secret.ListItem
+	values map[string]string
+	err    error
 }
 
 func (f *fakeSecretStore) Create(secret.CreateParams) error { return nil }
 func (f *fakeSecretStore) List() ([]secret.ListItem, error) { return f.items, f.err }
-func (f *fakeSecretStore) Get(string) (secret.ListItem, string, error) {
-	return secret.ListItem{}, "", nil
+func (f *fakeSecretStore) Get(name string) (secret.ListItem, string, error) {
+	for _, item := range f.items {
+		if item.Name == name {
+			val := ""
+			if f.values != nil {
+				val = f.values[name]
+			}
+			return item, val, nil
+		}
+	}
+	return secret.ListItem{}, "", fmt.Errorf("secret %q not found", name)
 }
 func (f *fakeSecretStore) Remove(string) error { return nil }
 
@@ -555,14 +565,15 @@ func (f *fakeSecretServiceRegistry) List() []string {
 
 // fakeSecretService implements secretservice.SecretService for testing.
 type fakeSecretService struct {
-	hosts []string
+	hosts   []string
+	envVars []string
 }
 
 func (f *fakeSecretService) Name() string            { return "fake" }
 func (f *fakeSecretService) Description() string     { return "" }
 func (f *fakeSecretService) HostsPatterns() []string { return f.hosts }
 func (f *fakeSecretService) Path() string            { return "" }
-func (f *fakeSecretService) EnvVars() []string       { return nil }
+func (f *fakeSecretService) EnvVars() []string       { return f.envVars }
 func (f *fakeSecretService) HeaderName() string      { return "" }
 func (f *fakeSecretService) HeaderTemplate() string  { return "" }
 

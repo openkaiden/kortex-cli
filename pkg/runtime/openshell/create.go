@@ -64,9 +64,18 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 	// Collect ports from workspace config and agent defaults
 	ports := collectPorts(params)
 
+	// Provision OpenShell providers for workspace secrets before sandbox creation,
+	// because providers must be attached via --provider flags at create time.
+	step.Start("Provisioning secret providers", "Secret providers provisioned")
+	providerNames, err := r.ensureProviders(ctx, params.WorkspaceConfig)
+	if err != nil {
+		step.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to provision providers: %w", err)
+	}
+
 	// Create the sandbox
 	step.Start(fmt.Sprintf("Creating sandbox: %s", name), "Sandbox created")
-	if err := r.createSandbox(ctx, name, params.Agent, l); err != nil {
+	if err := r.createSandbox(ctx, name, params.Agent, providerNames, l); err != nil {
 		step.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create sandbox: %w", err)
 	}
@@ -169,7 +178,7 @@ func sandboxImage(agent string) (string, error) {
 	}
 }
 
-func (r *openshellRuntime) createSandbox(ctx context.Context, name string, agent string, l logger.Logger) error {
+func (r *openshellRuntime) createSandbox(ctx context.Context, name string, agent string, providers []string, l logger.Logger) error {
 	args := []string{"sandbox", "create", "--name", name}
 	if r.config.Driver != DriverVM {
 		image, err := sandboxImage(agent)
@@ -177,6 +186,9 @@ func (r *openshellRuntime) createSandbox(ctx context.Context, name string, agent
 			return err
 		}
 		args = append(args, "--from", image)
+	}
+	for _, p := range providers {
+		args = append(args, "--provider", p)
 	}
 	args = append(args, "--no-tty", "--no-bootstrap", "--", "true")
 	err := r.executor.Run(ctx, l.Stdout(), l.Stderr(), args...)
