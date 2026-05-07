@@ -45,7 +45,7 @@ func TestRegisterAll(t *testing.T) {
 		t.Fatal("RegisterAll() registered no credentials")
 	}
 
-	for _, want := range []string{"gcloud", "openshift"} {
+	for _, want := range []string{"gcloud", "kubeconfig"} {
 		found := false
 		for _, name := range r.registered {
 			if name == want {

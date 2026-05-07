@@ -16,13 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  **********************************************************************/
 
-// Package openshift implements the credential.Credential interface for OpenShift
-// token-based authentication. When a workspace mount targets the host kubeconfig
-// file or directory and the current context uses token-based auth, this credential
-// intercepts the mount and substitutes a pruned kubeconfig containing only the
-// current context with a placeholder token. The real token is forwarded through
-// the OneCLI proxy as a Bearer Authorization header on requests to the cluster.
-package openshift
+// Package kubeconfig implements the credential.Credential interface for
+// Kubernetes token-based authentication. When a workspace mount targets the
+// host kubeconfig file or directory and the current context uses token-based
+// auth, this credential intercepts the mount and substitutes a pruned
+// kubeconfig containing only the current context with a placeholder token.
+// The real token is forwarded through the OneCLI proxy as a Bearer
+// Authorization header on requests to the cluster.
+package kubeconfig
 
 import (
 	"context"
@@ -93,24 +94,24 @@ type userInfo struct {
 	ClientKeyData         string `yaml:"client-key-data,omitempty"`
 }
 
-// openshiftCredential implements credential.Credential for OpenShift token auth.
-type openshiftCredential struct{}
+// kubeconfigCredential implements credential.Credential for Kubernetes token auth.
+type kubeconfigCredential struct{}
 
-// Compile-time check that openshiftCredential implements the Credential interface.
-var _ credential.Credential = (*openshiftCredential)(nil)
+// Compile-time check that kubeconfigCredential implements the Credential interface.
+var _ credential.Credential = (*kubeconfigCredential)(nil)
 
-// New returns a new OpenShift Credential implementation.
+// New returns a new kubeconfig Credential implementation.
 func New() credential.Credential {
-	return &openshiftCredential{}
+	return &kubeconfigCredential{}
 }
 
 // Name returns the credential identifier.
-func (o *openshiftCredential) Name() string {
-	return "openshift"
+func (o *kubeconfigCredential) Name() string {
+	return "kubeconfig"
 }
 
 // ContainerFilePath returns the kubeconfig path inside the container.
-func (o *openshiftCredential) ContainerFilePath() string {
+func (o *kubeconfigCredential) ContainerFilePath() string {
 	return containerKubePath
 }
 
@@ -120,7 +121,7 @@ func (o *openshiftCredential) ContainerFilePath() string {
 // token-based authentication. Returns the host kubeconfig path and the
 // intercepted mount, or ("", nil) when the mount is absent or authentication
 // is not token-based.
-func (o *openshiftCredential) Detect(mounts []workspace.Mount, homeDir string) (string, *workspace.Mount) {
+func (o *kubeconfigCredential) Detect(mounts []workspace.Mount, homeDir string) (string, *workspace.Mount) {
 	for i := range mounts {
 		m := mounts[i]
 		target := resolveTarget(m.Target)
@@ -150,7 +151,7 @@ func (o *openshiftCredential) Detect(mounts []workspace.Mount, homeDir string) (
 // FakeFile returns a minimal kubeconfig containing only the current context,
 // its cluster (with server and CA intact), and the current user with the real
 // token replaced by a placeholder.
-func (o *openshiftCredential) FakeFile(hostFilePath string) ([]byte, error) {
+func (o *kubeconfigCredential) FakeFile(hostFilePath string) ([]byte, error) {
 	cfg, err := loadKubeConfig(hostFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading kubeconfig from %s: %w", hostFilePath, err)
@@ -174,7 +175,7 @@ func (o *openshiftCredential) FakeFile(hostFilePath string) ([]byte, error) {
 // Configure reads the real kubeconfig at hostFilePath, extracts the current
 // context's token, and registers an OneCLI secret that injects the token as an
 // Authorization: Bearer header for requests to the cluster's API server.
-func (o *openshiftCredential) Configure(ctx context.Context, client onecli.Client, hostFilePath string) error {
+func (o *kubeconfigCredential) Configure(ctx context.Context, client onecli.Client, hostFilePath string) error {
 	cfg, err := loadKubeConfig(hostFilePath)
 	if err != nil {
 		return fmt.Errorf("reading kubeconfig from %s: %w", hostFilePath, err)
@@ -208,7 +209,7 @@ func (o *openshiftCredential) Configure(ctx context.Context, client onecli.Clien
 	provisioner := onecli.NewSecretProvisioner(client)
 	return provisioner.ProvisionSecrets(ctx, []onecli.CreateSecretInput{
 		{
-			Name:        "openshift-" + sanitizeName(cfg.CurrentContext),
+			Name:        "kubeconfig-" + sanitizeName(cfg.CurrentContext),
 			Type:        "generic",
 			Value:       user.Token,
 			HostPattern: serverHost,
@@ -222,7 +223,7 @@ func (o *openshiftCredential) Configure(ctx context.Context, client onecli.Clien
 
 // HostPatterns returns the API server hostname derived from the kubeconfig
 // current context so it can be allowed in deny-mode networking.
-func (o *openshiftCredential) HostPatterns(hostFilePath string) []string {
+func (o *kubeconfigCredential) HostPatterns(hostFilePath string) []string {
 	cfg, err := loadKubeConfig(hostFilePath)
 	if err != nil || cfg == nil {
 		return nil

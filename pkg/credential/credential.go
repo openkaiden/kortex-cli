@@ -32,7 +32,7 @@ import (
 // Credential describes how a particular file-based credential is intercepted
 // when declared as a workspace mount.
 type Credential interface {
-	// Name returns the unique identifier for this credential type (e.g. "gcloud", "openshift").
+	// Name returns the unique identifier for this credential type (e.g. "gcloud", "kubeconfig").
 	Name() string
 
 	// ContainerFilePath returns the absolute path inside the container at which

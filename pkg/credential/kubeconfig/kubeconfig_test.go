@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  **********************************************************************/
 
-package openshift
+package kubeconfig
 
 import (
 	"context"
@@ -78,14 +78,14 @@ func writeFile(t *testing.T, dir, name, content string) string {
 	return path
 }
 
-func TestOpenshiftCredential_Name(t *testing.T) {
+func TestKubeconfigCredential_Name(t *testing.T) {
 	t.Parallel()
-	if got := New().Name(); got != "openshift" {
-		t.Errorf("Name() = %q, want %q", got, "openshift")
+	if got := New().Name(); got != "kubeconfig" {
+		t.Errorf("Name() = %q, want %q", got, "kubeconfig")
 	}
 }
 
-func TestOpenshiftCredential_ContainerFilePath(t *testing.T) {
+func TestKubeconfigCredential_ContainerFilePath(t *testing.T) {
 	t.Parallel()
 	want := "/home/agent/.kube/config"
 	if got := New().ContainerFilePath(); got != want {
@@ -93,7 +93,7 @@ func TestOpenshiftCredential_ContainerFilePath(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_Detect(t *testing.T) {
+func TestKubeconfigCredential_Detect(t *testing.T) {
 	t.Parallel()
 
 	homeDir := t.TempDir()
@@ -232,7 +232,7 @@ func TestOpenshiftCredential_Detect(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_FakeFile(t *testing.T) {
+func TestKubeconfigCredential_FakeFile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -272,7 +272,7 @@ func TestOpenshiftCredential_FakeFile(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_FakeFile_MissingFile(t *testing.T) {
+func TestKubeconfigCredential_FakeFile_MissingFile(t *testing.T) {
 	t.Parallel()
 
 	cred := New()
@@ -282,7 +282,7 @@ func TestOpenshiftCredential_FakeFile_MissingFile(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_HostPatterns(t *testing.T) {
+func TestKubeconfigCredential_HostPatterns(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -298,7 +298,7 @@ func TestOpenshiftCredential_HostPatterns(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_HostPatterns_Missing(t *testing.T) {
+func TestKubeconfigCredential_HostPatterns_Missing(t *testing.T) {
 	t.Parallel()
 
 	cred := New()
@@ -557,7 +557,7 @@ func TestBuildFakeKubeConfig(t *testing.T) {
 	})
 }
 
-func TestOpenshiftCredential_FakeFile_InvalidYAML(t *testing.T) {
+func TestKubeconfigCredential_FakeFile_InvalidYAML(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -570,7 +570,7 @@ func TestOpenshiftCredential_FakeFile_InvalidYAML(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_FakeFile_NoContext(t *testing.T) {
+func TestKubeconfigCredential_FakeFile_NoContext(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -583,7 +583,7 @@ func TestOpenshiftCredential_FakeFile_NoContext(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_FakeFile_NoCluster(t *testing.T) {
+func TestKubeconfigCredential_FakeFile_NoCluster(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -596,7 +596,7 @@ func TestOpenshiftCredential_FakeFile_NoCluster(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_HostPatterns_NoContext(t *testing.T) {
+func TestKubeconfigCredential_HostPatterns_NoContext(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -608,7 +608,7 @@ func TestOpenshiftCredential_HostPatterns_NoContext(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_HostPatterns_NoCluster(t *testing.T) {
+func TestKubeconfigCredential_HostPatterns_NoCluster(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -620,7 +620,7 @@ func TestOpenshiftCredential_HostPatterns_NoCluster(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_HostPatterns_EmptyHostname(t *testing.T) {
+func TestKubeconfigCredential_HostPatterns_EmptyHostname(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -632,7 +632,7 @@ func TestOpenshiftCredential_HostPatterns_EmptyHostname(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_HostPatterns_InvalidURL(t *testing.T) {
+func TestKubeconfigCredential_HostPatterns_InvalidURL(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -696,7 +696,7 @@ func TestSanitizeName(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_Configure(t *testing.T) {
+func TestKubeconfigCredential_Configure(t *testing.T) {
 	t.Parallel()
 
 	t.Run("success", func(t *testing.T) {

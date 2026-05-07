@@ -245,7 +245,7 @@ The credential system provides a pluggable architecture for intercepting sensiti
 
 **Implementations:**
 - `pkg/credential/gcloud/` — Google Cloud ADC (`application_default_credentials.json`); configures OneCLI Vertex AI via `ConnectApp`
-- `pkg/credential/openshift/` — OpenShift token-based auth (`~/.kube/config`); detects by mount target (`$HOME/.kube/config` or `$HOME/.kube`), activates only when the current context uses token auth (not client certs), writes a pruned single-context kubeconfig with a placeholder token, and registers an OneCLI `Authorization: Bearer` secret for the cluster API server host
+- `pkg/credential/kubeconfig/` — Kubernetes token-based auth (`~/.kube/config`); detects by mount target (`$HOME/.kube/config` or `$HOME/.kube`), activates only when the current context uses token auth (not client certs), writes a pruned single-context kubeconfig with a placeholder token, and registers an OneCLI `Authorization: Bearer` secret for the cluster API server host
 
 ### Dev Container Features
 
