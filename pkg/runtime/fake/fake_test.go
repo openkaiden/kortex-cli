@@ -807,6 +807,54 @@ func TestFakeRuntime_LoadWithNilInfoMap(t *testing.T) {
 	}
 }
 
+func TestNewWithExperimental_ImplementsInterface(t *testing.T) {
+	t.Parallel()
+
+	rt := NewWithExperimental()
+
+	if _, ok := rt.(runtime.Experimental); !ok {
+		t.Fatal("NewWithExperimental() returned a runtime that does not implement runtime.Experimental")
+	}
+}
+
+func TestNewWithExperimental_IsExperimental(t *testing.T) {
+	t.Parallel()
+
+	rt := NewWithExperimental()
+
+	exp, ok := rt.(runtime.Experimental)
+	if !ok {
+		t.Fatal("NewWithExperimental() returned a runtime that does not implement runtime.Experimental")
+	}
+	// IsExperimental carries no return value; calling it must not panic.
+	exp.IsExperimental()
+}
+
+func TestNewWithExperimental_IsFullRuntime(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	rt := NewWithExperimental()
+
+	info, err := rt.Create(ctx, runtime.CreateParams{
+		Name:       "test-ws",
+		SourcePath: "/tmp/src",
+	})
+	if err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+
+	if _, err := rt.Start(ctx, info.ID); err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	if err := rt.Stop(ctx, info.ID); err != nil {
+		t.Fatalf("Stop() failed: %v", err)
+	}
+	if err := rt.Remove(ctx, info.ID); err != nil {
+		t.Fatalf("Remove() failed: %v", err)
+	}
+}
+
 func TestNewWithDashboard_GetURL(t *testing.T) {
 	t.Parallel()
 

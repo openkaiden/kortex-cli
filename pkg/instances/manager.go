@@ -805,12 +805,12 @@ func (m *manager) GetDashboardURL(ctx context.Context, nameOrID string) (string,
 	return dashboardRuntime.GetURL(ctx, runtimeData.InstanceID)
 }
 
-// RegisterRuntime registers a runtime with the manager's registry.
 // GetRuntime retrieves a registered runtime by type.
 func (m *manager) GetRuntime(runtimeType string) (runtime.Runtime, error) {
 	return m.runtimeRegistry.Get(runtimeType)
 }
 
+// RegisterRuntime registers a runtime with the manager's registry.
 func (m *manager) RegisterRuntime(rt runtime.Runtime) error {
 	if err := m.runtimeRegistry.Register(rt); err != nil {
 		return err

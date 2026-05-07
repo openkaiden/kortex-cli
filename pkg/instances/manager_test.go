@@ -4836,3 +4836,57 @@ func TestManager_RegisterSecretService(t *testing.T) {
 		}
 	})
 }
+
+func TestManager_GetRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns registered runtime by type", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		rt, err := manager.GetRuntime("fake")
+		if err != nil {
+			t.Fatalf("GetRuntime() error = %v, want nil", err)
+		}
+		if rt.Type() != "fake" {
+			t.Errorf("GetRuntime().Type() = %q, want %q", rt.Type(), "fake")
+		}
+	})
+
+	t.Run("returns error for unregistered runtime type", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		_, err := manager.GetRuntime("nonexistent")
+		if err == nil {
+			t.Error("GetRuntime() for unknown type should return error")
+		}
+	})
+
+	t.Run("returned runtime implements optional interface when registered with one", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		runtimesDir := filepath.Join(tmpDir, RuntimesSubdirectory)
+		reg, err := runtime.NewRegistry(runtimesDir)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if err := reg.Register(fake.NewWithExperimental()); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		rt, err := manager.GetRuntime("fake")
+		if err != nil {
+			t.Fatalf("GetRuntime() error = %v, want nil", err)
+		}
+		if _, ok := rt.(runtime.Experimental); !ok {
+			t.Error("GetRuntime() returned runtime does not implement runtime.Experimental")
+		}
+	})
+}
