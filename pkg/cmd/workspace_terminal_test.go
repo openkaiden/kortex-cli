@@ -27,6 +27,8 @@ import (
 
 	"github.com/openkaiden/kdn/pkg/cmd/testutil"
 	"github.com/openkaiden/kdn/pkg/instances"
+	"github.com/openkaiden/kdn/pkg/secretservice"
+	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/spf13/cobra"
 )
 
@@ -74,6 +76,29 @@ func TestWorkspaceTerminalCmd_PreRun(t *testing.T) {
 		// The runtime will choose the agent's terminal command
 		if len(c.command) != 0 {
 			t.Errorf("Expected empty command [], got %v", c.command)
+		}
+	})
+
+	t.Run("registers all secret services so known types resolve on auto-start", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		c := &workspaceTerminalCmd{}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		if err := c.preRun(cmd, []string{"test-id"}); err != nil {
+			t.Fatalf("preRun() failed: %v", err)
+		}
+
+		for _, name := range secretservicesetup.ListAvailable() {
+			svc := secretservice.NewSecretService(name, nil, "", nil, "", "", "")
+			err := c.manager.RegisterSecretService(svc)
+			if err == nil {
+				t.Errorf("secret service %q was not registered by preRun (re-registration succeeded)", name)
+			} else if !strings.Contains(err.Error(), "already registered") {
+				t.Errorf("secret service %q: unexpected error: %v", name, err)
+			}
 		}
 	})
 

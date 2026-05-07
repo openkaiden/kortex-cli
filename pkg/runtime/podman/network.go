@@ -26,6 +26,7 @@ import (
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservice"
@@ -74,13 +75,15 @@ func loadNetworkConfig(sourcePath, storageDir, projectID, agentName string) (*wo
 // listed in wsCfg. For known secret types, patterns come from the secret
 // service registry; for "other" secrets, they come from the stored metadata.
 // Returns nil when any required input is nil or when no secrets are configured.
-func collectSecretHosts(wsCfg *workspace.WorkspaceConfiguration, store secret.Store, registry secretservice.Registry) ([]string, error) {
+func collectSecretHosts(ctx context.Context, wsCfg *workspace.WorkspaceConfiguration, store secret.Store, registry secretservice.Registry) ([]string, error) {
 	if wsCfg == nil || wsCfg.Secrets == nil || len(*wsCfg.Secrets) == 0 {
 		return nil, nil
 	}
 	if store == nil || registry == nil {
 		return nil, nil
 	}
+
+	l := logger.FromContext(ctx)
 
 	items, err := store.List()
 	if err != nil {
@@ -97,6 +100,7 @@ func collectSecretHosts(wsCfg *workspace.WorkspaceConfiguration, store secret.St
 	for _, name := range *wsCfg.Secrets {
 		item, ok := byName[name]
 		if !ok {
+			fmt.Fprintf(l.Stderr(), "[network] secret %q listed in workspace config but not found in store — skipping\n", name)
 			continue
 		}
 		var itemHosts []string
@@ -105,10 +109,12 @@ func collectSecretHosts(wsCfg *workspace.WorkspaceConfiguration, store secret.St
 		} else {
 			svc, svcErr := registry.Get(item.Type)
 			if svcErr != nil {
+				fmt.Fprintf(l.Stderr(), "[network] secret %q has type %q not found in registry — skipping\n", name, item.Type)
 				continue
 			}
 			itemHosts = svc.HostsPatterns()
 		}
+		fmt.Fprintf(l.Stderr(), "[network] secret %q (type %q) contributes hosts: %v\n", name, item.Type, itemHosts)
 		for _, h := range itemHosts {
 			if !seen[h] {
 				seen[h] = true

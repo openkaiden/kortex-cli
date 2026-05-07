@@ -646,7 +646,7 @@ func TestCollectSecretHosts(t *testing.T) {
 
 	t.Run("nil config returns nil", func(t *testing.T) {
 		t.Parallel()
-		got, err := collectSecretHosts(nil, &fakeSecretStore{}, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), nil, &fakeSecretStore{}, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -658,7 +658,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("nil secrets field returns nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := &workspace.WorkspaceConfiguration{}
-		got, err := collectSecretHosts(cfg, &fakeSecretStore{}, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), cfg, &fakeSecretStore{}, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -670,7 +670,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("empty secrets list returns nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := denyConfig([]string{})
-		got, err := collectSecretHosts(cfg, &fakeSecretStore{}, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), cfg, &fakeSecretStore{}, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -682,7 +682,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("nil store returns nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := denyConfig([]string{"mysecret"})
-		got, err := collectSecretHosts(cfg, nil, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), cfg, nil, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -694,7 +694,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("nil registry returns nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := denyConfig([]string{"mysecret"})
-		got, err := collectSecretHosts(cfg, &fakeSecretStore{}, nil)
+		got, err := collectSecretHosts(context.Background(), cfg, &fakeSecretStore{}, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -707,7 +707,7 @@ func TestCollectSecretHosts(t *testing.T) {
 		t.Parallel()
 		store := &fakeSecretStore{items: []secret.ListItem{{Name: "mygithub", Type: "github"}}}
 		reg := makeRegistry(t, makeSecretService("github", []string{"api.github.com"}))
-		got, err := collectSecretHosts(denyConfig([]string{"mygithub"}), store, reg)
+		got, err := collectSecretHosts(context.Background(), denyConfig([]string{"mygithub"}), store, reg)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -723,7 +723,7 @@ func TestCollectSecretHosts(t *testing.T) {
 				{Name: "mykey", Type: secret.TypeOther, Hosts: []string{"api.example.com", "api2.example.com"}},
 			},
 		}
-		got, err := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), denyConfig([]string{"mykey"}), store, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -741,7 +741,7 @@ func TestCollectSecretHosts(t *testing.T) {
 			},
 		}
 		reg := makeRegistry(t, makeSecretService("github", []string{"api.github.com"}))
-		got, err := collectSecretHosts(denyConfig([]string{"gh1", "gh2"}), store, reg)
+		got, err := collectSecretHosts(context.Background(), denyConfig([]string{"gh1", "gh2"}), store, reg)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -759,7 +759,7 @@ func TestCollectSecretHosts(t *testing.T) {
 			},
 		}
 		reg := makeRegistry(t, makeSecretService("github", []string{"api.github.com"}))
-		got, err := collectSecretHosts(denyConfig([]string{"mygithub", "myother"}), store, reg)
+		got, err := collectSecretHosts(context.Background(), denyConfig([]string{"mygithub", "myother"}), store, reg)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -777,7 +777,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("skips secrets not found in store", func(t *testing.T) {
 		t.Parallel()
 		store := &fakeSecretStore{items: []secret.ListItem{}}
-		got, err := collectSecretHosts(denyConfig([]string{"missing"}), store, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), denyConfig([]string{"missing"}), store, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -789,7 +789,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("skips secrets with type not in registry", func(t *testing.T) {
 		t.Parallel()
 		store := &fakeSecretStore{items: []secret.ListItem{{Name: "mykey", Type: "unknown-type"}}}
-		got, err := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry(t))
+		got, err := collectSecretHosts(context.Background(), denyConfig([]string{"mykey"}), store, makeRegistry(t))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -801,7 +801,7 @@ func TestCollectSecretHosts(t *testing.T) {
 	t.Run("store list error returns error", func(t *testing.T) {
 		t.Parallel()
 		store := &fakeSecretStore{err: errors.New("disk error")}
-		_, err := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry(t))
+		_, err := collectSecretHosts(context.Background(), denyConfig([]string{"mykey"}), store, makeRegistry(t))
 		if err == nil {
 			t.Error("expected error from store.List(), got nil")
 		}
