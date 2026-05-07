@@ -254,6 +254,113 @@ func TestWriteProjectsFile_WriteFileFails(t *testing.T) {
 	}
 }
 
+func TestAddMount_CreatesFileWhenMissing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	updater, err := NewProjectConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewProjectConfigUpdater: %v", err)
+	}
+
+	if err := updater.AddMount("", "$HOME/.gitconfig", "$HOME/.gitconfig", true); err != nil {
+		t.Fatalf("AddMount: %v", err)
+	}
+
+	cfg := readProjectsFile(t, dir)
+	global := cfg[""]
+	if global.Mounts == nil || len(*global.Mounts) != 1 {
+		t.Fatalf("expected 1 mount, got %v", global.Mounts)
+	}
+	m := (*global.Mounts)[0]
+	if m.Host != "$HOME/.gitconfig" || m.Target != "$HOME/.gitconfig" || m.Ro == nil || !*m.Ro {
+		t.Errorf("unexpected mount: %+v", m)
+	}
+}
+
+func TestAddMount_Idempotent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	updater, err := NewProjectConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewProjectConfigUpdater: %v", err)
+	}
+
+	for range 3 {
+		if err := updater.AddMount("", "$HOME/.gitconfig", "$HOME/.gitconfig", true); err != nil {
+			t.Fatalf("AddMount: %v", err)
+		}
+	}
+
+	cfg := readProjectsFile(t, dir)
+	if n := len(*cfg[""].Mounts); n != 1 {
+		t.Errorf("expected exactly 1 mount, got %d", n)
+	}
+}
+
+func TestAddMount_ProjectSpecificKey(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	updater, err := NewProjectConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewProjectConfigUpdater: %v", err)
+	}
+
+	if err := updater.AddMount("my-project", "$HOME/.gitconfig", "$HOME/.gitconfig", true); err != nil {
+		t.Fatalf("AddMount: %v", err)
+	}
+
+	cfg := readProjectsFile(t, dir)
+	if _, ok := cfg[""]; ok {
+		t.Error("expected no global key")
+	}
+	mounts := *cfg["my-project"].Mounts
+	if len(mounts) != 1 || mounts[0].Target != "$HOME/.gitconfig" {
+		t.Errorf("unexpected mounts: %v", mounts)
+	}
+}
+
+func TestAddMount_AccumulatesMultiple(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	updater, err := NewProjectConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewProjectConfigUpdater: %v", err)
+	}
+
+	mounts := [][2]string{
+		{"$HOME/.gitconfig", "$HOME/.gitconfig"},
+		{"$HOME/.npmrc", "$HOME/.npmrc"},
+	}
+	for _, m := range mounts {
+		if err := updater.AddMount("", m[0], m[1], true); err != nil {
+			t.Fatalf("AddMount(%s): %v", m[0], err)
+		}
+	}
+
+	cfg := readProjectsFile(t, dir)
+	if n := len(*cfg[""].Mounts); n != 2 {
+		t.Errorf("expected 2 mounts, got %d", n)
+	}
+}
+
+func TestAddMount_ReadError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config", ProjectsConfigFile)
+	if err := os.MkdirAll(configPath, 0700); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	updater, err := NewProjectConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewProjectConfigUpdater: %v", err)
+	}
+	if err := updater.AddMount("", "$HOME/.gitconfig", "$HOME/.gitconfig", true); err == nil {
+		t.Error("expected error when projects.json is a directory, got nil")
+	}
+}
+
 // readProjectsFile is a test helper that reads and parses the projects.json file.
 func readProjectsFile(t *testing.T, storageDir string) map[string]workspace.WorkspaceConfiguration {
 	t.Helper()

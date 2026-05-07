@@ -362,7 +362,8 @@ func (fakeAutoconfCmdStore) Get(_ string) (secret.ListItem, string, error) {
 // fakeAutoconfCmdUpdater satisfies config.ProjectConfigUpdater for cmd-level tests.
 type fakeAutoconfCmdUpdater struct{}
 
-func (f *fakeAutoconfCmdUpdater) AddSecret(_, _ string) error { return nil }
+func (f *fakeAutoconfCmdUpdater) AddSecret(_, _ string) error           { return nil }
+func (f *fakeAutoconfCmdUpdater) AddMount(_, _, _ string, _ bool) error { return nil }
 
 // fakeAutoconfCmdVertexDetector satisfies autoconf.VertexDetector for cmd-level tests.
 type fakeAutoconfCmdVertexDetector struct {

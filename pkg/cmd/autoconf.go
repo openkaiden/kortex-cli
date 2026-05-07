@@ -50,6 +50,10 @@ type autoconfCmd struct {
 	agentLoader        config.AgentConfigLoader
 	workspaceCfg       config.Config
 	vertexSelectTarget func(options []autoconf.ClaudeVertexConfigTargetOption) (autoconf.ClaudeVertexConfigTarget, error)
+
+	homeConfigFilesDetector     autoconf.HomeConfigFilesDetector
+	projectLoader               config.ProjectConfigLoader
+	homeConfigFilesSelectTarget func(options []autoconf.HomeConfigFilesConfigTargetOption) (autoconf.HomeConfigFilesConfigTarget, error)
 }
 
 func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
@@ -76,6 +80,7 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create project config loader: %w", err)
 	}
+	a.projectLoader = loader
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -127,6 +132,14 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	}
 	a.workspaceUpdater = wu
 
+	if a.homeConfigFilesDetector == nil {
+		hd, hdErr := autoconf.NewHomeConfigFilesDetector()
+		if hdErr != nil {
+			return fmt.Errorf("failed to create home config files detector: %w", hdErr)
+		}
+		a.homeConfigFilesDetector = hd
+	}
+
 	if a.confirm == nil {
 		a.confirm = huhConfirm
 	}
@@ -135,6 +148,9 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	}
 	if a.vertexSelectTarget == nil {
 		a.vertexSelectTarget = huhSelectVertexTarget
+	}
+	if a.homeConfigFilesSelectTarget == nil {
+		a.homeConfigFilesSelectTarget = huhSelectHomeConfigFilesTarget
 	}
 
 	return nil
@@ -163,6 +179,24 @@ func huhSelectVertexTarget(options []autoconf.ClaudeVertexConfigTargetOption) (a
 	var selected autoconf.ClaudeVertexConfigTarget
 	err := huh.NewSelect[autoconf.ClaudeVertexConfigTarget]().
 		Title("Add Vertex AI configuration to:").
+		Options(huhOptions...).
+		Value(&selected).
+		Run()
+	if errors.Is(err, huh.ErrUserAborted) {
+		return 0, autoconf.ErrSkipped
+	}
+	return selected, err
+}
+
+func huhSelectHomeConfigFilesTarget(options []autoconf.HomeConfigFilesConfigTargetOption) (autoconf.HomeConfigFilesConfigTarget, error) {
+	huhOptions := make([]huh.Option[autoconf.HomeConfigFilesConfigTarget], len(options))
+	for i, opt := range options {
+		huhOptions[i] = huh.NewOption(opt.Label, opt.Target)
+	}
+
+	var selected autoconf.HomeConfigFilesConfigTarget
+	err := huh.NewSelect[autoconf.HomeConfigFilesConfigTarget]().
+		Title("Add home config file mount to:").
 		Options(huhOptions...).
 		Value(&selected).
 		Run()
@@ -207,20 +241,37 @@ func (a *autoconfCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if a.vertexDetector == nil {
+	if a.vertexDetector != nil {
+		vertexRunner := autoconf.NewClaudeVertexAutoconf(autoconf.ClaudeVertexAutoconfOptions{
+			Detector:         a.vertexDetector,
+			AgentUpdater:     a.agentUpdater,
+			WorkspaceUpdater: a.workspaceUpdater,
+			AgentLoader:      a.agentLoader,
+			WorkspaceConfig:  a.workspaceCfg,
+			Yes:              a.yes,
+			Confirm:          a.confirm,
+			SelectTarget:     a.vertexSelectTarget,
+		})
+		if err := vertexRunner.Run(out); err != nil {
+			return err
+		}
+	}
+
+	if a.homeConfigFilesDetector == nil {
 		return nil
 	}
-	vertexRunner := autoconf.NewClaudeVertexAutoconf(autoconf.ClaudeVertexAutoconfOptions{
-		Detector:         a.vertexDetector,
-		AgentUpdater:     a.agentUpdater,
+	homeConfigRunner := autoconf.NewHomeConfigFilesAutoconf(autoconf.HomeConfigFilesAutoconfOptions{
+		Detector:         a.homeConfigFilesDetector,
+		ProjectUpdater:   a.projectUpdater,
 		WorkspaceUpdater: a.workspaceUpdater,
-		AgentLoader:      a.agentLoader,
+		ProjectLoader:    a.projectLoader,
 		WorkspaceConfig:  a.workspaceCfg,
+		ProjectID:        a.projectID,
 		Yes:              a.yes,
 		Confirm:          a.confirm,
-		SelectTarget:     a.vertexSelectTarget,
+		SelectTarget:     a.homeConfigFilesSelectTarget,
 	})
-	return vertexRunner.Run(out)
+	return homeConfigRunner.Run(out)
 }
 
 // NewAutoconfCmd returns the autoconf command.

@@ -334,6 +334,7 @@ The config system manages workspace configuration for **injecting environment va
 **Key config interfaces in `pkg/config/`:**
 
 - **`WorkspaceConfigUpdater`** (`workspaceupdater.go`): Reads/writes `.kaiden/workspace.json`. Methods: `AddSecret(name)`, `AddEnvVar(name, value)`, `AddMount(host, target, ro)`.
+- **`ProjectConfigUpdater`** (`projectsupdater.go`): Reads/writes `~/.kdn/config/projects.json`. Methods: `AddSecret(projectID, secretName)`, `AddMount(projectID, host, target string, ro bool)`. Pass `""` as `projectID` for the global entry. Both methods are idempotent.
 - **`AgentConfigUpdater`** (`agents.go`): Reads/writes `~/.kdn/config/agents.json` per agent. Methods: `AddEnvVar(agentName, name, value)`, `AddMount(agentName, host, target, ro)`. Used by `kdn autoconf` to record Vertex AI config for the `claude` agent.
 - **`AgentConfigLoader`** (`agents.go`): Loads a `WorkspaceConfiguration` for a named agent from `agents.json`. Returns an empty config (not an error) when the file or agent key is absent.
 

@@ -64,6 +64,10 @@ func (f *fakeAutoconfUpdater) AddSecret(projectID, secretName string) error {
 	return f.err
 }
 
+func (f *fakeAutoconfUpdater) AddMount(_, _, _ string, _ bool) error {
+	return f.err
+}
+
 // fakeWorkspaceUpdater records calls for the workspace updater.
 type fakeWorkspaceUpdater struct {
 	added   []string

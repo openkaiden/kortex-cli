@@ -33,6 +33,12 @@ type ProjectConfigUpdater interface {
 	// projectID is "" for the global configuration.
 	// The call is idempotent: if the secret is already present it is not duplicated.
 	AddSecret(projectID string, secretName string) error
+
+	// AddMount adds a mount entry to the given project's config.
+	// projectID is "" for the global configuration.
+	// The call is idempotent: if a mount with the same host and target already exists
+	// it is not duplicated.
+	AddMount(projectID, host, target string, ro bool) error
 }
 
 // projectConfigUpdater is the unexported implementation.
@@ -77,6 +83,37 @@ func (p *projectConfigUpdater) AddSecret(projectID string, secretName string) er
 			}
 		}
 		*cfg.Secrets = append(*cfg.Secrets, secretName)
+	}
+
+	projectsConfig[projectID] = cfg
+
+	return p.writeProjectsFile(configPath, projectsConfig)
+}
+
+// AddMount reads projects.json, adds a mount entry for projectID, and writes the file back.
+// The operation is idempotent: an existing mount with the same host and target is not duplicated.
+func (p *projectConfigUpdater) AddMount(projectID, host, target string, ro bool) error {
+	configPath := filepath.Join(p.storageDir, "config", ProjectsConfigFile)
+
+	projectsConfig, err := p.readProjectsFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	cfg := projectsConfig[projectID]
+
+	if cfg.Mounts == nil {
+		roVal := ro
+		mounts := []workspace.Mount{{Host: host, Target: target, Ro: &roVal}}
+		cfg.Mounts = &mounts
+	} else {
+		for _, m := range *cfg.Mounts {
+			if m.Host == host && m.Target == target {
+				return nil
+			}
+		}
+		roVal := ro
+		*cfg.Mounts = append(*cfg.Mounts, workspace.Mount{Host: host, Target: target, Ro: &roVal})
 	}
 
 	projectsConfig[projectID] = cfg

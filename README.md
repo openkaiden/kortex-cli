@@ -724,6 +724,46 @@ When run interactively, `autoconf` asks one question per detected secret:
 
 Secrets that are already stored **and** referenced in any config source are reported as already configured and skipped.
 
+### Auto-mounting Home Config Files
+
+`kdn autoconf` also scans your home directory for known config files and, when found, offers to mount them read-only into workspace containers. This gives agents access to your local tool settings (git identity, editor preferences, etc.) without any manual configuration.
+
+```bash
+# Detect config files and apply interactively
+kdn autoconf
+
+# Apply immediately without prompts (mounts to global config)
+kdn autoconf --yes
+```
+
+When a matching file is found, `autoconf` follows the same flow as for secrets:
+
+1. **Confirm mounting** — add the read-only bind mount?
+2. **Choose target** — where to record it:
+   - *Global* — available across all projects (`~/.kdn/config/projects.json` global key)
+   - *Project* — scoped to the current directory's git project
+   - *Local* — written to `.kaiden/workspace.json` in the current directory
+
+Files already mounted in any config source are reported as already configured and skipped.
+
+**Example: `$HOME/.gitconfig`**
+
+If `~/.gitconfig` exists on your machine, `kdn autoconf` detects it and offers to mount it read-only at `$HOME/.gitconfig` inside workspace containers. This makes your git identity (name, email, aliases) available to the agent without embedding it in any config file.
+
+The resulting entry in `~/.kdn/config/projects.json` looks like:
+
+```json
+{
+  "": {
+    "mounts": [
+      {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig", "ro": true}
+    ]
+  }
+}
+```
+
+The `$HOME` variable is resolved at workspace-start time, keeping the config portable across machines.
+
 ### Sharing a GitHub Token
 
 This scenario demonstrates how to make a GitHub token available inside workspaces using the multi-level configuration system — either globally for all projects or scoped to a specific project.

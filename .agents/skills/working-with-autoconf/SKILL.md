@@ -363,6 +363,112 @@ func (f *fakeAgentUpdater) AddEnvVar(agent, name, value string) error { ... }
 func (f *fakeAgentUpdater) AddMount(agent, host, target string, ro bool) error { ... }
 ```
 
+## Home Config File Detection (`HomeConfigFilesAutoconf`)
+
+`kdn autoconf` also detects home-directory config files (e.g. `$HOME/.gitconfig`) and offers to mount them read-only into workspace containers. This is a separate flow from secret detection, handled by `HomeConfigFilesAutoconf` in `autoconfhomeconfigfiles.go`.
+
+### How it works
+
+```text
+HomeConfigFilesDetector.Detect()   → []DetectedHomeConfigFile (files present on disk)
+  ↓ per file
+  findExistingLocations()            → skip with "already mounted" message if found
+  confirm?  (skipped when --yes)
+  selectTarget()                     → Global | Project | Local
+  applyTarget()
+    Global  → ProjectUpdater.AddMount("", hostPath, containerPath, true)
+    Project → ProjectUpdater.AddMount(projectID, hostPath, containerPath, true)
+    Local   → WorkspaceUpdater.AddMount(hostPath, containerPath, true)
+```
+
+Default when `--yes`: `HomeConfigFilesConfigTargetGlobal`.
+
+### Registered files
+
+`registeredHomeConfigFiles` in `detecthomeconfigfiles.go` is the authoritative list. Each entry is a `homeConfigFileSpec`:
+
+```go
+type homeConfigFileSpec struct {
+    name             string // display identifier (e.g. "gitconfig")
+    hostRelPath      string // path relative to $HOME on the host (Windows may differ)
+    containerRelPath string // path relative to $HOME inside the Linux container
+}
+```
+
+`hostRelPath` and `containerRelPath` are kept separate so Windows config files (e.g. `AppData/Roaming/tool/config`) can be mounted at the correct Linux container path (e.g. `.config/tool/config`). To register a new file, add one entry to the slice — no other changes needed.
+
+`Detect()` stats `filepath.Join(homeDir, filepath.FromSlash(spec.hostRelPath))` for each entry, and returns:
+```go
+DetectedHomeConfigFile{
+    Name:          spec.name,
+    HostPath:      path.Join("$HOME", spec.hostRelPath),       // e.g. "$HOME/.gitconfig"
+    ContainerPath: path.Join("$HOME", spec.containerRelPath),  // e.g. "$HOME/.gitconfig"
+}
+```
+
+### Key types
+
+**`HomeConfigFilesDetector`** (`detecthomeconfigfiles.go`):
+```go
+type HomeConfigFilesDetector interface {
+    Detect() ([]DetectedHomeConfigFile, error)
+}
+```
+Constructor: `NewHomeConfigFilesDetector() (HomeConfigFilesDetector, error)`. For tests: `newHomeConfigFilesDetectorWithInjection(homeDir, statFile, specs)`.
+
+**`HomeConfigFilesAutoconf`** (`autoconfhomeconfigfiles.go`):
+```go
+type HomeConfigFilesAutoconf interface {
+    Run(out io.Writer) error
+}
+func NewHomeConfigFilesAutoconf(opts HomeConfigFilesAutoconfOptions) HomeConfigFilesAutoconf
+```
+
+Important `HomeConfigFilesAutoconfOptions` fields:
+
+| Field | Purpose |
+|-------|---------|
+| `Detector` | `HomeConfigFilesDetector` |
+| `ProjectUpdater` | `config.ProjectConfigUpdater` — writes global or project entry to `projects.json` |
+| `WorkspaceUpdater` | `config.WorkspaceConfigUpdater` — nil means local target not offered |
+| `ProjectLoader` | `config.ProjectConfigLoader` — checks if already configured in global/project config |
+| `WorkspaceConfig` | `config.Config` — checks if already configured in workspace config |
+| `ProjectID` | empty string means project target not offered |
+| `Yes` | skip confirm + select, defaults to global target |
+| `Confirm` / `SelectTarget` | injectable for testing |
+
+### Testing patterns
+
+```go
+type fakeHomeConfigFilesDetector struct {
+    files []autoconf.DetectedHomeConfigFile
+    err   error
+}
+func (f *fakeHomeConfigFilesDetector) Detect() ([]autoconf.DetectedHomeConfigFile, error) {
+    return f.files, f.err
+}
+
+// ProjectConfigUpdater fake must implement both AddSecret and AddMount
+type fakeProjectUpdater struct {
+    mounts []struct{ projectID, host, target string; ro bool }
+}
+func (f *fakeProjectUpdater) AddSecret(projectID, secretName string) error { return nil }
+func (f *fakeProjectUpdater) AddMount(projectID, host, target string, ro bool) error {
+    f.mounts = append(f.mounts, ...)
+    return nil
+}
+
+runner := autoconf.NewHomeConfigFilesAutoconf(autoconf.HomeConfigFilesAutoconfOptions{
+    Detector:       &fakeHomeConfigFilesDetector{files: []autoconf.DetectedHomeConfigFile{{
+        Name: "gitconfig", HostPath: "$HOME/.gitconfig", ContainerPath: "$HOME/.gitconfig",
+    }}},
+    ProjectUpdater: &fakeProjectUpdater{},
+    Yes:            true,
+})
+var buf bytes.Buffer
+err := runner.Run(&buf)
+```
+
 ## Key Files
 
 | File | Purpose |
@@ -373,9 +479,11 @@ func (f *fakeAgentUpdater) AddMount(agent, host, target string, ro bool) error {
 | `pkg/autoconf/detectclaudevertex.go` | `VertexDetector` interface + `envVertexDetector` + `VertexConfig` |
 | `pkg/autoconf/autoconfclaudevertex.go` | `ClaudeVertexAutoconf` interface + runner |
 | `pkg/autoconf/adcpath.go` / `adcpath_windows.go` | Platform-specific ADC file path helpers |
+| `pkg/autoconf/detecthomeconfigfiles.go` | `HomeConfigFilesDetector` interface + `envHomeConfigFilesDetector` + `registeredHomeConfigFiles` |
+| `pkg/autoconf/autoconfhomeconfigfiles.go` | `HomeConfigFilesAutoconf` interface + runner + target constants |
 | `pkg/cmd/autoconf.go` | Thin CLI wiring: flag parsing, dependency construction, `project.Detector` injection |
 | `pkg/project/project.go` | `Detector` interface + shared project-ID detection logic (git remote → URL, no remote → path) |
-| `pkg/config/projectsupdater.go` | `ProjectConfigUpdater` — reads/writes `~/.kdn/config/projects.json` |
+| `pkg/config/projectsupdater.go` | `ProjectConfigUpdater` — reads/writes `~/.kdn/config/projects.json`; `AddMount` is idempotent by (host, target) pair |
 | `pkg/config/workspaceupdater.go` | `WorkspaceConfigUpdater` — reads/writes `.kaiden/workspace.json` |
 | `pkg/config/agents.go` | `AgentConfigUpdater` + `AgentConfigLoader` — reads/writes `~/.kdn/config/agents.json` |
 | `pkg/secretservicesetup/register.go` | `ListServices()` — returns fully-constructed service instances |
