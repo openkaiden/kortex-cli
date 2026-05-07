@@ -60,7 +60,7 @@ func stderrFailCommand(t *testing.T) (string, []string) {
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	return script, nil
+	return "sh", []string{script}
 }
 
 func TestNew(t *testing.T) {
