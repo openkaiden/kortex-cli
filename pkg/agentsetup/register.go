@@ -38,6 +38,7 @@ type agentFactory func() agent.Agent
 // Add new agents here to make them available for automatic registration.
 var availableAgents = []agentFactory{
 	agent.NewClaude,
+	agent.NewClaw,
 	agent.NewCursor,
 	agent.NewGoose,
 	agent.NewOpenCode,

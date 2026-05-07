@@ -857,7 +857,7 @@ func TestListAgents(t *testing.T) {
 		}
 
 		// GenerateDefaults creates configs for all default agents
-		expected := []string{"claude", "cursor", "goose", "opencode"}
+		expected := []string{"claude", "cursor", "goose", "openclaw", "opencode"}
 		if !slices.Equal(agents, expected) {
 			t.Errorf("Expected %v, got: %v", expected, agents)
 		}

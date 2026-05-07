@@ -13,6 +13,7 @@ The architecture is built around pluggable runtimes. Supported runtimes include 
 - **Goose** - AI agent for development tasks
 - **Cursor** - AI-powered code editor agent
 - **OpenCode** - Open-source AI coding agent
+- **OpenClaw** - Open-source AI coding agent
 
 **Key Features**
 
@@ -71,7 +72,7 @@ make test-coverage
 ## Glossary
 
 ### Agent
-An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Goose, Cursor, OpenCode) that can be launched and configured.
+An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Goose, Cursor, OpenCode, OpenClaw) that can be launched and configured.
 
 ### LLM (Large Language Model)
 The underlying AI model that powers the agents. Examples include Claude (by Anthropic), GPT (by OpenAI), and other language models.
@@ -1497,6 +1498,12 @@ The Podman runtime includes default configurations for the following AI agents:
 - Open-source AI coding agent
 - The installer places the binary in `~/.opencode/bin/`, which is symlinked into `~/.local/bin/` for PATH access
 
+**OpenClaw** - Installed using the official installer from `openclaw.ai/install-cli.sh`:
+- Open-source AI coding agent
+- The installer places Node.js and OpenClaw under `~/.openclaw/`, with the binary symlinked into `~/.local/bin/` for PATH access
+- The default terminal command starts the gateway — access the dashboard at `http://localhost:18789/` using token `openclaw123`
+- For the chatbot TUI, run `kdn terminal <workspace> bash` then `openclaw` inside the container
+
 The agent runs within the container environment and has access to the mounted workspace sources and dependencies.
 
 ### Working Directory
@@ -1551,7 +1558,8 @@ $HOME/.kdn/runtimes/podman/config/
 ├── image.json      # Base image configuration
 ├── claude.json     # Claude agent configuration
 ├── goose.json      # Goose agent configuration
-└── opencode.json   # OpenCode agent configuration
+├── opencode.json   # OpenCode agent configuration
+└── openclaw.json   # OpenClaw agent configuration
 ```
 
 Or if using a custom storage directory:
@@ -1615,7 +1623,7 @@ Controls the container's base image, packages, and sudo permissions.
 
 #### Agent Configuration
 
-Controls agent-specific packages and installation steps. The Podman runtime provides default configurations for Claude Code (`claude.json`), Goose (`goose.json`), Cursor (`cursor.json`), and OpenCode (`opencode.json`).
+Controls agent-specific packages and installation steps. The Podman runtime provides default configurations for Claude Code (`claude.json`), Goose (`goose.json`), Cursor (`cursor.json`), OpenCode (`opencode.json`), and OpenClaw (`openclaw.json`).
 
 **Structure (claude.json):**
 
@@ -1662,6 +1670,25 @@ Controls agent-specific packages and installation steps. The Podman runtime prov
 }
 ```
 
+**Structure (openclaw.json):**
+
+```json
+{
+  "packages": [],
+  "run_commands": [
+    "curl -fsSL https://openclaw.ai/install-cli.sh | bash",
+    "mkdir -p /home/agent/.local/bin && ln -sf /home/agent/.openclaw/bin/openclaw /home/agent/.local/bin/openclaw"
+  ],
+  "terminal_command": [
+    "openclaw"
+  ],
+  "env_vars": {
+    "OPENCLAW_PROXY_ACTIVE": "1",
+    "NODE_NO_WARNINGS": "1"
+  }
+}
+```
+
 **Fields:**
 
 - `packages` (optional) - Additional packages specific to this agent
@@ -1675,6 +1702,10 @@ Controls agent-specific packages and installation steps. The Podman runtime prov
 - `terminal_command` (required) - Command to launch the agent
   - Must have at least one element
   - Can include flags: `["claude", "--verbose"]`
+
+- `env_vars` (optional) - Environment variables to inject into the container
+  - Key-value pairs set as `-e KEY=VALUE` on the container
+  - Skipped if the key collides with a workspace or OneCLI environment variable
 
 #### Applying Configuration Changes
 
@@ -1893,6 +1924,7 @@ Each skill directory is mounted read-only under the agent's skills directory ins
 | Goose | `~/.agents/skills/<basename>/` |
 | Cursor | `~/.cursor/skills/<basename>/` |
 | OpenCode | `~/.opencode/skills/<basename>/` |
+| OpenClaw | `~/.openclaw/skills/<basename>/` |
 
 For example, a skills path of `/home/user/commit-skill` is mounted at `~/.claude/skills/commit-skill/` for Claude Code, making the skill discoverable by the agent.
 
@@ -3143,7 +3175,7 @@ kdn init /tmp/workspace --runtime podman --agent claude
 
 - **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KDN_DEFAULT_RUNTIME` environment variable
 - **Agent is required**: You must specify an agent using either the `--agent` flag or the `KDN_DEFAULT_AGENT` environment variable
-- **Model is optional**: Use `--model` to specify a model ID for the agent. The flag takes precedence over any model defined in the agent's default settings files (`~/.kdn/config/<agent>/`). If not provided, the agent uses its default model or the one configured in settings. All agents support model configuration: Claude (via `.claude/settings.json`), Goose (via `config.yaml`), Cursor (via `.cursor/cli-config.json`), and OpenCode (via `.config/opencode/opencode.json`)
+- **Model is optional**: Use `--model` to specify a model ID for the agent. The flag takes precedence over any model defined in the agent's default settings files (`~/.kdn/config/<agent>/`). If not provided, the agent uses its default model or the one configured in settings. All agents support model configuration: Claude (via `.claude/settings.json`), Goose (via `config.yaml`), Cursor (via `.cursor/cli-config.json`), OpenCode (via `.config/opencode/opencode.json`), and OpenClaw (via `.openclaw/openclaw.json`)
 - **Provider configuration**: The `--model` flag supports a `provider::model` format (e.g. `ollama::gemma4:26b`) that auto-configures the provider endpoint and stores the model ID as `provider/model`. Known providers (`ollama`, `ramalama`) have default base URLs pointing to `host.containers.internal`; unknown providers require the full format `provider::model::baseURL`. Localhost aliases (`localhost`, `127.0.0.1`, `0.0.0.0`, `::1`) in base URLs are automatically converted to `host.containers.internal` for container accessibility
 - **Project auto-detection**: The project identifier is automatically detected from git repository information or source directory path. Use `--project` flag to override with a custom identifier
 - **Auto-start**: Use the `--start` flag or set `KDN_INIT_AUTO_START=1` to automatically start the workspace after registration, combining `init` and `start` into a single operation
