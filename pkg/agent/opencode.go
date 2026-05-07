@@ -57,8 +57,8 @@ func (o *openCodeAgent) SkipOnboarding(settings map[string]SettingsFile, _ strin
 // SetModel configures the model ID in OpenCode settings.
 // The modelID supports three formats:
 //   - "model" — sets the model directly
-//   - "provider::model" — sets provider/model; uses default base URL for known providers (ollama, ramalama),
-//     omits baseURL for others so the provider resolves its own endpoint
+//   - "provider::model" — sets provider/model; for native providers only sets the model field;
+//     for non-native providers adds a provider block (with default baseURL for ollama/ramalama)
 //   - "provider::model::baseURL" — sets provider/model and configures the provider with the given base URL
 //
 // All other fields in .config/opencode/opencode.json are preserved.
@@ -88,8 +88,10 @@ func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID strin
 			resolvedURL = containerurl.RewriteURL(resolvedURL)
 		}
 		config["model"] = provider + "/" + modelName
-		if err := configureProvider(config, provider, modelName, resolvedURL); err != nil {
-			return nil, err
+		if !nativeProviders[provider] || resolvedURL != "" {
+			if err := configureProvider(config, provider, modelName, resolvedURL); err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		config["model"] = modelID
@@ -118,16 +120,10 @@ func (o *openCodeAgent) SetMCPServers(settings map[string]SettingsFile, _ *works
 // nativeProviders lists providers that OpenCode supports natively via bundled SDKs.
 // These do not need the "npm": "@ai-sdk/openai-compatible" field.
 var nativeProviders = map[string]bool{
-	"anthropic":      true,
-	"openai":         true,
-	"google-vertex":  true,
-	"amazon-bedrock": true,
-	"azure":          true,
-	"cerebras":       true,
-	"groq":           true,
-	"huggingface":    true,
-	"mistral":        true,
-	"together":       true,
+	"anthropic": true,
+	"openai":    true,
+	"mistral":   true,
+	"google":    true,
 }
 
 // configureProvider adds a provider block with the given base URL and registers the model.

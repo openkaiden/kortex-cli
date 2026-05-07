@@ -364,7 +364,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		}
 	})
 
-	t.Run("anthropic native provider does not set npm field", func(t *testing.T) {
+	t.Run("anthropic native provider only sets model field", func(t *testing.T) {
 		t.Parallel()
 
 		agent := NewOpenCode()
@@ -380,16 +380,12 @@ func TestOpenCode_SetModel(t *testing.T) {
 			t.Fatalf("Failed to parse result JSON: %v", err)
 		}
 
-		providers := config["provider"].(map[string]interface{})
-		anthropic := providers["anthropic"].(map[string]interface{})
-
-		if _, hasNPM := anthropic["npm"]; hasNPM {
-			t.Error("Native anthropic provider should not have npm field")
+		if config["model"] != "anthropic/claude-opus-4-7" {
+			t.Errorf("model = %v, want %q", config["model"], "anthropic/claude-opus-4-7")
 		}
 
-		models := anthropic["models"].(map[string]interface{})
-		if _, exists := models["claude-opus-4-7"]; !exists {
-			t.Error("Expected model entry for claude-opus-4-7")
+		if _, hasProvider := config["provider"]; hasProvider {
+			t.Error("Native provider without custom baseURL should not create provider block")
 		}
 	})
 
