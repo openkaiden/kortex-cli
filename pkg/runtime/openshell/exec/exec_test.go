@@ -38,21 +38,29 @@ func falseCommand() (string, []string) {
 	return "false", nil
 }
 
-func stderrFailScript(t *testing.T) string {
+func stderrFailCommand(t *testing.T) (string, []string) {
 	t.Helper()
-	dir := t.TempDir()
 	if runtime.GOOS == "windows" {
-		script := filepath.Join(dir, "fail.bat")
-		if err := os.WriteFile(script, []byte("@echo off\r\necho error message 1>&2\r\nexit /b 1\r\n"), 0755); err != nil {
-			t.Fatal(err)
-		}
-		return script
+		return "cmd", []string{"/c", "echo error message >&2 & exit /b 1"}
 	}
+	dir := t.TempDir()
 	script := filepath.Join(dir, "fail.sh")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\necho 'error message' >&2\nexit 1\n"), 0755); err != nil {
+	f, err := os.OpenFile(script, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return script
+	if _, err := f.Write([]byte("#!/bin/sh\necho 'error message' >&2\nexit 1\n")); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return script, nil
 }
 
 func TestNew(t *testing.T) {
@@ -258,10 +266,10 @@ func TestFakeExecutor_TracksCalls(t *testing.T) {
 func TestExecutor_Run_StderrInError(t *testing.T) {
 	t.Parallel()
 
-	script := stderrFailScript(t)
-	e := New(script)
+	bin, args := stderrFailCommand(t)
+	e := New(bin)
 	var stdout, stderr bytes.Buffer
-	err := e.Run(context.Background(), &stdout, &stderr)
+	err := e.Run(context.Background(), &stdout, &stderr, args...)
 	if err == nil {
 		t.Fatal("Expected error from failing script")
 	}
@@ -276,10 +284,10 @@ func TestExecutor_Run_StderrInError(t *testing.T) {
 func TestExecutor_Output_StderrInError(t *testing.T) {
 	t.Parallel()
 
-	script := stderrFailScript(t)
-	e := New(script)
+	bin, args := stderrFailCommand(t)
+	e := New(bin)
 	var stderr bytes.Buffer
-	_, err := e.Output(context.Background(), &stderr)
+	_, err := e.Output(context.Background(), &stderr, args...)
 	if err == nil {
 		t.Fatal("Expected error from failing script")
 	}
