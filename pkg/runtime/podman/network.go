@@ -306,91 +306,14 @@ func (p *podmanRuntime) clearFirewallRules(ctx context.Context, podName string) 
 
 // resolveHostGateway attempts to resolve host.containers.internal inside the
 // given container. Returns the IP string on success or empty string on failure.
-// On WSL2, host.containers.internal may not resolve because WSL2 does not
-// update /etc/hosts like podman machine does on macOS/Hyper-V. In that case,
-// the default gateway IP is used as a fallback.
 func (p *podmanRuntime) resolveHostGateway(ctx context.Context, container string) string {
 	out, err := p.executor.Output(ctx, io.Discard,
 		"exec", container, "sh", "-c", "getent hosts host.containers.internal | awk '{print $1}'",
 	)
-	if err == nil {
-		if ip := parseIPv4(strings.TrimSpace(string(out))); ip != "" && ip != "127.0.0.1" {
-			return ip
-		}
-	}
-
-	if p.isPodmanWSL(ctx) {
-		return p.resolveWSLHostIP(ctx)
-	}
-	return ""
-}
-
-// parseIPv4 validates and normalizes a string as an IPv4 address.
-// Returns the canonical form or empty string if invalid, multiline, or IPv6.
-func parseIPv4(s string) string {
-	if strings.ContainsAny(s, "\n\r") {
-		return ""
-	}
-	ip := net.ParseIP(s)
-	if ip == nil {
-		return ""
-	}
-	if ip.To4() == nil {
-		return ""
-	}
-	return ip.String()
-}
-
-// isPodmanWSL reports whether the podman machine uses the WSL2 provider.
-func (p *podmanRuntime) isPodmanWSL(ctx context.Context) bool {
-	out, err := p.executor.Output(ctx, io.Discard,
-		"machine", "info", "--format", "{{.Host.VMType}}",
-	)
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(out)) == "wsl"
-}
-
-// resolveWSLHostIP returns the default gateway IP from inside the podman
-// machine via SSH. On WSL2 this is the Windows host IP.
-func (p *podmanRuntime) resolveWSLHostIP(ctx context.Context) string {
-	out, err := p.executor.Output(ctx, io.Discard,
-		"machine", "ssh", "ip", "route", "show", "default",
-	)
 	if err != nil {
 		return ""
 	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) >= 3 {
-		return parseIPv4(fields[2])
-	}
-	return ""
-}
-
-// injectWSLHostEntry adds or updates a host.containers.internal entry in
-// /etc/hosts inside the workspace container, mapping it to the Windows
-// host IP read from the podman machine's /etc/resolv.conf via SSH.
-// Filters out any existing entry before appending so repeated Start()
-// calls don't accumulate stale lines.
-func (p *podmanRuntime) injectWSLHostEntry(ctx context.Context, containerID string) error {
-	hostIP := p.resolveWSLHostIP(ctx)
-	if hostIP == "" {
-		return fmt.Errorf("failed to resolve Windows host IP from podman machine")
-	}
-
-	// /etc/hosts is a mount in containers — sed -i fails because it tries to
-	// rename a temp file over the mount. Use grep + tee to modify in-place.
-	cmd := fmt.Sprintf(
-		"grep -v 'host\\.containers\\.internal' /etc/hosts > /tmp/hosts.tmp && cp /tmp/hosts.tmp /etc/hosts && rm /tmp/hosts.tmp && echo '%s host.containers.internal' >> /etc/hosts",
-		hostIP,
-	)
-	if err := p.executor.Run(ctx, io.Discard, io.Discard,
-		"exec", "--user", "root", containerID, "sh", "-c", cmd,
-	); err != nil {
-		return fmt.Errorf("failed to update /etc/hosts entry: %w", err)
-	}
-	return nil
+	return strings.TrimSpace(string(out))
 }
 
 // buildNftScript generates the shell script that sets up nftables OUTPUT rules.
