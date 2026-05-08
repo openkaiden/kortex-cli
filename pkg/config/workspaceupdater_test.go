@@ -349,3 +349,170 @@ func TestWorkspaceUpdater_EmptyFile_TreatedAsMissing(t *testing.T) {
 		t.Errorf("expected [github] after adding to empty file, got %v", secrets)
 	}
 }
+
+func readWorkspacePorts(t *testing.T, configDir string) []int {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(configDir, WorkspaceConfigFile))
+	if err != nil {
+		t.Fatalf("failed to read workspace.json: %v", err)
+	}
+	var cfg workspace.WorkspaceConfiguration
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("failed to parse workspace.json: %v", err)
+	}
+	if cfg.Ports == nil {
+		return nil
+	}
+	return *cfg.Ports
+}
+
+func readWorkspaceFeatures(t *testing.T, configDir string) map[string]map[string]interface{} {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(configDir, WorkspaceConfigFile))
+	if err != nil {
+		t.Fatalf("failed to read workspace.json: %v", err)
+	}
+	var cfg workspace.WorkspaceConfiguration
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("failed to parse workspace.json: %v", err)
+	}
+	if cfg.Features == nil {
+		return nil
+	}
+	return *cfg.Features
+}
+
+func TestWorkspaceUpdater_AddPort_CreatesFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	if err := u.AddPort(8080); err != nil {
+		t.Fatalf("AddPort: %v", err)
+	}
+
+	ports := readWorkspacePorts(t, dir)
+	if len(ports) != 1 || ports[0] != 8080 {
+		t.Errorf("expected [8080], got %v", ports)
+	}
+}
+
+func TestWorkspaceUpdater_AddPort_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	if err := u.AddPort(3000); err != nil {
+		t.Fatalf("first AddPort: %v", err)
+	}
+	if err := u.AddPort(3000); err != nil {
+		t.Fatalf("second AddPort: %v", err)
+	}
+
+	ports := readWorkspacePorts(t, dir)
+	if len(ports) != 1 {
+		t.Errorf("expected exactly 1 port after duplicate AddPort, got %v", ports)
+	}
+}
+
+func TestWorkspaceUpdater_AddPort_Accumulates(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	for _, p := range []int{8080, 3000, 5000} {
+		if err := u.AddPort(p); err != nil {
+			t.Fatalf("AddPort(%d): %v", p, err)
+		}
+	}
+
+	ports := readWorkspacePorts(t, dir)
+	if len(ports) != 3 {
+		t.Errorf("expected 3 ports, got %v", ports)
+	}
+}
+
+func TestWorkspaceUpdater_AddFeature_CreatesFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	if err := u.AddFeature("ghcr.io/devcontainers/features/go:1", map[string]interface{}{}); err != nil {
+		t.Fatalf("AddFeature: %v", err)
+	}
+
+	features := readWorkspaceFeatures(t, dir)
+	if _, ok := features["ghcr.io/devcontainers/features/go:1"]; !ok {
+		t.Errorf("expected go feature in map, got %v", features)
+	}
+}
+
+func TestWorkspaceUpdater_AddFeature_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	opts := map[string]interface{}{"version": "1.21"}
+	if err := u.AddFeature("ghcr.io/devcontainers/features/go:1", opts); err != nil {
+		t.Fatalf("first AddFeature: %v", err)
+	}
+	// Second call with different options — must not overwrite (idempotent).
+	if err := u.AddFeature("ghcr.io/devcontainers/features/go:1", map[string]interface{}{}); err != nil {
+		t.Fatalf("second AddFeature: %v", err)
+	}
+
+	features := readWorkspaceFeatures(t, dir)
+	if len(features) != 1 {
+		t.Errorf("expected exactly 1 feature after duplicate AddFeature, got %v", features)
+	}
+}
+
+func TestWorkspaceUpdater_AddFeature_Accumulates(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+
+	featureIDs := []string{
+		"ghcr.io/devcontainers/features/go:1",
+		"ghcr.io/devcontainers/features/python:1",
+	}
+	for _, id := range featureIDs {
+		if err := u.AddFeature(id, map[string]interface{}{}); err != nil {
+			t.Fatalf("AddFeature(%s): %v", id, err)
+		}
+	}
+
+	features := readWorkspaceFeatures(t, dir)
+	if len(features) != 2 {
+		t.Errorf("expected 2 features, got %v", features)
+	}
+	for _, id := range featureIDs {
+		if _, ok := features[id]; !ok {
+			t.Errorf("feature %q not found in %v", id, features)
+		}
+	}
+}

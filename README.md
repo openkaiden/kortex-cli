@@ -27,7 +27,7 @@ kdn is part of the [Kaiden](https://openkaiden.ai/) project — an open platform
 - Pluggable runtime system — Podman and OpenShell runtimes, with support for adding others
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
 - Multi-level configuration with clear precedence (agent > project > global > workspace): inject environment variables, mount directories, configure MCP servers, manage secrets, and control network access at each scope
-- Automatic credential detection with `kdn autoconf` — scans environment variables and files, creates secrets, and writes configuration with no manual JSON editing
+- Automatic workspace setup with `kdn autoconf` — scans environment variables and files to create secrets, detects programming languages and exposed ports to add devcontainer features and port-forwarding configuration, all with no manual JSON editing
 - Control network access with allow/deny policies per workspace
 - Consistent configuration for MCP servers, skills, and dev container features across all supported agents — define once, works with Claude Code, Cursor, Goose, and OpenCode
 - Integrate with various LLM providers (Vertex AI, Ollama, OpenRouter, and any OpenAI-compatible API)
@@ -749,6 +749,58 @@ The resulting entry in `~/.kdn/config/projects.json` looks like:
 ```
 
 The `$HOME` variable is resolved at workspace-start time, keeping the config portable across machines.
+
+### Auto-detecting Languages and Ports
+
+`kdn autoconf` also uses [alizer](https://github.com/devfile/alizer) to analyse the current directory and detect programming languages and exposed TCP ports. For each detected language it offers to add the corresponding devcontainer feature to `.kaiden/workspace.json`; for detected ports it offers to add port-forwarding entries.
+
+```bash
+# Detect languages and ports and apply interactively
+kdn autoconf
+
+# Apply immediately without prompts
+kdn autoconf --yes
+```
+
+**Supported languages and their devcontainer features:**
+
+| Language | Feature |
+|---|---|
+| Go | `ghcr.io/devcontainers/features/go:1` |
+| Python | `ghcr.io/devcontainers/features/python:1` |
+| JavaScript | `ghcr.io/devcontainers/features/node:2` |
+| TypeScript | `ghcr.io/devcontainers/features/node:2` |
+| Java | `ghcr.io/devcontainers/features/java:1` |
+
+JavaScript and TypeScript both map to the same Node.js feature and are presented as a single prompt.
+
+When run interactively, `autoconf` asks one question per detected feature and one question for all detected ports together:
+
+1. **Confirm feature** — add the devcontainer feature for the detected language?
+2. **Confirm ports** — add all detected port numbers to the local workspace config?
+
+With `--yes`, all detected features and ports are added without prompts.
+
+Features and ports that are already present in `.kaiden/workspace.json` are reported as already configured and skipped. Language features and port-forwarding entries are written to the **local** workspace config (`.kaiden/workspace.json`).
+
+**Example: Go project**
+
+Running `kdn autoconf` in a Go repository adds the Go devcontainer feature to `.kaiden/workspace.json`:
+
+```json
+{
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {}
+  }
+}
+```
+
+When the workspace is next registered with `kdn init`, kdn downloads and installs the feature into the container image, making the Go toolchain available to the agent.
+
+**Notes:**
+
+- Port detection is based on source-code analysis (e.g., listening calls in server code), not on running processes
+- The `features` and `ports` fields are merged with any values already in `.kaiden/workspace.json`; no existing configuration is removed
 
 ### Sharing a GitHub Token
 

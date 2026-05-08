@@ -43,6 +43,14 @@ type WorkspaceConfigUpdater interface {
 	// The call is idempotent: if a mount with the same host and target already exists
 	// it is not duplicated.
 	AddMount(host, target string, ro bool) error
+
+	// AddPort appends port to the Ports list of the workspace config.
+	// The call is idempotent: if the port is already present it is not duplicated.
+	AddPort(port int) error
+
+	// AddFeature adds a feature entry to the Features map of the workspace config.
+	// The call is idempotent: if the feature ID is already present it is not modified.
+	AddFeature(featureID string, options map[string]interface{}) error
 }
 
 type workspaceConfigUpdater struct {
@@ -158,6 +166,50 @@ func (w *workspaceConfigUpdater) readConfig(configPath string) (*workspace.Works
 		return nil, fmt.Errorf("failed to parse workspace config: %w", err)
 	}
 	return &cfg, nil
+}
+
+func (w *workspaceConfigUpdater) AddPort(port int) error {
+	configPath := filepath.Join(w.configDir, WorkspaceConfigFile)
+
+	cfg, err := w.readConfig(configPath)
+	if err != nil {
+		return err
+	}
+
+	if cfg.Ports == nil {
+		ports := []int{port}
+		cfg.Ports = &ports
+	} else {
+		for _, p := range *cfg.Ports {
+			if p == port {
+				return nil
+			}
+		}
+		*cfg.Ports = append(*cfg.Ports, port)
+	}
+
+	return w.writeConfig(configPath, cfg)
+}
+
+func (w *workspaceConfigUpdater) AddFeature(featureID string, options map[string]interface{}) error {
+	configPath := filepath.Join(w.configDir, WorkspaceConfigFile)
+
+	cfg, err := w.readConfig(configPath)
+	if err != nil {
+		return err
+	}
+
+	if cfg.Features == nil {
+		features := map[string]map[string]interface{}{featureID: options}
+		cfg.Features = &features
+	} else {
+		if _, exists := (*cfg.Features)[featureID]; exists {
+			return nil
+		}
+		(*cfg.Features)[featureID] = options
+	}
+
+	return w.writeConfig(configPath, cfg)
 }
 
 func (w *workspaceConfigUpdater) writeConfig(configPath string, cfg *workspace.WorkspaceConfiguration) error {

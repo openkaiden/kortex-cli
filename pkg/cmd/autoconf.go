@@ -54,6 +54,9 @@ type autoconfCmd struct {
 	homeConfigFilesDetector     autoconf.HomeConfigFilesDetector
 	projectLoader               config.ProjectConfigLoader
 	homeConfigFilesSelectTarget func(options []autoconf.HomeConfigFilesConfigTargetOption) (autoconf.HomeConfigFilesConfigTarget, error)
+
+	alizerDetector autoconf.AlizerDetector
+	cwd            string
 }
 
 func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
@@ -86,6 +89,7 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
+	a.cwd = cwd
 
 	if a.projectDetector == nil {
 		a.projectDetector = project.NewDetector(git.NewDetector())
@@ -138,6 +142,10 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create home config files detector: %w", hdErr)
 		}
 		a.homeConfigFilesDetector = hd
+	}
+
+	if a.alizerDetector == nil {
+		a.alizerDetector = autoconf.NewAlizerDetector(a.cwd)
 	}
 
 	if a.confirm == nil {
@@ -257,21 +265,34 @@ func (a *autoconfCmd) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if a.homeConfigFilesDetector == nil {
+	if a.homeConfigFilesDetector != nil {
+		homeConfigRunner := autoconf.NewHomeConfigFilesAutoconf(autoconf.HomeConfigFilesAutoconfOptions{
+			Detector:         a.homeConfigFilesDetector,
+			ProjectUpdater:   a.projectUpdater,
+			WorkspaceUpdater: a.workspaceUpdater,
+			ProjectLoader:    a.projectLoader,
+			WorkspaceConfig:  a.workspaceCfg,
+			ProjectID:        a.projectID,
+			Yes:              a.yes,
+			Confirm:          a.confirm,
+			SelectTarget:     a.homeConfigFilesSelectTarget,
+		})
+		if err := homeConfigRunner.Run(out); err != nil {
+			return err
+		}
+	}
+
+	if a.alizerDetector == nil {
 		return nil
 	}
-	homeConfigRunner := autoconf.NewHomeConfigFilesAutoconf(autoconf.HomeConfigFilesAutoconfOptions{
-		Detector:         a.homeConfigFilesDetector,
-		ProjectUpdater:   a.projectUpdater,
+	alizerRunner := autoconf.NewAlizerAutoconf(autoconf.AlizerAutoconfOptions{
+		Detector:         a.alizerDetector,
 		WorkspaceUpdater: a.workspaceUpdater,
-		ProjectLoader:    a.projectLoader,
 		WorkspaceConfig:  a.workspaceCfg,
-		ProjectID:        a.projectID,
 		Yes:              a.yes,
 		Confirm:          a.confirm,
-		SelectTarget:     a.homeConfigFilesSelectTarget,
 	})
-	return homeConfigRunner.Run(out)
+	return alizerRunner.Run(out)
 }
 
 // NewAutoconfCmd returns the autoconf command.
@@ -285,7 +306,11 @@ func NewAutoconfCmd() *cobra.Command {
 
 Scans registered secret services and creates secrets for any service whose
 environment variables are set. Secrets are stored in the local secret store
-and added to the chosen configuration target (global, project-specific, or local).`,
+and added to the chosen configuration target (global, project-specific, or local).
+
+Also detects programming languages and exposed ports in the current directory
+using alizer, and offers to add the corresponding devcontainer features and
+port-forwarding configuration to the local workspace config (.kaiden/workspace.json).`,
 		Example: `# Detect and apply secrets from the environment
 kdn autoconf
 

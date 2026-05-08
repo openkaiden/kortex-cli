@@ -76,16 +76,22 @@ type fakeWorkspaceUpdater struct {
 		host, target string
 		ro           bool
 	}
+	ports    []int
+	features []struct {
+		featureID string
+		options   map[string]interface{}
+	}
+	err error
 }
 
 func (f *fakeWorkspaceUpdater) AddSecret(name string) error {
 	f.added = append(f.added, name)
-	return nil
+	return f.err
 }
 
 func (f *fakeWorkspaceUpdater) AddEnvVar(name, value string) error {
 	f.envVars = append(f.envVars, struct{ name, value string }{name, value})
-	return nil
+	return f.err
 }
 
 func (f *fakeWorkspaceUpdater) AddMount(host, target string, ro bool) error {
@@ -93,7 +99,20 @@ func (f *fakeWorkspaceUpdater) AddMount(host, target string, ro bool) error {
 		host, target string
 		ro           bool
 	}{host, target, ro})
-	return nil
+	return f.err
+}
+
+func (f *fakeWorkspaceUpdater) AddPort(port int) error {
+	f.ports = append(f.ports, port)
+	return f.err
+}
+
+func (f *fakeWorkspaceUpdater) AddFeature(featureID string, options map[string]interface{}) error {
+	f.features = append(f.features, struct {
+		featureID string
+		options   map[string]interface{}
+	}{featureID, options})
+	return f.err
 }
 
 // fakeAutoconfDetector returns a fixed FilterResult.

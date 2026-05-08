@@ -469,6 +469,95 @@ var buf bytes.Buffer
 err := runner.Run(&buf)
 ```
 
+## Language and Port Detection (`AlizerAutoconf`)
+
+`kdn autoconf` also uses [alizer](https://github.com/devfile/alizer) to detect programming languages and exposed ports in the workspace source directory, then offers to add the corresponding devcontainer features and port-forwarding configuration. This is handled by `AlizerAutoconf` in `autoconfalizer.go`.
+
+### How it works
+
+```text
+AlizerDetector.Detect()   → AlizerResult{Languages, Ports}
+  ↓ per language (mapped to a feature ID via languageFeatureMap)
+  skip if already in workspace Features
+  confirm?  (skipped when --yes)
+  WorkspaceConfigUpdater.AddFeature(featureID, {})
+
+  ↓ new ports (not already in workspace Ports)
+  confirm?  (skipped when --yes)
+  WorkspaceConfigUpdater.AddPort(port) × N
+```
+
+Default when `--yes`: adds all detected features and ports without prompting.
+
+### Language → feature mapping
+
+`languageFeatureMap` in `autoconfalizer.go` maps detected language names (as returned by alizer) to OCI feature references. Only features compatible with Fedora (rpm-based) images are included. Ruby is intentionally omitted (the upstream feature only supports `apt-get`).
+
+| Language | Feature |
+|----------|---------|
+| Go | `ghcr.io/devcontainers/features/go:1` |
+| Python | `ghcr.io/devcontainers/features/python:1` |
+| JavaScript | `ghcr.io/devcontainers/features/node:2` |
+| TypeScript | `ghcr.io/devcontainers/features/node:2` |
+| Java | `ghcr.io/devcontainers/features/java:1` |
+
+JavaScript and TypeScript both map to the `node` feature; duplicates are deduplicated before prompting.
+
+### Key types
+
+**`AlizerDetector`** (`detectalizer.go`):
+```go
+type AlizerDetector interface {
+    Detect() (AlizerResult, error)
+}
+
+type AlizerResult struct {
+    Languages []string // e.g. ["Go", "Python"], ordered by weight
+    Ports     []int    // deduplicated across all detected components
+}
+```
+Constructor: `NewAlizerDetector(path string) AlizerDetector`. For tests: `newAlizerDetectorWithInjection(path, analyzeFunc, componentsFunc)`.
+
+**`AlizerAutoconf`** (`autoconfalizer.go`):
+```go
+type AlizerAutoconf interface {
+    Run(out io.Writer) error
+}
+func NewAlizerAutoconf(opts AlizerAutoconfOptions) AlizerAutoconf
+```
+
+Important `AlizerAutoconfOptions` fields:
+
+| Field | Purpose |
+|-------|---------|
+| `Detector` | `AlizerDetector` |
+| `WorkspaceUpdater` | `config.WorkspaceConfigUpdater` — nil makes Run a no-op |
+| `WorkspaceConfig` | `config.Config` — used to skip already-configured features/ports (nil = treat as empty) |
+| `Yes` | skip all confirmations |
+| `Confirm` | `func(prompt string) (bool, error)` — injectable |
+
+### Testing patterns
+
+Fake `AlizerDetector`:
+```go
+type fakeAlizerDetector struct {
+    result autoconf.AlizerResult
+    err    error
+}
+func (f *fakeAlizerDetector) Detect() (autoconf.AlizerResult, error) { return f.result, f.err }
+```
+
+Wiring the runner:
+```go
+runner := autoconf.NewAlizerAutoconf(autoconf.AlizerAutoconfOptions{
+    Detector:         &fakeAlizerDetector{result: autoconf.AlizerResult{Languages: []string{"Go"}}},
+    WorkspaceUpdater: &fakeWorkspaceUpdater{},
+    Yes:              true,
+})
+var buf bytes.Buffer
+err := runner.Run(&buf)
+```
+
 ## Key Files
 
 | File | Purpose |
@@ -481,10 +570,12 @@ err := runner.Run(&buf)
 | `pkg/autoconf/adcpath.go` / `adcpath_windows.go` | Platform-specific ADC file path helpers |
 | `pkg/autoconf/detecthomeconfigfiles.go` | `HomeConfigFilesDetector` interface + `envHomeConfigFilesDetector` + `registeredHomeConfigFiles` |
 | `pkg/autoconf/autoconfhomeconfigfiles.go` | `HomeConfigFilesAutoconf` interface + runner + target constants |
+| `pkg/autoconf/detectalizer.go` | `AlizerDetector` interface + `alizerDetector` wrapping `devfile/alizer` |
+| `pkg/autoconf/autoconfalizer.go` | `AlizerAutoconf` interface + runner + `languageFeatureMap` |
 | `pkg/cmd/autoconf.go` | Thin CLI wiring: flag parsing, dependency construction, `project.Detector` injection |
 | `pkg/project/project.go` | `Detector` interface + shared project-ID detection logic (git remote → URL, no remote → path) |
 | `pkg/config/projectsupdater.go` | `ProjectConfigUpdater` — reads/writes `~/.kdn/config/projects.json`; `AddMount` is idempotent by (host, target) pair |
-| `pkg/config/workspaceupdater.go` | `WorkspaceConfigUpdater` — reads/writes `.kaiden/workspace.json` |
+| `pkg/config/workspaceupdater.go` | `WorkspaceConfigUpdater` — reads/writes `.kaiden/workspace.json`; `AddPort`/`AddFeature` are idempotent |
 | `pkg/config/agents.go` | `AgentConfigUpdater` + `AgentConfigLoader` — reads/writes `~/.kdn/config/agents.json` |
 | `pkg/secretservicesetup/register.go` | `ListServices()` — returns fully-constructed service instances |
 | `pkg/secretservicesetup/secretservices.json` | Authoritative list of known secret services and their env vars |

@@ -327,6 +327,105 @@ func TestAutoconfCmd_PreRun_SetsVertexFields(t *testing.T) {
 	}
 }
 
+// TestAutoconfCmd_PreRun_SetsAlizerDetector verifies that preRun wires the
+// alizerDetector when none is pre-injected.
+func TestAutoconfCmd_PreRun_SetsAlizerDetector(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	c := &autoconfCmd{}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("storage", storageDir, "")
+
+	if err := c.preRun(cmd, []string{}); err != nil {
+		t.Fatalf("preRun returned error: %v", err)
+	}
+
+	if c.alizerDetector == nil {
+		t.Error("alizerDetector not set by preRun")
+	}
+}
+
+// TestAutoconfCmd_PreRun_PreservesInjectedAlizerDetector verifies the nil-guard:
+// a pre-populated alizerDetector must not be overwritten by preRun.
+func TestAutoconfCmd_PreRun_PreservesInjectedAlizerDetector(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	injected := &fakeAutoconfCmdAlizerDetector{}
+	c := &autoconfCmd{alizerDetector: injected}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("storage", storageDir, "")
+
+	if err := c.preRun(cmd, []string{}); err != nil {
+		t.Fatalf("preRun returned error: %v", err)
+	}
+
+	if c.alizerDetector != injected {
+		t.Error("preRun overwrote the pre-injected alizerDetector")
+	}
+}
+
+// TestAutoconfCmd_Run_WithAlizerDetector verifies that when an alizerDetector is
+// wired in, run() invokes the alizer autoconf path and adds detected features.
+func TestAutoconfCmd_Run_WithAlizerDetector(t *testing.T) {
+	t.Parallel()
+
+	wu := &fakeAutoconfCmdWorkspaceUpdater{}
+	c := &autoconfCmd{
+		detector: &fakeAutoconfCmdDetector{},
+		confirm:  func(string) (bool, error) { return true, nil },
+		selectTarget: func(_ string, _ []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) {
+			return autoconf.ConfigTargetGlobal, nil
+		},
+		alizerDetector: &fakeAutoconfCmdAlizerDetector{result: autoconf.AlizerResult{
+			Languages: []string{"Go"},
+		}},
+		workspaceUpdater: wu,
+		yes:              true,
+	}
+
+	cmd := NewAutoconfCmd()
+	var out strings.Builder
+	cmd.SetOut(&out)
+
+	if err := c.run(cmd, []string{}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	if len(wu.features) != 1 || wu.features[0] != "ghcr.io/devcontainers/features/go:1" {
+		t.Errorf("expected Go feature added, got %v", wu.features)
+	}
+}
+
+// fakeAutoconfCmdAlizerDetector satisfies autoconf.AlizerDetector for cmd-level tests.
+type fakeAutoconfCmdAlizerDetector struct {
+	result autoconf.AlizerResult
+	err    error
+}
+
+func (f *fakeAutoconfCmdAlizerDetector) Detect() (autoconf.AlizerResult, error) {
+	return f.result, f.err
+}
+
+// fakeAutoconfCmdWorkspaceUpdater satisfies config.WorkspaceConfigUpdater for cmd-level tests.
+type fakeAutoconfCmdWorkspaceUpdater struct {
+	features []string
+}
+
+func (f *fakeAutoconfCmdWorkspaceUpdater) AddSecret(_ string) error           { return nil }
+func (f *fakeAutoconfCmdWorkspaceUpdater) AddEnvVar(_, _ string) error        { return nil }
+func (f *fakeAutoconfCmdWorkspaceUpdater) AddMount(_, _ string, _ bool) error { return nil }
+func (f *fakeAutoconfCmdWorkspaceUpdater) AddPort(_ int) error                { return nil }
+func (f *fakeAutoconfCmdWorkspaceUpdater) AddFeature(id string, _ map[string]interface{}) error {
+	f.features = append(f.features, id)
+	return nil
+}
+
 // TestAutoconfCmd_PreRun_PreservesInjectedVertexDetector verifies the nil-guard:
 // a pre-populated vertexDetector must not be overwritten by preRun.
 func TestAutoconfCmd_PreRun_PreservesInjectedVertexDetector(t *testing.T) {
