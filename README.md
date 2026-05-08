@@ -5,101 +5,86 @@
 
 kdn is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
 
-The architecture is built around pluggable runtimes. Supported runtimes include **Podman** (container-based workspaces using a custom Fedora image) and **OpenShell** (sandbox-based workspaces using the OpenShell Gateway with Podman or VM drivers). Additional runtimes (e.g., Kubernetes) can be added to support other execution environments.
+The architecture is built around pluggable runtimes. Additional runtimes (e.g., Kubernetes) can be added to support other execution environments.
+
+kdn is part of the [Kaiden](https://openkaiden.ai/) project — an open platform for running AI coding agents in isolated sandboxes. Kaiden also includes a desktop application for managing workspaces visually, and an MCP registry for curating and distributing Model Context Protocol servers across teams. kdn is the command-line counterpart to the desktop app, offering the same workspace management capabilities for terminal-driven workflows.
 
 **Supported Agents**
 
 - **Claude Code** - Anthropic's official CLI for Claude
-- **Goose** - AI agent for development tasks
 - **Cursor** - AI-powered code editor agent
+- **Goose** - AI agent for development tasks
 - **OpenCode** - Open-source AI coding agent
+
+**Supported Runtimes**
+
+- **Podman** — container-based workspaces using a custom Fedora image
+- **OpenShell** *(experimental)* — sandbox-based workspaces using the OpenShell Gateway with Podman or VM drivers
 
 **Key Features**
 
 - Isolated workspaces per project, each running in its own runtime instance
 - Pluggable runtime system — Podman and OpenShell runtimes, with support for adding others
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
-- Multi-level configuration: workspace, global, project-specific, and agent-specific settings
-- Inject environment variables and mount directories into workspaces at multiple scopes
+- Multi-level configuration with clear precedence (agent > project > global > workspace): inject environment variables, mount directories, configure MCP servers, manage secrets, and control network access at each scope
+- Automatic credential detection with `kdn autoconf` — scans environment variables and files, creates secrets, and writes configuration with no manual JSON editing
 - Control network access with allow/deny policies per workspace
-- Connect to MCP servers and integrate with various LLM providers (including Vertex AI)
+- Consistent configuration for MCP servers, skills, and dev container features across all supported agents — define once, works with Claude Code, Cursor, Goose, and OpenCode
+- Integrate with various LLM providers (Vertex AI, Ollama, OpenRouter, and any OpenAI-compatible API)
 - Consistent CLI interface across different agent types and runtimes
 
 ## Getting Started
 
+New to kdn? See the Glossary section for definitions of workspace, runtime, agent, and other key terms.
+
 ### Prerequisites
 
-- Go 1.26+
-- Make
-
-### Build
-
-```bash
-make build
-```
-
-This creates the `kdn` binary in the current directory.
-
-### Run
-
-```bash
-# Display help and available commands
-./kdn --help
-
-# Execute a specific command
-./kdn <command> [flags]
-```
+- **Podman** must be installed on your system. See [podman.io/docs/installation](https://podman.io/docs/installation) for platform-specific instructions.
+- **Authentication** credentials are needed for cloud-based agents. Run `kdn autoconf` after installation to detect and configure credentials automatically from your environment, or edit `~/.kdn/config/agents.json` manually. See the Scenarios section for agent-specific credential setup.
 
 ### Install
 
-To install the binary to your `GOPATH/bin` for system-wide access:
+Download and run the install script:
 
 ```bash
-make install
+curl -sSfL https://github.com/openkaiden/kdn/releases/latest/download/install.sh | bash
 ```
 
-### Run Tests
+Alternatively, download a pre-built archive for your platform from the [latest release](https://github.com/openkaiden/kdn/releases/latest), extract it, and place the `kdn` binary somewhere on your `PATH`.
+
+### First Session
+
+Initialize a workspace, start it, and open a terminal:
 
 ```bash
-# Run all tests
-make test
+# (Recommended) Auto-detect and configure credentials from your environment.
+# Skip this if you are using a local model (e.g. Ollama) that needs no credentials.
+kdn autoconf
 
-# Run tests with coverage report
-make test-coverage
+# Navigate to your project and register a workspace.
+# kdn auto-generates a workspace name from the directory name; use --name to override.
+cd /path/to/my-project
+kdn init --runtime podman --agent claude
+
+# List workspaces to see the generated name
+kdn list
+
+# Start the workspace (the name is auto-generated from the directory name, e.g. "my-project")
+kdn start my-project
+
+# Open an interactive terminal inside the workspace
+kdn terminal my-project
 ```
 
-## Glossary
+### Going Further
 
-### Agent
-An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Goose, Cursor, OpenCode) that can be launched and configured.
-
-### LLM (Large Language Model)
-The underlying AI model that powers the agents. Examples include Claude (by Anthropic), GPT (by OpenAI), and other language models.
-
-### MCP (Model Context Protocol)
-A standardized protocol for connecting AI agents to external data sources and tools. MCP servers provide agents with additional capabilities like database access, API integrations, or file system operations.
-
-### Runtime
-The environment where workspaces run. kdn supports multiple runtimes:
-- **Podman** — container-based workspaces using a custom Fedora image
-- **OpenShell** — sandbox-based workspaces using the OpenShell Gateway, with `--openshell-driver podman` (default) or `--openshell-driver vm` drivers
-
-```bash
-# Register with openshell using VM driver
-kdn init --runtime openshell --agent claude --openshell-driver vm
-
-# Register with openshell and allow additional hosts
-kdn init --runtime openshell --agent claude --openshell-allow-hosts github.com,registry.npmjs.org
-```
-
-### Service
-A secret service definition that describes how to inject credentials into workspace HTTP requests. Each service specifies a host pattern to match, the HTTP header to set, and which environment variables hold the credential value.
-
-### Skills
-Pre-configured capabilities or specialized functions that can be enabled for an agent. Skills extend what an agent can do, such as code review, testing, or specific domain knowledge.
-
-### Workspace
-A registered directory containing your project source code and its configuration. Each workspace is tracked by kdn with a unique ID and a human-readable name. Workspaces can be accessed using either their ID or name in all commands (start, stop, remove, terminal).
+- **Scenarios** — step-by-step guides for common setups: Claude or Goose with Vertex AI, Cursor with an API key, OpenCode with a local model, and more
+- **Environment Variables** — declare a preferred default runtime and agent to avoid repeating `--runtime` and `--agent` on every `kdn init`
+- **Workspace Configuration** — how to inject environment variables, mount directories, configure MCP servers, and control network access
+- **Multi-Level Configuration** — how global, project-specific, and agent-specific settings interact
+- **Podman Runtime** — configure the base container image and the tools available inside the workspace
+- **Dev Container Features** — a portable way to add tools to the workspace sandbox, compatible with all kdn runtimes
+- **Commands** — full reference for all kdn commands and flags
 
 ## Scenarios
 
@@ -3756,7 +3741,7 @@ Error: dashboard not supported for workspace "my-project"
 
 Prints the URL for a forwarded port of a running workspace and opens it in the default browser. Also available as the shorter alias `open`.
 
-This command uses the port forwards configured in `workspace.json` (see [Port Forwarding](#port-forwarding)). The host port and bind address are determined at workspace creation time.
+This command uses the port forwards configured in `workspace.json` (see the Port Forwarding section). The host port and bind address are determined at workspace creation time.
 
 #### Usage
 
@@ -3890,3 +3875,37 @@ kdn runtime list -o json
 - Only runtimes available in the current environment are listed (e.g., the Podman runtime only appears if the `podman` CLI is installed)
 - The `local` field indicates whether the runtime executes workspaces on the local machine (`true`) or on a remote system (`false`)
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
+
+## Glossary
+
+### Workspace
+A registered directory containing your project source code and its configuration. Each workspace is tracked by kdn with a unique ID and a human-readable name. Workspaces can be accessed using either their ID or name in all commands (start, stop, remove, terminal).
+
+### Project
+A stable identifier used to scope configuration to a specific repository or directory. kdn auto-detects the project identifier from the git remote URL (or the repository path when no remote is configured). Project-specific settings are stored in `~/.kdn/config/projects.json` and take precedence over global settings but are overridden by agent-specific settings.
+
+### Runtime
+The environment where workspaces run. kdn's runtime system is extensible — new runtimes can be added to support other execution environments. Supported runtimes:
+- **Podman** — container-based workspaces using a custom Fedora image
+- **OpenShell** — sandbox-based workspaces using the OpenShell Gateway with Podman or VM drivers
+
+### Sandbox
+The isolated execution environment created by the runtime for a workspace. The sandbox contains the mounted project source code, the configured agent, and any injected environment variables, secrets, and mounts. Network access is controlled per workspace: outbound traffic can be fully allowed, restricted to an explicit list of hosts, or denied entirely — preventing the agent from reaching unintended external services. Depending on the runtime, the sandbox is implemented as a container (Podman) or a VM-based environment (OpenShell).
+
+### Agent
+An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Cursor, Goose, OpenCode) that can be launched and configured.
+
+### LLM (Large Language Model)
+The underlying AI model that powers the agents. Examples include Claude (by Anthropic), Gemini (by Google), GPT (by OpenAI), and open-source models such as Llama (by Meta), Gemma (by Google), and Granite (by IBM).
+
+### LLM Provider
+The service or runtime that hosts and serves an LLM. kdn supports configuring agents with remote and local providers:
+- **Remote** — Anthropic API, Google Cloud Vertex AI, OpenRouter, and any OpenAI-compatible API
+- **Local** — Ollama and RamaLama, for running open-source models on your own machine
+
+### MCP (Model Context Protocol)
+A standardized protocol for connecting AI agents to external data sources and tools. MCP servers provide agents with additional capabilities like database access, API integrations, or file system operations.
+
+### Skills
+Pre-configured capabilities or specialized functions that can be enabled for an agent. Skills extend what an agent can do, such as code review, testing, or specific domain knowledge.
+

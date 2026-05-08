@@ -59,12 +59,13 @@ def split_readme_content(content):
     }
 
     i = 0
-    # Capture content before first ## heading
+    # Capture content before first ## heading, stripping badge lines
     while i < len(lines):
         line = lines[i]
         if line.startswith('## '):
             break
-        current_section['content'].append(line)
+        if not line.startswith('[!['):
+            current_section['content'].append(line)
         i += 1
 
     sections.append(current_section)
