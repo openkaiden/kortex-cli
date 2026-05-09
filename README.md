@@ -57,13 +57,15 @@ Alternatively, download a pre-built archive for your platform from the [latest r
 Initialize a workspace, start it, and open a terminal:
 
 ```bash
-# (Recommended) Auto-detect and configure credentials from your environment.
-# Skip this if you are using a local model (e.g. Ollama) that needs no credentials.
+# Navigate to your project
+cd /path/to/my-project
+
+# (Recommended) Auto-detect and configure workspace from your environment and project:
+# credentials, project language, ports
 kdn autoconf
 
-# Navigate to your project and register a workspace.
+# Register a workspace.
 # kdn auto-generates a workspace name from the directory name; use --name to override.
-cd /path/to/my-project
 kdn init --runtime podman --agent claude
 
 # List workspaces to see the generated name
