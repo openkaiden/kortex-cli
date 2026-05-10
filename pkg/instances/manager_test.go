@@ -3924,10 +3924,12 @@ func TestManager_Add_ConvertsSkillsToMounts(t *testing.T) {
 		}
 
 		mounts := *params.WorkspaceConfig.Mounts
-		if len(mounts) != 1 {
-			t.Fatalf("Expected 1 mount, got %d: %v", len(mounts), mounts)
+		// 1 user skill + built-in skills injected automatically
+		if len(mounts) < 2 {
+			t.Fatalf("Expected at least 2 mounts (user skill + built-ins), got %d: %v", len(mounts), mounts)
 		}
 
+		// First mount is the user-configured skill
 		if mounts[0].Host != skillsPath {
 			t.Errorf("Mount host = %q, want %q", mounts[0].Host, skillsPath)
 		}
@@ -4038,6 +4040,142 @@ func TestManager_Add_ConvertsSkillsToMounts(t *testing.T) {
 			RuntimeType:     "fake",
 			Agent:           "test-agent",
 			WorkspaceConfig: workspaceCfg,
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		params := spy.LastCreateParams()
+		if params.WorkspaceConfig != nil && params.WorkspaceConfig.Mounts != nil {
+			t.Errorf("Expected no mounts when agent has empty SkillsDir, got %v", *params.WorkspaceConfig.Mounts)
+		}
+	})
+}
+
+func TestManager_Add_InjectsBuiltInSkills(t *testing.T) {
+	t.Parallel()
+
+	newManagerWithAgent := func(t *testing.T, skillsDir string) (Manager, *spyRuntime, string) {
+		t.Helper()
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		spy := newSpyRuntime(fake.New())
+		if err := manager.RegisterRuntime(spy); err != nil {
+			t.Fatalf("Failed to register spy runtime: %v", err)
+		}
+		trackingAgent := newTrackingAgentWithSkillsDir("test-agent", skillsDir)
+		if err := manager.RegisterAgent("test-agent", trackingAgent); err != nil {
+			t.Fatalf("Failed to register tracking agent: %v", err)
+		}
+		return manager, spy, storageDir
+	}
+
+	newInstance := func(t *testing.T) Instance {
+		t.Helper()
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+		inst, err := NewInstance(NewInstanceParams{SourceDir: sourceDir, ConfigDir: configDir})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+		return inst
+	}
+
+	t.Run("built-in skills are injected when no user skills configured", func(t *testing.T) {
+		t.Parallel()
+
+		manager, spy, _ := newManagerWithAgent(t, "$HOME/.claude/skills")
+
+		_, err := manager.Add(context.Background(), AddOptions{
+			Instance:    newInstance(t),
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		params := spy.LastCreateParams()
+		if params.WorkspaceConfig == nil || params.WorkspaceConfig.Mounts == nil {
+			t.Fatal("Expected built-in skill mounts even with no user-configured skills")
+		}
+		mounts := *params.WorkspaceConfig.Mounts
+		if len(mounts) == 0 {
+			t.Fatal("Expected at least one built-in skill mount, got none")
+		}
+		// At least one mount should target the built-in config-kdn-workspace skill
+		found := false
+		for _, m := range mounts {
+			if filepath.Base(m.Host) == "config-kdn-workspace" {
+				found = true
+				wantTarget := "$HOME/.claude/skills/config-kdn-workspace"
+				if m.Target != wantTarget {
+					t.Errorf("Built-in skill target = %q, want %q", m.Target, wantTarget)
+				}
+				if m.Ro == nil || !*m.Ro {
+					t.Error("Expected built-in skill mount to be read-only")
+				}
+			}
+		}
+		if !found {
+			t.Errorf("Built-in config-kdn-workspace skill not found in mounts: %v", mounts)
+		}
+	})
+
+	t.Run("built-in skill is not duplicated when user configures same basename", func(t *testing.T) {
+		t.Parallel()
+
+		manager, spy, storageDir := newManagerWithAgent(t, "$HOME/.claude/skills")
+		// User configures their own version of the built-in skill (same basename)
+		userSkillPath := filepath.Join(storageDir, "my-skills", "config-kdn-workspace")
+		if err := os.MkdirAll(userSkillPath, 0755); err != nil {
+			t.Fatalf("Failed to create user skill dir: %v", err)
+		}
+
+		_, err := manager.Add(context.Background(), AddOptions{
+			Instance:        newInstance(t),
+			RuntimeType:     "fake",
+			Agent:           "test-agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{Skills: &[]string{userSkillPath}},
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		params := spy.LastCreateParams()
+		if params.WorkspaceConfig == nil || params.WorkspaceConfig.Mounts == nil {
+			t.Fatal("Expected mounts to be set")
+		}
+		count := 0
+		for _, m := range *params.WorkspaceConfig.Mounts {
+			if filepath.Base(m.Host) == "config-kdn-workspace" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("Expected exactly 1 config-kdn-workspace mount, got %d", count)
+		}
+	})
+
+	t.Run("built-in skills are not injected when agent has no SkillsDir", func(t *testing.T) {
+		t.Parallel()
+
+		manager, spy, _ := newManagerWithAgent(t, "")
+
+		_, err := manager.Add(context.Background(), AddOptions{
+			Instance:    newInstance(t),
+			RuntimeType: "fake",
+			Agent:       "test-agent",
 		})
 		if err != nil {
 			t.Fatalf("Add() error = %v", err)
