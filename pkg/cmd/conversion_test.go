@@ -99,10 +99,11 @@ func TestInstanceToWorkspace(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		// Manually set ID and Project (in real usage, Manager sets these)
+		// Manually set ID, Project, and Runtime (in real usage, Manager sets these)
 		instanceData := instance.Dump()
 		instanceData.ID = "test-id-456"
 		instanceData.Project = "test-project"
+		instanceData.Runtime = instances.RuntimeData{Type: "podman"}
 		instance, _ = instances.NewInstanceFromData(instanceData)
 
 		result := instanceToWorkspace(instance)
@@ -117,6 +118,10 @@ func TestInstanceToWorkspace(t *testing.T) {
 
 		if result.Project != "test-project" {
 			t.Errorf("Expected project 'test-project', got '%s'", result.Project)
+		}
+
+		if result.Runtime != "podman" {
+			t.Errorf("Expected runtime 'podman', got '%s'", result.Runtime)
 		}
 
 		if result.Paths.Source != sourceDir {
@@ -254,6 +259,30 @@ func TestInstanceToWorkspace(t *testing.T) {
 		}
 	})
 
+	t.Run("maps runtime type from runtime data", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
+		instanceData := instances.InstanceData{
+			ID:      "rt-test-id",
+			Name:    "rt-workspace",
+			Paths:   instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+			Runtime: instances.RuntimeData{Type: "openshell"},
+		}
+		instance, err := instances.NewInstanceFromData(instanceData)
+		if err != nil {
+			t.Fatalf("Failed to create instance from data: %v", err)
+		}
+
+		result := instanceToWorkspace(instance)
+
+		if result.Runtime != "openshell" {
+			t.Errorf("Expected runtime 'openshell', got '%s'", result.Runtime)
+		}
+	})
+
 	t.Run("includes all required fields", func(t *testing.T) {
 		t.Parallel()
 
@@ -269,10 +298,11 @@ func TestInstanceToWorkspace(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		// Set ID and Agent
+		// Set ID, Agent, and Runtime
 		instanceData := instance.Dump()
 		instanceData.ID = "full-test-id"
 		instanceData.Agent = "claude"
+		instanceData.Runtime = instances.RuntimeData{Type: "podman"}
 		instance, _ = instances.NewInstanceFromData(instanceData)
 
 		result := instanceToWorkspace(instance)
@@ -300,6 +330,9 @@ func TestInstanceToWorkspace(t *testing.T) {
 		}
 		if _, exists := parsed["agent"]; !exists {
 			t.Error("Expected 'agent' field in JSON")
+		}
+		if _, exists := parsed["runtime"]; !exists {
+			t.Error("Expected 'runtime' field in JSON")
 		}
 		if _, exists := parsed["paths"]; !exists {
 			t.Error("Expected 'paths' field in JSON")
