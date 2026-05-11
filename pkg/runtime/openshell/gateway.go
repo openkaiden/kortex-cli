@@ -39,6 +39,8 @@ const (
 	gatewayURL               = "http://127.0.0.1:" + gatewayPort
 )
 
+var supervisorImage = "ghcr.io/nvidia/openshell/supervisor:" + strings.TrimPrefix(DefaultVersion, "v")
+
 // isGatewayReady checks whether the OpenShell gateway is reachable by
 // attempting to list sandboxes. This validates the full stack: gateway running
 // and responding to sandbox operations.
@@ -264,6 +266,7 @@ func (r *openshellRuntime) buildPodmanGatewayCommand(sshSecret string) *exec.Cmd
 	)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("OPENSHELL_SSH_HANDSHAKE_SECRET=%s", sshSecret),
+		fmt.Sprintf("OPENSHELL_SUPERVISOR_IMAGE=%s", supervisorImage),
 	)
 	return cmd
 }

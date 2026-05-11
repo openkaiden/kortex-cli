@@ -114,6 +114,17 @@ func TestBuildGatewayCommand_Podman(t *testing.T) {
 		t.Errorf("Expected --db-url sqlite:<path>/openshell-podman.db in args: %v", args)
 	}
 
+	expectedEnv := fmt.Sprintf("OPENSHELL_SUPERVISOR_IMAGE=%s", supervisorImage)
+	foundEnv := false
+	for _, env := range cmd.Env {
+		if env == expectedEnv {
+			foundEnv = true
+			break
+		}
+	}
+	if !foundEnv {
+		t.Errorf("Expected %s in env, got: %v", expectedEnv, cmd.Env)
+	}
 }
 
 func TestBuildGatewayCommand_VM(t *testing.T) {
