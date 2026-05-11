@@ -38,6 +38,9 @@ const (
 
 	// OpenCodeConfigFileName is the filename for OpenCode agent configuration
 	OpenCodeConfigFileName = "opencode.json"
+
+	// OpenClawConfigFileName is the filename for OpenClaw agent configuration
+	OpenClawConfigFileName = "openclaw.json"
 )
 
 // defaultImageConfig returns the default base image configuration.
@@ -114,5 +117,24 @@ func defaultOpenCodeConfig() *AgentConfig {
 			fmt.Sprintf("mkdir -p /home/%s/.config/opencode", constants.ContainerUser),
 		},
 		TerminalCommand: []string{"opencode"},
+	}
+}
+
+// defaultOpenClawConfig returns the default OpenClaw agent configuration.
+// The local-prefix installer places Node.js and OpenClaw under ~/.openclaw
+// without requiring system packages or sudo. The binary is symlinked into
+// ~/.local/bin/ which is already in the container's PATH.
+func defaultOpenClawConfig() *AgentConfig {
+	return &AgentConfig{
+		Packages: []string{},
+		RunCommands: []string{
+			"curl -fsSL https://openclaw.ai/install-cli.sh | bash",
+			fmt.Sprintf("mkdir -p /home/%s/.local/bin && ln -sf /home/%s/.openclaw/bin/openclaw /home/%s/.local/bin/openclaw", constants.ContainerUser, constants.ContainerUser, constants.ContainerUser),
+		},
+		TerminalCommand: []string{"sh", "-c", "curl -sf http://127.0.0.1:18789/ >/dev/null 2>&1 || { openclaw gateway run >/dev/null 2>&1 & for i in $(seq 1 30); do curl -sf http://127.0.0.1:18789/ >/dev/null 2>&1 && break; sleep 0.5; done; }; openclaw"},
+		EnvVars: map[string]string{
+			"OPENCLAW_PROXY_ACTIVE": "1",
+			"NODE_NO_WARNINGS":      "1",
+		},
 	}
 }
