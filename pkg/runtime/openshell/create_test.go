@@ -659,6 +659,57 @@ func TestCreateSandbox_SucceedsFirstTry(t *testing.T) {
 	}
 }
 
+func TestCreateSandbox_AlreadyExists_FailsImmediately(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.RunFunc = func(_ context.Context, args ...string) error {
+		if len(args) >= 2 && args[0] == "sandbox" && args[1] == "create" {
+			return fmt.Errorf("exit status 1\nopenshell stderr:\nError: sandbox 'kdn-test' already exists")
+		}
+		return nil
+	}
+
+	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
+	err := rt.createSandbox(context.Background(), "kdn-test", "claude", nil, noopLogger{})
+
+	if err == nil {
+		t.Fatal("Expected error for 'already exists'")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("Expected 'already exists' in error, got: %v", err)
+	}
+	if len(fakeExec.RunCalls) != 1 {
+		t.Errorf("Expected exactly 1 Run call (no retries), got %d", len(fakeExec.RunCalls))
+	}
+}
+
+func TestIsFatalCreateError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		err   error
+		fatal bool
+	}{
+		{name: "nil error", err: nil, fatal: false},
+		{name: "already exists", err: fmt.Errorf("Error: sandbox 'kdn-test' already exists"), fatal: true},
+		{name: "already exists with stderr wrapping", err: fmt.Errorf("exit status 1\nopenshell stderr:\nError: sandbox 'kdn-test' already exists"), fatal: true},
+		{name: "transient ssh error", err: fmt.Errorf("ssh not ready"), fatal: false},
+		{name: "generic error", err: fmt.Errorf("something went wrong"), fatal: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isFatalCreateError(tt.err)
+			if got != tt.fatal {
+				t.Errorf("isFatalCreateError(%v) = %v, want %v", tt.err, got, tt.fatal)
+			}
+		})
+	}
+}
+
 func TestUploadAgentSettings_MultipleFiles(t *testing.T) {
 	t.Parallel()
 

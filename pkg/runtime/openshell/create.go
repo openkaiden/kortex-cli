@@ -166,6 +166,13 @@ const (
 	sandboxReadinessInterval = 3 * time.Second
 )
 
+func isFatalCreateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "already exists")
+}
+
 // createSandbox creates a new sandbox and waits for it to become ready.
 // The create command may fail if the pod is still initializing when it tries
 // to CONNECT. In that case, poll with exec until the sandbox becomes reachable.
@@ -198,6 +205,10 @@ func (r *openshellRuntime) createSandbox(ctx context.Context, name string, agent
 	err := r.executor.Run(ctx, l.Stdout(), l.Stderr(), args...)
 	if err == nil {
 		return nil
+	}
+
+	if isFatalCreateError(err) {
+		return fmt.Errorf("sandbox creation failed: %w", err)
 	}
 
 	// Sandbox was created but SSH tunnel not ready yet — poll with exec
