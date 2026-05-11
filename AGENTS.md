@@ -55,6 +55,14 @@ make check-fmt
 
 Code should be formatted before committing. Run `make fmt` to ensure consistent style across the codebase.
 
+### Git Hooks
+
+The project includes pre-commit and commit-msg hooks in `.githooks/` that enforce formatting checks (`make check-fmt`) and signed-off commits. Activate them once after cloning:
+
+```bash
+make setup-hooks
+```
+
 ### Integration Tests
 ```bash
 # Run integration tests (requires Podman)

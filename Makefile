@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: help build test test-integration test-coverage fmt vet clean install check-fmt check-vet ci-checks all
+.PHONY: help build test test-integration test-coverage fmt vet clean install check-fmt check-vet ci-checks setup-hooks all
 
 # Binary name
 BINARY_NAME=kdn
@@ -80,6 +80,9 @@ check-fmt: ## Check if code is formatted (for CI)
 check-vet: ## Run go vet and fail on issues (for CI)
 	@echo "Running go vet..."
 	@$(GO) vet ./... || (echo "go vet found issues. Please fix them."; exit 1)
+
+setup-hooks: ## Configure git to use project hooks
+	git config core.hooksPath .githooks
 
 ci-checks: check-fmt check-vet test ## Run all CI checks
 	@echo "All CI checks passed!"

@@ -124,15 +124,17 @@ Using the pre-fetched context above:
 
 2. **Summarize**: Identify the nature of the change (new feature, enhancement, bug fix, refactoring, etc.) and the motivation behind it. This summary becomes the commit body.
 
-3. **Scoped changes check**: If you have been working on specific files during this session (active context), ask the user:
+3. **Format check**: Run `make check-fmt` to verify code formatting. If it fails, run `make fmt` to fix formatting automatically, then show the user which files were reformatted before proceeding.
+
+4. **Scoped changes check**: If you have been working on specific files during this session (active context), ask the user:
    - Do you want to commit **all changes** in the working tree?
    - Or only the **scoped changes** related to the current work?
 
    This prevents accidentally committing unrelated changes that happen to be in the working tree.
 
-4. **Suggest commit message**: Based on the project's commit style and the changes, suggest a commit message following the conventional commit format.
+5. **Suggest commit message**: Based on the project's commit style and the changes, suggest a commit message following the conventional commit format.
 
-5. **Co-Authored-By**: If the project's commit history shows usage of `Co-Authored-By`, include this trailer with the current agent information:
+6. **Co-Authored-By**: If the project's commit history shows usage of `Co-Authored-By`, include this trailer with the current agent information:
    - **If agent metadata is available**: Use the agent name and noreply email from the runtime metadata (e.g., available through agent context or environment variables)
    - **If agent metadata is unavailable**: Prompt the user to confirm or enter the co-author information
 
@@ -146,7 +148,7 @@ Using the pre-fetched context above:
    Co-Authored-By: Claude Code (Claude Sonnet 4.5) <noreply@anthropic.com>
    ```
 
-6. **Commit**: Once approved, stage and commit with sign-off.
+7. **Commit**: Once approved, stage and commit with sign-off.
 
    **IMPORTANT: Always use SEPARATE Bash tool calls for staging and committing (never chain with `&&`).** This ensures proper confirmation before the commit is created.
 
