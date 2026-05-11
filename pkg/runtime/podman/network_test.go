@@ -357,6 +357,9 @@ func TestBuildNftScript(t *testing.T) {
 		if !strings.Contains(script, "oif lo accept") {
 			t.Error("expected loopback rule")
 		}
+		if !strings.Contains(script, "ct state established,related accept") {
+			t.Error("expected conntrack established rule")
+		}
 		if strings.Contains(script, "ip daddr") {
 			t.Error("expected no host-gateway rule when hostGW is empty")
 		}
@@ -381,6 +384,21 @@ func TestBuildNftScript(t *testing.T) {
 		dropIdx := strings.Index(script, "meta skuid 1000 drop")
 		if hostGWIdx >= dropIdx {
 			t.Error("host-gateway accept should come before agent drop rule")
+		}
+	})
+
+	t.Run("conntrack established rule comes before agent drop rule", func(t *testing.T) {
+		t.Parallel()
+
+		script := buildNftScript(1000, "")
+
+		ctIdx := strings.Index(script, "ct state established,related accept")
+		dropIdx := strings.Index(script, "meta skuid 1000 drop")
+		if ctIdx < 0 {
+			t.Fatal("conntrack established rule not found")
+		}
+		if ctIdx >= dropIdx {
+			t.Error("conntrack established accept should come before agent drop rule")
 		}
 	})
 
