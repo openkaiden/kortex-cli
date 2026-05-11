@@ -339,6 +339,10 @@ func buildNftScript(agentUID int, hostGW string) string {
 	if hostGW != "" {
 		parts = append(parts, fmt.Sprintf("nft add rule ip filter output ip daddr %s accept", hostGW))
 	}
+	// Allow responses to inbound connections (e.g. port-forwarded traffic from
+	// the host). On macOS the Podman VM routes these through a non-loopback
+	// interface, so without this rule the gateway's response packets are dropped.
+	parts = append(parts, "nft add rule ip filter output ct state established,related accept")
 	parts = append(parts, fmt.Sprintf("nft add rule ip filter output meta skuid %d drop", agentUID))
 
 	// IPv6 rules — mirror
@@ -347,6 +351,7 @@ func buildNftScript(agentUID int, hostGW string) string {
 		"nft add table ip6 filter",
 		"nft add chain ip6 filter output '{ type filter hook output priority 0; policy accept; }'",
 		"nft add rule ip6 filter output oif lo accept",
+		"nft add rule ip6 filter output ct state established,related accept",
 		fmt.Sprintf("nft add rule ip6 filter output meta skuid %d drop", agentUID),
 	)
 
