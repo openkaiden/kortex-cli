@@ -114,17 +114,6 @@ func TestBuildGatewayCommand_Podman(t *testing.T) {
 		t.Errorf("Expected --db-url sqlite:<path>/openshell-podman.db in args: %v", args)
 	}
 
-	// Should have env vars set
-	hasEnv := false
-	for _, env := range cmd.Env {
-		if fmt.Sprintf("OPENSHELL_SUPERVISOR_IMAGE=%s", supervisorImage) == env {
-			hasEnv = true
-			break
-		}
-	}
-	if !hasEnv {
-		t.Error("Expected OPENSHELL_SUPERVISOR_IMAGE env var for podman driver")
-	}
 }
 
 func TestBuildGatewayCommand_VM(t *testing.T) {
@@ -190,14 +179,6 @@ func TestBuildGatewayCommand_VM(t *testing.T) {
 	}
 	if !foundSecret {
 		t.Errorf("Expected --ssh-handshake-secret abc123 in args: %v", args)
-	}
-
-	// Should NOT have OPENSHELL_SUPERVISOR_IMAGE env var
-	for _, env := range cmd.Env {
-		if fmt.Sprintf("OPENSHELL_SUPERVISOR_IMAGE=%s", supervisorImage) == env {
-			t.Error("VM driver should not set OPENSHELL_SUPERVISOR_IMAGE env var")
-			break
-		}
 	}
 
 	// Should have OPENSHELL_VM_DRIVER_STATE_DIR env var pointing to storage

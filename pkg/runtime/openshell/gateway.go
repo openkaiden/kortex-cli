@@ -37,7 +37,6 @@ const (
 	gatewayReadinessInterval = 3 * time.Second
 	gatewayPort              = "8080"
 	gatewayURL               = "http://127.0.0.1:" + gatewayPort
-	supervisorImage          = "quay.io/fbenoit/openshell-supervisor:2026-04-29"
 )
 
 // isGatewayReady checks whether the OpenShell gateway is reachable by
@@ -264,7 +263,6 @@ func (r *openshellRuntime) buildPodmanGatewayCommand(sshSecret string) *exec.Cmd
 		"--disable-tls",
 	)
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("OPENSHELL_SUPERVISOR_IMAGE=%s", supervisorImage),
 		fmt.Sprintf("OPENSHELL_SSH_HANDSHAKE_SECRET=%s", sshSecret),
 	)
 	return cmd
