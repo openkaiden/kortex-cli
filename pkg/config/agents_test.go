@@ -562,9 +562,14 @@ func TestAgentConfigUpdater_Schema_PreservedOnUpdate(t *testing.T) {
 		t.Fatalf("AddEnvVar on pre-existing: %v", err)
 	}
 
-	data2, _ := os.ReadFile(filepath.Join(dir2, "config", AgentsConfigFile))
+	data2, err := os.ReadFile(filepath.Join(dir2, "config", AgentsConfigFile))
+	if err != nil {
+		t.Fatalf("reading pre-existing agents.json: %v", err)
+	}
 	var raw2 map[string]json.RawMessage
-	_ = json.Unmarshal(data2, &raw2)
+	if err := json.Unmarshal(data2, &raw2); err != nil {
+		t.Fatalf("parsing pre-existing agents.json: %v", err)
+	}
 	if _, ok := raw2["$schema"]; ok {
 		t.Error("$schema must not be added to a pre-existing file")
 	}

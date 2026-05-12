@@ -283,9 +283,14 @@ func TestWorkspaceUpdater_Schema_PreservedOnUpdate(t *testing.T) {
 	}
 
 	// $schema must NOT be injected into a pre-existing file.
-	updated, _ := os.ReadFile(filepath.Join(dir, WorkspaceConfigFile))
+	updated, err := os.ReadFile(filepath.Join(dir, WorkspaceConfigFile))
+	if err != nil {
+		t.Fatalf("reading updated workspace.json: %v", err)
+	}
 	var raw map[string]json.RawMessage
-	_ = json.Unmarshal(updated, &raw)
+	if err := json.Unmarshal(updated, &raw); err != nil {
+		t.Fatalf("parsing updated workspace.json: %v", err)
+	}
 	if _, ok := raw["$schema"]; ok {
 		t.Error("$schema must not be added to a pre-existing file")
 	}

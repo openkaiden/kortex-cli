@@ -65,6 +65,7 @@ func marshalWorkspaceConfigMap(configs map[string]workspace.WorkspaceConfigurati
 	}
 
 	rawMap := make(map[string]json.RawMessage, len(configs)+1)
+	// json.Marshal never fails for a plain string value, so the error is ignored.
 	schemaRaw, _ := json.Marshal(schemaURL)
 	rawMap["$schema"] = schemaRaw
 	for k, v := range configs {

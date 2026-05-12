@@ -152,6 +152,16 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["name"],
+      "oneOf": [
+        {
+          "required": ["value"],
+          "not": { "required": ["secret"] }
+        },
+        {
+          "required": ["secret"],
+          "not": { "required": ["value"] }
+        }
+      ],
       "properties": {
         "name": {
           "type": "string",
