@@ -536,6 +536,89 @@ func TestOpenCode_SetModel(t *testing.T) {
 		}
 	})
 
+	t.Run("openai provider without baseURL skips provider config", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := make(map[string]SettingsFile)
+
+		result, err := agent.SetModel(settings, "openai::gpt-4o")
+		if err != nil {
+			t.Fatalf("SetModel() error = %v", err)
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(result[OpenCodeConfigPath].Content, &config); err != nil {
+			t.Fatalf("Failed to parse result JSON: %v", err)
+		}
+
+		if config["model"] != "openai/gpt-4o" {
+			t.Errorf("model = %v, want %q", config["model"], "openai/gpt-4o")
+		}
+
+		if _, hasProvider := config["provider"]; hasProvider {
+			t.Error("Real OpenAI provider should not create provider block")
+		}
+	})
+
+	t.Run("openai provider with api.openai.com baseURL skips provider config", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := make(map[string]SettingsFile)
+
+		result, err := agent.SetModel(settings, "openai::gpt-4o::https://api.openai.com/v1")
+		if err != nil {
+			t.Fatalf("SetModel() error = %v", err)
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(result[OpenCodeConfigPath].Content, &config); err != nil {
+			t.Fatalf("Failed to parse result JSON: %v", err)
+		}
+
+		if config["model"] != "openai/gpt-4o" {
+			t.Errorf("model = %v, want %q", config["model"], "openai/gpt-4o")
+		}
+
+		if _, hasProvider := config["provider"]; hasProvider {
+			t.Error("OpenAI with api.openai.com URL should not create provider block")
+		}
+	})
+
+	t.Run("openai provider with custom baseURL configures openai-compatible", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := make(map[string]SettingsFile)
+
+		result, err := agent.SetModel(settings, "openai::gpt-4o::https://my-proxy.example.com/v1")
+		if err != nil {
+			t.Fatalf("SetModel() error = %v", err)
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(result[OpenCodeConfigPath].Content, &config); err != nil {
+			t.Fatalf("Failed to parse result JSON: %v", err)
+		}
+
+		if config["model"] != "openai/gpt-4o" {
+			t.Errorf("model = %v, want %q", config["model"], "openai/gpt-4o")
+		}
+
+		providers := config["provider"].(map[string]interface{})
+		openai := providers["openai"].(map[string]interface{})
+
+		if openai["npm"] != "@ai-sdk/openai-compatible" {
+			t.Errorf("npm = %v, want %q", openai["npm"], "@ai-sdk/openai-compatible")
+		}
+
+		options := openai["options"].(map[string]interface{})
+		if got := options["baseURL"].(string); got != "https://my-proxy.example.com/v1" {
+			t.Errorf("baseURL = %q, want %q", got, "https://my-proxy.example.com/v1")
+		}
+	})
+
 	t.Run("plain model ID without provider", func(t *testing.T) {
 		t.Parallel()
 

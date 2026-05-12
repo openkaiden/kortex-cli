@@ -21,6 +21,8 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	kdnconfig "github.com/openkaiden/kdn/pkg/config"
@@ -91,7 +93,8 @@ func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID strin
 			resolvedURL = containerurl.RewriteURL(resolvedURL)
 		}
 		config["model"] = provider + "/" + modelName
-		if !nativeProviders[provider] || resolvedURL != "" {
+		realOpenAI := isRealOpenAI(provider, resolvedURL)
+		if (!nativeProviders[provider] && !realOpenAI) || (resolvedURL != "" && !realOpenAI) {
 			if err := configureProvider(config, provider, modelName, resolvedURL); err != nil {
 				return nil, err
 			}
@@ -177,6 +180,22 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 	providerEntry["models"] = models
 
 	return nil
+}
+
+// isRealOpenAI returns true when the provider is "openai" pointing at the
+// real OpenAI API (api.openai.com) rather than an openai-compatible endpoint.
+func isRealOpenAI(provider, baseURL string) bool {
+	if provider != "openai" {
+		return false
+	}
+	if baseURL == "" {
+		return true
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), "api.openai.com")
 }
 
 // defaultProviderBaseURLs maps known provider names to their default base URLs.
