@@ -64,7 +64,7 @@ func (o *openCodeAgent) SkipOnboarding(settings map[string]SettingsFile, _ strin
 //   - "provider::model::baseURL" — sets provider/model and configures the provider with the given base URL
 //
 // All other fields in .config/opencode/opencode.json are preserved.
-func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID string, containerHost string) (map[string]SettingsFile, error) {
 	settings = EnsureSettings(settings)
 	existingContent := GetContent(settings, OpenCodeConfigPath, []byte("{}"))
 
@@ -88,9 +88,9 @@ func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID strin
 		}
 		resolvedURL := baseURL
 		if resolvedURL == "" {
-			resolvedURL = defaultProviderBaseURLs[provider]
+			resolvedURL = defaultProviderBaseURL(provider, containerHost)
 		} else {
-			resolvedURL = containerurl.RewriteURL(resolvedURL)
+			resolvedURL = containerurl.RewriteURLWithHost(resolvedURL, containerHost)
 		}
 		realOpenAI := isRealOpenAI(provider, resolvedURL)
 		if provider == "openai" && !realOpenAI {
@@ -208,10 +208,18 @@ func isRealOpenAI(provider, baseURL string) bool {
 	return strings.EqualFold(parsed.Hostname(), "api.openai.com")
 }
 
-// defaultProviderBaseURLs maps known provider names to their default base URLs.
-var defaultProviderBaseURLs = map[string]string{
-	"ollama":   "http://" + containerurl.ContainerHost + ":11434/v1",
-	"ramalama": "http://" + containerurl.ContainerHost + ":8080/v1",
+// defaultProviderBaseURL returns the default base URL for a known provider,
+// using the given containerHost to reach the host machine from inside the
+// runtime environment. Returns "" for unknown providers.
+func defaultProviderBaseURL(provider, containerHost string) string {
+	switch provider {
+	case "ollama":
+		return "http://" + containerHost + ":11434/v1"
+	case "ramalama":
+		return "http://" + containerHost + ":8080/v1"
+	default:
+		return ""
+	}
 }
 
 // providerAliases maps provider names used in kdn model IDs to the provider

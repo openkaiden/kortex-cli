@@ -193,3 +193,56 @@ func TestWriteReadSandboxData_WithoutPorts(t *testing.T) {
 		t.Errorf("Ports = %v, want nil", got.Ports)
 	}
 }
+
+func TestWriteReadSandboxData_WithModel(t *testing.T) {
+	t.Parallel()
+
+	rt := newWithDeps(exec.NewFake(), "/fake/gw", t.TempDir())
+
+	data := sandboxData{
+		SourcePath: "/home/user/project",
+		ProjectID:  "abc123",
+		Agent:      "opencode",
+		Model:      "ollama::qwen3-coder-next:latest::http://localhost:11434/v1",
+	}
+
+	if err := rt.writeSandboxData("kdn-test", data); err != nil {
+		t.Fatalf("writeSandboxData() failed: %v", err)
+	}
+
+	got, err := rt.readSandboxData("kdn-test")
+	if err != nil {
+		t.Fatalf("readSandboxData() failed: %v", err)
+	}
+
+	if got.Model != data.Model {
+		t.Errorf("Model = %q, want %q", got.Model, data.Model)
+	}
+}
+
+func TestReadSandboxData_BackwardCompatibility_NoModel(t *testing.T) {
+	t.Parallel()
+
+	rt := newWithDeps(exec.NewFake(), "/fake/gw", t.TempDir())
+
+	dir := rt.sandboxDataDir("kdn-test")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("Failed to create sandbox data dir: %v", err)
+	}
+	oldJSON := `{"source_path":"/src","project_id":"id","agent":"claude"}`
+	if err := os.WriteFile(filepath.Join(dir, sandboxDataFile), []byte(oldJSON), 0644); err != nil {
+		t.Fatalf("Failed to write old-format JSON: %v", err)
+	}
+
+	got, err := rt.readSandboxData("kdn-test")
+	if err != nil {
+		t.Fatalf("readSandboxData() failed: %v", err)
+	}
+
+	if got.Model != "" {
+		t.Errorf("Model = %q, want empty string for backward compatibility", got.Model)
+	}
+	if got.Agent != "claude" {
+		t.Errorf("Agent = %q, want %q", got.Agent, "claude")
+	}
+}

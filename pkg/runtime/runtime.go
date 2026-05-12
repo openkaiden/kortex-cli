@@ -276,6 +276,18 @@ type ConfigTransformer interface {
 	TransformConfig(config *workspace.WorkspaceConfiguration) error
 }
 
+// HostResolver is an optional interface for runtimes that use a different
+// hostname to reach the host machine from inside the runtime environment.
+// For example, Podman containers use "host.containers.internal" while
+// OpenShell sandboxes use "host.openshell.internal".
+//
+// When the manager needs to rewrite localhost URLs in agent configurations
+// or network policies, it type-asserts the runtime to HostResolver. If the
+// interface is not implemented, the default containerurl.ContainerHost is used.
+type HostResolver interface {
+	ContainerHostname() string
+}
+
 // Experimental is an optional interface for runtimes whose support is experimental.
 // The mere presence of this interface on a runtime signals experimental status;
 // the IsExperimental method carries no return value and need not be called directly.

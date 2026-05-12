@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 func TestClaude_Name(t *testing.T) {
@@ -358,7 +359,7 @@ func TestClaude_SetModel_NoExistingSettings(t *testing.T) {
 	agent := NewClaude()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -383,7 +384,7 @@ func TestClaude_SetModel_NilSettings(t *testing.T) {
 
 	agent := NewClaude()
 
-	result, err := agent.SetModel(nil, "model-from-flag")
+	result, err := agent.SetModel(nil, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -416,7 +417,7 @@ func TestClaude_SetModel_PreservesExistingFields(t *testing.T) {
 		ClaudeSettingsPath: SettingsFile{Content: existingJSON},
 	}
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -450,7 +451,7 @@ func TestClaude_SetModel_InvalidJSON(t *testing.T) {
 		ClaudeSettingsPath: SettingsFile{Content: []byte("invalid json {{{")},
 	}
 
-	_, err := agent.SetModel(settings, "model-from-flag")
+	_, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err == nil {
 		t.Error("Expected error for invalid JSON, got nil")
 	}
@@ -475,7 +476,7 @@ func TestClaude_SetModel_OverwritesExistingModel(t *testing.T) {
 		ClaudeSettingsPath: SettingsFile{Content: existingJSON},
 	}
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -502,7 +503,7 @@ func TestClaude_SetModel_ProviderModelFormat(t *testing.T) {
 	agent := NewClaude()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "claude::gemma2:7b")
+	result, err := agent.SetModel(settings, "claude::gemma2:7b", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -523,7 +524,7 @@ func TestClaude_SetModel_ProviderModelURLFormat(t *testing.T) {
 	agent := NewClaude()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "claude::gemma2:7b::http://localhost:11434/v1")
+	result, err := agent.SetModel(settings, "claude::gemma2:7b::http://localhost:11434/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}

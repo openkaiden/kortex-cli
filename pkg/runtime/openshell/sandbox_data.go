@@ -28,6 +28,7 @@ type sandboxData struct {
 	ProjectID  string `json:"project_id"`
 	Agent      string `json:"agent"`
 	Ports      []int  `json:"ports,omitempty"`
+	Model      string `json:"model,omitempty"`
 }
 
 func (r *openshellRuntime) sandboxDataDir(sandboxName string) string {

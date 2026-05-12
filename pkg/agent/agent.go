@@ -71,11 +71,14 @@ type Agent interface {
 	// Returns the modified settings map, or an error if modification fails.
 	SkipOnboarding(settings map[string]SettingsFile, workspaceSourcesPath string, approvedKeys []string) (map[string]SettingsFile, error)
 	// SetModel configures the model ID in the agent settings.
-	// It takes the current agent settings map (path -> SettingsFile) and the model ID,
-	// and returns the modified settings with the model configured.
+	// It takes the current agent settings map (path -> SettingsFile), the model ID,
+	// and the hostname used to reach the host machine from inside the runtime
+	// environment (e.g. "host.containers.internal" for Podman, "host.openshell.internal"
+	// for OpenShell). Implementations should use containerHost when rewriting localhost
+	// URLs in model base URLs.
 	// If the agent does not support model configuration, settings are returned unchanged.
 	// Returns the modified settings map, or an error if modification fails.
-	SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error)
+	SetModel(settings map[string]SettingsFile, modelID string, containerHost string) (map[string]SettingsFile, error)
 	// SkillsDir returns the container path (using $HOME variable) under which skill
 	// directories should be mounted (e.g., "$HOME/.claude/skills" for Claude Code).
 	// Returns "" if the agent does not support skills mounting.

@@ -38,7 +38,7 @@ func (f *fakeAgent) SkipOnboarding(settings map[string]SettingsFile, _ string, _
 	return settings, nil
 }
 
-func (f *fakeAgent) SetModel(settings map[string]SettingsFile, _ string) (map[string]SettingsFile, error) {
+func (f *fakeAgent) SetModel(settings map[string]SettingsFile, _ string, _ string) (map[string]SettingsFile, error) {
 	return settings, nil
 }
 

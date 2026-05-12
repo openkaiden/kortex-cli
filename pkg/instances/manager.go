@@ -33,6 +33,7 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/generator"
 	"github.com/openkaiden/kdn/pkg/git"
@@ -339,7 +340,11 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 
 			// Set model if specified
 			if opts.Model != "" {
-				agentSettings, err = agentImpl.SetModel(agentSettings, opts.Model)
+				containerHost := containerurl.ContainerHost
+				if hr, ok := rt.(runtime.HostResolver); ok {
+					containerHost = hr.ContainerHostname()
+				}
+				agentSettings, err = agentImpl.SetModel(agentSettings, opts.Model, containerHost)
 				if err != nil {
 					return nil, fmt.Errorf("failed to apply agent model settings: %w", err)
 				}

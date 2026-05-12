@@ -84,7 +84,7 @@ func (c *cursorAgent) SetMCPServers(settings map[string]SettingsFile, _ *workspa
 // SetModel configures the model ID in Cursor settings.
 // It sets the model object in cli-config.json with the specified model ID.
 // All other fields in the settings file are preserved.
-func (c *cursorAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+func (c *cursorAgent) SetModel(settings map[string]SettingsFile, modelID string, _ string) (map[string]SettingsFile, error) {
 	settings = EnsureSettings(settings)
 	existingContent := GetContent(settings, CursorCLIConfigPath, []byte("{}"))
 

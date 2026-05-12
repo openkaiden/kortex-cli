@@ -141,3 +141,55 @@ func TestRewriteMCPCommandArgs(t *testing.T) {
 		}
 	})
 }
+
+func TestRewriteURLWithHost(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		input         string
+		containerHost string
+		expected      string
+	}{
+		{"localhost with openshell host", "http://localhost:11434/v1", "host.openshell.internal", "http://host.openshell.internal:11434/v1"},
+		{"127.0.0.1 with openshell host", "http://127.0.0.1:8080/v1", "host.openshell.internal", "http://host.openshell.internal:8080/v1"},
+		{"remote host unchanged", "http://192.168.1.50:11434/v1", "host.openshell.internal", "http://192.168.1.50:11434/v1"},
+		{"no port", "http://localhost/v1", "host.openshell.internal", "http://host.openshell.internal/v1"},
+		{"default container host", "http://localhost:11434/v1", ContainerHost, "http://host.containers.internal:11434/v1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := RewriteURLWithHost(tt.input, tt.containerHost)
+			if got != tt.expected {
+				t.Errorf("RewriteURLWithHost(%q, %q) = %q, want %q", tt.input, tt.containerHost, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRewriteMCPCommandArgsWithHost(t *testing.T) {
+	t.Parallel()
+
+	args := []string{
+		"mcp-server",
+		"--url",
+		"http://localhost:51017",
+	}
+	cmds := []workspace.McpCommand{{
+		Name:    "test",
+		Command: "uvx",
+		Args:    &args,
+	}}
+	mcp := &workspace.McpConfiguration{Commands: &cmds}
+
+	RewriteMCPCommandArgsWithHost(mcp, "host.openshell.internal")
+
+	got := (*(*mcp.Commands)[0].Args)[2]
+	want := "http://host.openshell.internal:51017"
+	if got != want {
+		t.Errorf("arg = %q, want %q", got, want)
+	}
+}

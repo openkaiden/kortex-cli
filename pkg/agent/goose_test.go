@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/goccy/go-yaml"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 func TestGoose_Name(t *testing.T) {
@@ -190,7 +191,7 @@ func TestGoose_SetModel_NoExistingSettings(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -219,7 +220,7 @@ func TestGoose_SetModel_NilSettings(t *testing.T) {
 
 	agent := NewGoose()
 
-	result, err := agent.SetModel(nil, "model-from-flag")
+	result, err := agent.SetModel(nil, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -243,7 +244,7 @@ func TestGoose_SetModel_PreservesExistingFields(t *testing.T) {
 		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -277,7 +278,7 @@ func TestGoose_SetModel_InvalidYAML(t *testing.T) {
 		GooseConfigPath: SettingsFile{Content: []byte("invalid: yaml: :::")},
 	}
 
-	_, err := agent.SetModel(settings, "model-from-flag")
+	_, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err == nil {
 		t.Error("Expected error for invalid YAML, got nil")
 	}
@@ -293,7 +294,7 @@ func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
 		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -324,7 +325,7 @@ func TestGoose_SetModel_ProviderModelFormat(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "goose::gemma2:7b")
+	result, err := agent.SetModel(settings, "goose::gemma2:7b", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -349,7 +350,7 @@ func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "goose::gemma2:7b::http://localhost:11434/v1")
+	result, err := agent.SetModel(settings, "goose::gemma2:7b::http://localhost:11434/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -382,7 +383,7 @@ func TestGoose_SetModel_EmptyProviderDefaultsToOpenAI(t *testing.T) {
 		GooseConfigPath: {Content: existingContent},
 	}
 
-	result, err := agent.SetModel(settings, "claude-sonnet-4-6")
+	result, err := agent.SetModel(settings, "claude-sonnet-4-6", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -406,7 +407,7 @@ func TestGoose_SetModel_GeminiProviderMapsToGoogle(t *testing.T) {
 
 	agent := NewGoose()
 
-	result, err := agent.SetModel(make(map[string]SettingsFile), "gemini::gemini-2.5-pro")
+	result, err := agent.SetModel(make(map[string]SettingsFile), "gemini::gemini-2.5-pro", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -430,7 +431,7 @@ func TestGoose_SetModel_OpenAIProviderPassesThrough(t *testing.T) {
 
 	agent := NewGoose()
 
-	result, err := agent.SetModel(make(map[string]SettingsFile), "openai::gpt-4o")
+	result, err := agent.SetModel(make(map[string]SettingsFile), "openai::gpt-4o", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -454,7 +455,7 @@ func TestGoose_SetModel_MistralProviderPassesThrough(t *testing.T) {
 
 	agent := NewGoose()
 
-	result, err := agent.SetModel(make(map[string]SettingsFile), "mistral::mistral-large")
+	result, err := agent.SetModel(make(map[string]SettingsFile), "mistral::mistral-large", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -479,7 +480,7 @@ func TestGoose_SetModel_OpenAICustomURL(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "openai::gpt-4::http://custom.com/v1")
+	result, err := agent.SetModel(settings, "openai::gpt-4::http://custom.com/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -500,7 +501,7 @@ func TestGoose_SetModel_EmptyProviderCustomURL(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "::model::http://custom.com/v1")
+	result, err := agent.SetModel(settings, "::model::http://custom.com/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -525,7 +526,7 @@ func TestGoose_SetModel_NoURLNoHostKey(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "openai::gpt-4")
+	result, err := agent.SetModel(settings, "openai::gpt-4", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}

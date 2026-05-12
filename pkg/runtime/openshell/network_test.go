@@ -32,7 +32,7 @@ func TestApplyNetworkPolicy_NilConfig_NoRegistry(t *testing.T) {
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", nil)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", nil, "")
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestApplyNetworkPolicy_AllowMode_WithRegistry(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, "")
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestApplyNetworkPolicy_AllowMode_WithWorkspaceHosts(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, "")
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestApplyNetworkPolicy_DenyWithHosts(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, "")
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestApplyNetworkPolicy_DenyNoHosts(t *testing.T) {
 		},
 	}
 
-	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg)
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, "")
 	if err != nil {
 		t.Fatalf("applyNetworkPolicy() failed: %v", err)
 	}
@@ -595,5 +595,346 @@ func TestConfigureNetworkPolicy_NoSpec(t *testing.T) {
 	err := rt.configureNetworkPolicy(context.Background(), "kdn-test", []string{"github.com"})
 	if err != nil {
 		t.Errorf("Expected no error for 'sandbox has no spec', got: %v", err)
+	}
+}
+
+func TestCollectModelEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		modelID string
+		want    []modelEndpoint
+	}{
+		{
+			name:    "empty model ID",
+			modelID: "",
+			want:    nil,
+		},
+		{
+			name:    "plain model ID without baseURL",
+			modelID: "claude-sonnet-4-20250514",
+			want:    nil,
+		},
+		{
+			name:    "provider and model without baseURL",
+			modelID: "anthropic::claude-sonnet-4-20250514",
+			want:    nil,
+		},
+		{
+			name:    "localhost baseURL rewritten to host.openshell.internal",
+			modelID: "ollama::qwen3-coder-next:latest::http://localhost:11434/v1",
+			want:    []modelEndpoint{{Host: "host.openshell.internal", Port: 11434}},
+		},
+		{
+			name:    "loopback IP rewritten to host.openshell.internal",
+			modelID: "ollama::qwen3-coder-next:latest::http://127.0.0.1:11434/v1",
+			want:    []modelEndpoint{{Host: "host.openshell.internal", Port: 11434}},
+		},
+		{
+			name:    "external HTTPS URL uses port 443",
+			modelID: "custom::model::https://api.example.com/v1",
+			want:    []modelEndpoint{{Host: "api.example.com", Port: 443}},
+		},
+		{
+			name:    "external HTTP URL uses port 80",
+			modelID: "custom::model::http://api.example.com/v1",
+			want:    []modelEndpoint{{Host: "api.example.com", Port: 80}},
+		},
+		{
+			name:    "external URL with explicit port",
+			modelID: "custom::model::https://api.example.com:8443/v1",
+			want:    []modelEndpoint{{Host: "api.example.com", Port: 8443}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := collectModelEndpoints(tt.modelID)
+			if len(got) != len(tt.want) {
+				t.Fatalf("collectModelEndpoints(%q) = %v, want %v", tt.modelID, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("collectModelEndpoints(%q)[%d] = %v, want %v", tt.modelID, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestApplyNetworkPolicy_AllowMode_WithModel(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		for _, arg := range args {
+			if arg == "host.openshell.internal" {
+				return []byte("192.168.127.254  host.openshell.internal\n"), nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected getent call: %v", args)
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+	rt.secretServiceRegistry = &fakeSecretServiceRegistry{
+		services: map[string]secretservice.SecretService{
+			"anthropic": &fakeSecretService{hosts: []string{"api.anthropic.com"}},
+		},
+	}
+
+	mode := workspace.Allow
+	cfg := &workspace.WorkspaceConfiguration{
+		Network: &workspace.NetworkConfiguration{
+			Mode: &mode,
+		},
+	}
+
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, "ollama::qwen3::http://localhost:11434/v1")
+	if err != nil {
+		t.Fatalf("applyNetworkPolicy() failed: %v", err)
+	}
+
+	assertPolicyUpdateContains(t, fakeExec.RunCalls, "api.anthropic.com:443:full")
+	assertPolicyUpdateContains(t, fakeExec.RunCalls, "host.openshell.internal:11434::::allowed-ip=192.168.127.254")
+}
+
+func TestApplyNetworkPolicy_DenyMode_WithModel(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		for _, arg := range args {
+			if arg == "host.openshell.internal" {
+				return []byte("192.168.127.254  host.openshell.internal\n"), nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected getent call: %v", args)
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	mode := workspace.Deny
+	hosts := []string{"api.github.com"}
+	cfg := &workspace.WorkspaceConfiguration{
+		Network: &workspace.NetworkConfiguration{
+			Mode:  &mode,
+			Hosts: &hosts,
+		},
+	}
+
+	err := rt.applyNetworkPolicy(context.Background(), "kdn-test", cfg, "ollama::qwen3::http://localhost:11434/v1")
+	if err != nil {
+		t.Fatalf("applyNetworkPolicy() failed: %v", err)
+	}
+
+	assertPolicyUpdateContains(t, fakeExec.RunCalls,
+		"api.github.com:80:full",
+		"api.github.com:443:full",
+	)
+	assertPolicyUpdateContains(t, fakeExec.RunCalls, "host.openshell.internal:11434::::allowed-ip=192.168.127.254")
+}
+
+func TestConfigureModelPolicy_NoEndpoints(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	err := rt.configureModelPolicy(context.Background(), "kdn-test", nil)
+	if err != nil {
+		t.Fatalf("configureModelPolicy() failed: %v", err)
+	}
+
+	if len(fakeExec.RunCalls) != 1 {
+		t.Fatalf("Expected 1 Run call (remove-rule only), got %d", len(fakeExec.RunCalls))
+	}
+	removeCall := fakeExec.RunCalls[0]
+	if !slices.Contains(removeCall, "--remove-rule") || !slices.Contains(removeCall, modelRuleName) {
+		t.Errorf("Expected remove-rule %s, got: %v", modelRuleName, removeCall)
+	}
+}
+
+func TestConfigureModelPolicy_SingleEndpoint(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		for _, arg := range args {
+			if arg == "host.openshell.internal" {
+				return []byte("192.168.127.254  host.openshell.internal\n"), nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected getent call: %v", args)
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	endpoints := []modelEndpoint{{Host: "host.openshell.internal", Port: 11434}}
+	err := rt.configureModelPolicy(context.Background(), "kdn-test", endpoints)
+	if err != nil {
+		t.Fatalf("configureModelPolicy() failed: %v", err)
+	}
+
+	assertPolicyUpdateContains(t, fakeExec.RunCalls, "host.openshell.internal:11434::::allowed-ip=192.168.127.254")
+
+	for _, call := range fakeExec.RunCalls {
+		if slices.Contains(call, "--add-endpoint") {
+			if !slices.Contains(call, "--rule-name") || !slices.Contains(call, modelRuleName) {
+				t.Errorf("Expected --rule-name %s in model policy call, got: %v", modelRuleName, call)
+			}
+			if !slices.Contains(call, "--binary") || !slices.Contains(call, "/**") {
+				t.Errorf("Expected --binary /** in model policy call, got: %v", call)
+			}
+			if !slices.Contains(call, "--wait") {
+				t.Errorf("Expected --wait in model policy call, got: %v", call)
+			}
+		}
+	}
+}
+
+func TestConfigureModelPolicy_MultipleEndpoints(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		for _, arg := range args {
+			if arg == "host.openshell.internal" {
+				return []byte("192.168.127.254  host.openshell.internal\n"), nil
+			}
+			if arg == "api.example.com" {
+				return []byte("93.184.216.34  api.example.com\n"), nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected getent call: %v", args)
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	endpoints := []modelEndpoint{
+		{Host: "host.openshell.internal", Port: 11434},
+		{Host: "api.example.com", Port: 8443},
+	}
+	err := rt.configureModelPolicy(context.Background(), "kdn-test", endpoints)
+	if err != nil {
+		t.Fatalf("configureModelPolicy() failed: %v", err)
+	}
+
+	assertPolicyUpdateContains(t, fakeExec.RunCalls, "host.openshell.internal:11434::::allowed-ip=192.168.127.254")
+	assertPolicyUpdateContains(t, fakeExec.RunCalls, "api.example.com:8443::::allowed-ip=93.184.216.34")
+
+	// Each endpoint gets its own --rule-name
+	for _, call := range fakeExec.RunCalls {
+		if slices.Contains(call, "host.openshell.internal:11434::::allowed-ip=192.168.127.254") {
+			if !slices.Contains(call, modelRuleName) {
+				t.Errorf("Expected rule name %s for first endpoint, got: %v", modelRuleName, call)
+			}
+		}
+		if slices.Contains(call, "api.example.com:8443::::allowed-ip=93.184.216.34") {
+			if !slices.Contains(call, modelRuleName) {
+				t.Errorf("Expected rule name %s for second endpoint, got: %v", modelRuleName, call)
+			}
+		}
+	}
+}
+
+func TestConfigureModelPolicy_ResolveError(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("getent failed")
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	endpoints := []modelEndpoint{{Host: "host.openshell.internal", Port: 11434}}
+	err := rt.configureModelPolicy(context.Background(), "kdn-test", endpoints)
+	if err != nil {
+		t.Errorf("Expected no error (should skip on resolve failure), got: %v", err)
+	}
+
+	// No add-endpoint calls should have been made
+	for _, call := range fakeExec.RunCalls {
+		if slices.Contains(call, "--add-endpoint") {
+			t.Errorf("Expected no --add-endpoint calls when resolve fails, got: %v", call)
+		}
+	}
+}
+
+func TestConfigureModelPolicy_NoSpec(t *testing.T) {
+	t.Parallel()
+
+	runCallCount := 0
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		return []byte("192.168.127.254  host.openshell.internal\n"), nil
+	}
+	fakeExec.RunFunc = func(_ context.Context, args ...string) error {
+		runCallCount++
+		// The add-endpoint call comes after the single remove-rule call
+		if runCallCount == 2 {
+			return fmt.Errorf("exit status 1\nopenshell stderr:\nsandbox has no spec")
+		}
+		return nil
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	endpoints := []modelEndpoint{{Host: "host.openshell.internal", Port: 11434}}
+	err := rt.configureModelPolicy(context.Background(), "kdn-test", endpoints)
+	if err != nil {
+		t.Errorf("Expected no error for 'sandbox has no spec', got: %v", err)
+	}
+}
+
+func TestResolveHostAliases(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		return []byte("192.168.127.254  host.openshell.internal\n"), nil
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	ip, err := rt.resolveHostAliases(context.Background(), "kdn-test", "host.openshell.internal")
+	if err != nil {
+		t.Fatalf("resolveHostAliases() failed: %v", err)
+	}
+	if ip != "192.168.127.254" {
+		t.Errorf("resolveHostAliases() = %q, want %q", ip, "192.168.127.254")
+	}
+
+	if len(fakeExec.OutputCalls) != 1 {
+		t.Fatalf("Expected 1 Output call, got %d", len(fakeExec.OutputCalls))
+	}
+	call := fakeExec.OutputCalls[0]
+	if !slices.Contains(call, "getent") || !slices.Contains(call, "hosts") || !slices.Contains(call, "host.openshell.internal") {
+		t.Errorf("Expected getent hosts call, got: %v", call)
+	}
+}
+
+func TestResolveHostAliases_Error(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("exec failed")
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	_, err := rt.resolveHostAliases(context.Background(), "kdn-test", "host.openshell.internal")
+	if err == nil {
+		t.Error("Expected error when exec fails")
+	}
+}
+
+func TestResolveHostAliases_UnexpectedOutput(t *testing.T) {
+	t.Parallel()
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		return []byte(""), nil
+	}
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+
+	_, err := rt.resolveHostAliases(context.Background(), "kdn-test", "host.openshell.internal")
+	if err == nil {
+		t.Error("Expected error for empty getent output")
 	}
 }

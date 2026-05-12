@@ -113,13 +113,14 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 		ProjectID:  params.ProjectID,
 		Agent:      params.Agent,
 		Ports:      ports,
+		Model:      params.Model,
 	}); err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to persist sandbox data: %w", err)
 	}
 
 	// Configure network policy
 	step.Start("Configuring network policy", "Network policy configured")
-	if err := r.applyNetworkPolicy(ctx, name, params.WorkspaceConfig); err != nil {
+	if err := r.applyNetworkPolicy(ctx, name, params.WorkspaceConfig, params.Model); err != nil {
 		step.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure network policy: %w", err)
 	}

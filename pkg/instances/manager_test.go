@@ -263,7 +263,7 @@ func (t *trackingAgent) SkipOnboarding(settings map[string]agent.SettingsFile, w
 	return settings, nil
 }
 
-func (t *trackingAgent) SetModel(settings map[string]agent.SettingsFile, modelID string) (map[string]agent.SettingsFile, error) {
+func (t *trackingAgent) SetModel(settings map[string]agent.SettingsFile, modelID string, _ string) (map[string]agent.SettingsFile, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.setModelCalled = true
@@ -336,7 +336,7 @@ func (e *erroringSetModelAgent) SkipOnboarding(settings map[string]agent.Setting
 	return settings, nil
 }
 
-func (e *erroringSetModelAgent) SetModel(_ map[string]agent.SettingsFile, _ string) (map[string]agent.SettingsFile, error) {
+func (e *erroringSetModelAgent) SetModel(_ map[string]agent.SettingsFile, _ string, _ string) (map[string]agent.SettingsFile, error) {
 	return nil, errors.New("simulated SetModel error")
 }
 

@@ -219,7 +219,7 @@ func (c *claudeAgent) SetMCPServers(settings map[string]SettingsFile, mcp *works
 // SetModel configures the model ID in Claude settings.
 // It sets the model field in .claude/settings.json.
 // All other fields in the settings file are preserved.
-func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string, _ string) (map[string]SettingsFile, error) {
 	settings = EnsureSettings(settings)
 	existingContent := GetContent(settings, ClaudeSettingsPath, []byte("{}"))
 

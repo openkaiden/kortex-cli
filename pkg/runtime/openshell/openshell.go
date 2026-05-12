@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/openshell/exec"
 	"github.com/openkaiden/kdn/pkg/secret"
@@ -32,6 +34,7 @@ const (
 	containerHome             = "/sandbox"
 	containerWorkspaceSources = containerHome + "/workspace/sources"
 	sandboxNamePrefix         = "kdn-"
+	openshellContainerHost    = "host.openshell.internal"
 )
 
 // openshellRuntime implements the runtime.Runtime interface for OpenShell Gateway.
@@ -67,6 +70,12 @@ var _ runtime.FlagProvider = (*openshellRuntime)(nil)
 // Ensure openshellRuntime implements runtime.Experimental at compile time.
 var _ runtime.Experimental = (*openshellRuntime)(nil)
 
+// Ensure openshellRuntime implements runtime.HostResolver at compile time.
+var _ runtime.HostResolver = (*openshellRuntime)(nil)
+
+// Ensure openshellRuntime implements runtime.ConfigTransformer at compile time.
+var _ runtime.ConfigTransformer = (*openshellRuntime)(nil)
+
 // New creates a new OpenShell Gateway runtime instance.
 func New() runtime.Runtime {
 	return &openshellRuntime{}
@@ -88,6 +97,21 @@ func newWithDeps(executor exec.Executor, gatewayBinaryPath, storageDir string) *
 
 // IsExperimental implements runtime.Experimental.
 func (r *openshellRuntime) IsExperimental() {}
+
+// ContainerHostname implements runtime.HostResolver.
+func (r *openshellRuntime) ContainerHostname() string {
+	return openshellContainerHost
+}
+
+// TransformConfig implements runtime.ConfigTransformer.
+// It rewrites localhost URLs in MCP command args to host.openshell.internal
+// so that MCP servers spawned inside the sandbox can reach host services.
+func (r *openshellRuntime) TransformConfig(cfg *workspace.WorkspaceConfiguration) error {
+	if cfg != nil && cfg.Mcp != nil {
+		containerurl.RewriteMCPCommandArgsWithHost(cfg.Mcp, openshellContainerHost)
+	}
+	return nil
+}
 
 // Available reports whether the OpenShell Gateway runtime is supported on the current platform.
 func (r *openshellRuntime) Available() bool {

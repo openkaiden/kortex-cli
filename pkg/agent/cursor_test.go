@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 func TestCursor_Name(t *testing.T) {
@@ -226,7 +228,7 @@ func TestCursor_SetModel_NoExistingSettings(t *testing.T) {
 	agent := NewCursor()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "model-from-flag")
+	result, err := agent.SetModel(settings, "model-from-flag", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -276,7 +278,7 @@ func TestCursor_SetModel_NilSettings(t *testing.T) {
 
 	agent := NewCursor()
 
-	result, err := agent.SetModel(nil, "some-model-id")
+	result, err := agent.SetModel(nil, "some-model-id", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -299,7 +301,7 @@ func TestCursor_SetModel_PreservesExistingSettings(t *testing.T) {
 		"some/other/file": SettingsFile{Content: []byte("existing content")},
 	}
 
-	result, err := agent.SetModel(existingSettings, "some-model-id")
+	result, err := agent.SetModel(existingSettings, "some-model-id", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -328,7 +330,7 @@ func TestCursor_SetModel_PreservesExistingCLIConfig(t *testing.T) {
 		CursorCLIConfigPath: SettingsFile{Content: existingJSON},
 	}
 
-	result, err := agent.SetModel(settings, "new-model-id")
+	result, err := agent.SetModel(settings, "new-model-id", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -374,7 +376,7 @@ func TestCursor_SetModel_OverwritesExistingModel(t *testing.T) {
 		CursorCLIConfigPath: SettingsFile{Content: existingJSON},
 	}
 
-	result, err := agent.SetModel(settings, "new-model-id")
+	result, err := agent.SetModel(settings, "new-model-id", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -406,7 +408,7 @@ func TestCursor_SetModel_InvalidJSON(t *testing.T) {
 		CursorCLIConfigPath: SettingsFile{Content: []byte("invalid json")},
 	}
 
-	_, err := agent.SetModel(settings, "some-model-id")
+	_, err := agent.SetModel(settings, "some-model-id", containerurl.ContainerHost)
 	if err == nil {
 		t.Fatal("Expected error for invalid JSON")
 	}
@@ -418,7 +420,7 @@ func TestCursor_SetModel_ProviderModelFormat(t *testing.T) {
 	agent := NewCursor()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "cursor::gemma2:7b")
+	result, err := agent.SetModel(settings, "cursor::gemma2:7b", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -444,7 +446,7 @@ func TestCursor_SetModel_ProviderModelURLFormat(t *testing.T) {
 	agent := NewCursor()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "cursor::gemma2:7b::http://localhost:11434/v1")
+	result, err := agent.SetModel(settings, "cursor::gemma2:7b::http://localhost:11434/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}

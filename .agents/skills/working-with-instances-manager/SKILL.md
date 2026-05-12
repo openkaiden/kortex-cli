@@ -71,9 +71,10 @@ The `Add()` method:
 5. Merges configs: workspace → global → project → agent
 6. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string]agent.SettingsFile`
 7. Calls agent's `SkipOnboarding()` method if agent is registered (e.g., Claude agent automatically sets onboarding flags)
-8. Calls agent's `SetModel()` method if model is specified (takes precedence over model in settings files)
+8. Calls agent's `SetModel()` method if model is specified (takes precedence over model in settings files). The manager resolves the container hostname via the `HostResolver` optional interface on the runtime (defaults to `host.containers.internal`) and passes it to `SetModel()` so localhost URLs are rewritten correctly.
 9. Calls agent's `SetMCPServers()` method if the merged config contains MCP servers (writes them into agent settings)
-10. Passes merged config and modified agent settings to runtime for injection into workspace
+10. If the runtime implements `ConfigTransformer`, calls `TransformConfig()` to apply runtime-specific transformations (e.g., rewriting MCP URLs)
+11. Passes merged config and modified agent settings to runtime for injection into workspace
 
 **Name sanitization rules:** valid characters are `[a-z0-9._-]`. Uppercase letters are lowercased; any run of invalid characters (spaces, `@`, `+`, etc.) is collapsed into a single hyphen; leading and trailing separators (hyphens, dots, and underscores) are stripped. An empty result falls back to `"workspace"`.
 

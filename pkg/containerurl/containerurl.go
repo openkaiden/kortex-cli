@@ -29,10 +29,11 @@ const ContainerHost = "host.containers.internal"
 // localhostAliases lists hostnames and IPs that refer to the local machine.
 var localhostAliases = []string{"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
 
-// RewriteURL replaces localhost aliases in a URL with host.containers.internal
-// so the URL is reachable from inside a container. If the input is not a valid
-// URL or does not reference localhost, it is returned unchanged.
-func RewriteURL(rawURL string) string {
+// RewriteURLWithHost replaces localhost aliases in a URL with the given
+// containerHost so the URL is reachable from inside a container or sandbox.
+// If the input is not a valid URL or does not reference localhost, it is
+// returned unchanged.
+func RewriteURLWithHost(rawURL, containerHost string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return rawURL
@@ -43,9 +44,9 @@ func RewriteURL(rawURL string) string {
 		if strings.EqualFold(hostname, alias) {
 			port := parsed.Port()
 			if port != "" {
-				parsed.Host = ContainerHost + ":" + port
+				parsed.Host = containerHost + ":" + port
 			} else {
-				parsed.Host = ContainerHost
+				parsed.Host = containerHost
 			}
 			return parsed.String()
 		}
@@ -54,12 +55,17 @@ func RewriteURL(rawURL string) string {
 	return rawURL
 }
 
-// RewriteMCPCommandArgs rewrites localhost URLs in MCP command args so they
-// are reachable from inside a container. Only command-based MCP servers are
-// affected — these are spawned inside the container and may reference
-// localhost to reach host services. URL-based MCP servers (remote endpoints)
-// are not modified.
-func RewriteMCPCommandArgs(mcp *workspace.McpConfiguration) {
+// RewriteURL replaces localhost aliases in a URL with host.containers.internal
+// so the URL is reachable from inside a container. If the input is not a valid
+// URL or does not reference localhost, it is returned unchanged.
+func RewriteURL(rawURL string) string {
+	return RewriteURLWithHost(rawURL, ContainerHost)
+}
+
+// RewriteMCPCommandArgsWithHost rewrites localhost URLs in MCP command args
+// using the given containerHost so they are reachable from inside a container
+// or sandbox. Only command-based MCP servers are affected.
+func RewriteMCPCommandArgsWithHost(mcp *workspace.McpConfiguration, containerHost string) {
 	if mcp == nil || mcp.Commands == nil {
 		return
 	}
@@ -70,7 +76,16 @@ func RewriteMCPCommandArgs(mcp *workspace.McpConfiguration) {
 			continue
 		}
 		for j, arg := range *cmd.Args {
-			(*cmd.Args)[j] = RewriteURL(arg)
+			(*cmd.Args)[j] = RewriteURLWithHost(arg, containerHost)
 		}
 	}
+}
+
+// RewriteMCPCommandArgs rewrites localhost URLs in MCP command args so they
+// are reachable from inside a container. Only command-based MCP servers are
+// affected — these are spawned inside the container and may reference
+// localhost to reach host services. URL-based MCP servers (remote endpoints)
+// are not modified.
+func RewriteMCPCommandArgs(mcp *workspace.McpConfiguration) {
+	RewriteMCPCommandArgsWithHost(mcp, ContainerHost)
 }

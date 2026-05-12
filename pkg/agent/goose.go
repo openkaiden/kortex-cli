@@ -109,7 +109,7 @@ func (g *gooseAgent) SetMCPServers(settings map[string]SettingsFile, _ *workspac
 // SetModel configures the model ID in Goose settings.
 // It sets the GOOSE_MODEL key in the config file.
 // All other fields in the settings file are preserved.
-func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string, containerHost string) (map[string]SettingsFile, error) {
 	settings = EnsureSettings(settings)
 
 	var config map[string]interface{}
@@ -137,7 +137,7 @@ func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string) 
 
 	resolvedURL := baseURL
 	if resolvedURL != "" {
-		resolvedURL = containerurl.RewriteURL(resolvedURL)
+		resolvedURL = containerurl.RewriteURLWithHost(resolvedURL, containerHost)
 		hostKey := gooseProviderHostKey[gooseProvider]
 		if hostKey == "" {
 			hostKey = "OPENAI_BASE_URL"

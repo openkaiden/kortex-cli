@@ -49,22 +49,8 @@ func (r *openshellRuntime) Start(ctx context.Context, id string) (runtime.Runtim
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Re-read merged config and apply network policy
-	data, readErr := r.readSandboxData(id)
-	if readErr == nil {
-		step.Start("Configuring network policy", "Network policy configured")
-		wsCfg, loadErr := loadNetworkConfig(data.SourcePath, r.globalStorageDir, data.ProjectID, data.Agent)
-		if loadErr != nil {
-			step.Fail(loadErr)
-			return runtime.RuntimeInfo{}, fmt.Errorf("failed to load network config: %w", loadErr)
-		}
-		if err := r.applyNetworkPolicy(ctx, id, wsCfg); err != nil {
-			step.Fail(err)
-			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure network policy: %w", err)
-		}
-	}
-
 	// Start port forwarding for configured ports
+	data, readErr := r.readSandboxData(id)
 	if readErr == nil && len(data.Ports) > 0 {
 		step.Start("Setting up port forwarding", "Port forwarding established")
 		if err := r.startPortForwards(ctx, id, data.Ports); err != nil {

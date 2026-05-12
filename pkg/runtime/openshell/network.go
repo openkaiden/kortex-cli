@@ -17,17 +17,24 @@ package openshell
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservice"
 )
 
-const networkRuleName = "kdn-network"
+const (
+	networkRuleName = "kdn-network"
+	modelRuleName   = "kdn-model"
+)
 
 var networkEndpointPorts = []int{80, 443}
 
@@ -170,6 +177,47 @@ func collectAllRegistryHosts(registry secretservice.Registry) []string {
 	return hosts
 }
 
+type modelEndpoint struct {
+	Host string
+	Port int
+}
+
+// collectModelEndpoints extracts the hostname and port from the baseURL
+// embedded in a "provider::model::baseURL" model ID. Localhost URLs are
+// rewritten to host.openshell.internal so the sandbox can reach host-local
+// model servers (e.g. Ollama).
+func collectModelEndpoints(modelID string) []modelEndpoint {
+	if modelID == "" {
+		return nil
+	}
+	_, _, baseURL := config.ParseModelID(modelID)
+	if baseURL == "" {
+		return nil
+	}
+	rewritten := containerurl.RewriteURLWithHost(baseURL, openshellContainerHost)
+	u, err := url.Parse(rewritten)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	hostname := u.Hostname()
+	port := 0
+	if p := u.Port(); p != "" {
+		parsedPort, convErr := strconv.Atoi(p)
+		if convErr != nil || parsedPort <= 0 || parsedPort > 65535 {
+			return nil
+		}
+		port = parsedPort
+	}
+	if port == 0 {
+		if u.Scheme == "https" {
+			port = 443
+		} else {
+			port = 80
+		}
+	}
+	return []modelEndpoint{{Host: hostname, Port: port}}
+}
+
 // applyNetworkPolicy determines the network mode and applies the appropriate
 // policy to the sandbox. Called from both Create and Start.
 //
@@ -182,8 +230,10 @@ func collectAllRegistryHosts(registry secretservice.Registry) []string {
 // workspace config network.hosts.
 // In deny mode, hosts come from workspace config network.hosts and
 // configured secret host patterns.
-func (r *openshellRuntime) applyNetworkPolicy(ctx context.Context, sandboxName string, wsCfg *workspace.WorkspaceConfiguration) error {
+func (r *openshellRuntime) applyNetworkPolicy(ctx context.Context, sandboxName string, wsCfg *workspace.WorkspaceConfiguration, modelID string) error {
 	l := logger.FromContext(ctx)
+	modelEndpoints := collectModelEndpoints(modelID)
+	fmt.Fprintf(l.Stderr(), "applyNetworkPolicy: modelEndpoints=%d\n", len(modelEndpoints))
 
 	isDenyMode := wsCfg != nil &&
 		wsCfg.Network != nil &&
@@ -198,22 +248,30 @@ func (r *openshellRuntime) applyNetworkPolicy(ctx context.Context, sandboxName s
 		}
 		hosts := mergeHosts(registryHosts, wsHosts)
 		fmt.Fprintf(l.Stderr(), "Network policy (allow mode): %v\n", hosts)
-		return r.configureNetworkPolicy(ctx, sandboxName, hosts)
+		if err := r.configureNetworkPolicy(ctx, sandboxName, hosts); err != nil {
+			return err
+		}
+	} else {
+		var explicitHosts []string
+		if wsCfg.Network.Hosts != nil {
+			explicitHosts = *wsCfg.Network.Hosts
+		}
+
+		secretHosts, err := collectSecretHosts(wsCfg, r.secretStore, r.secretServiceRegistry)
+		if err != nil {
+			return fmt.Errorf("collecting secret hosts: %w", err)
+		}
+		allHosts := mergeHosts(explicitHosts, secretHosts)
+		fmt.Fprintf(l.Stderr(), "Network policy (deny mode): %v\n", allHosts)
+		if err := r.configureNetworkPolicy(ctx, sandboxName, allHosts); err != nil {
+			return err
+		}
 	}
 
-	var explicitHosts []string
-	if wsCfg.Network.Hosts != nil {
-		explicitHosts = *wsCfg.Network.Hosts
+	if len(modelEndpoints) > 0 {
+		return r.configureModelPolicy(ctx, sandboxName, modelEndpoints)
 	}
-
-	secretHosts, err := collectSecretHosts(wsCfg, r.secretStore, r.secretServiceRegistry)
-	if err != nil {
-		return fmt.Errorf("collecting secret hosts: %w", err)
-	}
-	allHosts := mergeHosts(explicitHosts, secretHosts)
-	fmt.Fprintf(l.Stderr(), "Network policy (deny mode): %v\n", allHosts)
-
-	return r.configureNetworkPolicy(ctx, sandboxName, allHosts)
+	return nil
 }
 
 // configureNetworkPolicy applies network rules to the sandbox via the
@@ -238,6 +296,7 @@ func (r *openshellRuntime) configureNetworkPolicy(ctx context.Context, sandboxNa
 		}
 	}
 	args = append(args, "--binary", "/**", "--wait")
+	fmt.Fprintf(l.Stderr(), "configureNetworkPolicy: running %v\n", args)
 
 	if err := r.executor.Run(ctx, l.Stdout(), l.Stderr(), args...); err != nil {
 		if strings.Contains(err.Error(), "sandbox has no spec") {
@@ -245,6 +304,78 @@ func (r *openshellRuntime) configureNetworkPolicy(ctx context.Context, sandboxNa
 			return nil
 		}
 		return fmt.Errorf("updating network policy: %w", err)
+	}
+
+	return nil
+}
+
+const resolveHostTimeout = 10 * time.Second
+
+// resolveHostAliases resolves a hostname to its IP address inside the sandbox
+// using getent. This is needed for internal hostnames like host.openshell.internal
+// that resolve to internal IPs and would be blocked by SSRF protection when
+// used as host:port:full endpoints.
+func (r *openshellRuntime) resolveHostAliases(ctx context.Context, sandboxName, hostname string) (string, error) {
+	l := logger.FromContext(ctx)
+	resolveCtx, cancel := context.WithTimeout(ctx, resolveHostTimeout)
+	defer cancel()
+	out, err := r.executor.Output(resolveCtx, l.Stderr(),
+		"sandbox", "exec", "--name", sandboxName, "--no-tty", "--", "getent", "hosts", hostname,
+	)
+	if err != nil {
+		return "", fmt.Errorf("resolving %s: %w", hostname, err)
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) == 0 {
+		return "", fmt.Errorf("unexpected getent output for %s: %q", hostname, string(out))
+	}
+	return fields[0], nil
+}
+
+// configureModelPolicy adds policy rules for model endpoints so the agent
+// can reach host-local model servers (e.g. Ollama). Hostnames are resolved
+// to IP addresses inside the sandbox and added as allowed-ip endpoints to
+// bypass SSRF protection for internal addresses.
+func (r *openshellRuntime) configureModelPolicy(ctx context.Context, sandboxName string, modelEndpoints []modelEndpoint) error {
+	l := logger.FromContext(ctx)
+
+	_ = r.executor.Run(ctx, l.Stdout(), l.Stderr(),
+		"policy", "update", sandboxName, "--remove-rule", modelRuleName,
+	)
+
+	if len(modelEndpoints) == 0 {
+		return nil
+	}
+
+	for _, ep := range modelEndpoints {
+		ip, err := r.resolveHostAliases(ctx, sandboxName, ep.Host)
+		if err != nil {
+			fmt.Fprintf(l.Stderr(), "configureModelPolicy: failed to resolve %s, skipping: %v\n", ep.Host, err)
+			continue
+		}
+		fmt.Fprintf(l.Stderr(), "configureModelPolicy: resolved %s to %s\n", ep.Host, ip)
+
+		endpoint := fmt.Sprintf("%s:%d::::allowed-ip=%s", ep.Host, ep.Port, ip)
+		args := []string{
+			"policy", "update", sandboxName,
+			"--add-endpoint", endpoint,
+			"--rule-name", modelRuleName,
+			"--binary", "/**", "--wait",
+		}
+		fmt.Fprintf(l.Stderr(), "configureModelPolicy: running %v\n", args)
+
+		if err := r.executor.Run(ctx, l.Stdout(), l.Stderr(), args...); err != nil {
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "sandbox has no spec") {
+				fmt.Fprintf(l.Stderr(), "Model policy not supported for this sandbox, skipping\n")
+				return nil
+			}
+			if strings.Contains(errMsg, "exit status 124") || strings.Contains(errMsg, "Timeout") {
+				fmt.Fprintf(l.Stderr(), "configureModelPolicy: policy submitted but timed out waiting for load, continuing\n")
+				continue
+			}
+			return fmt.Errorf("updating model policy: %w", err)
+		}
 	}
 
 	return nil

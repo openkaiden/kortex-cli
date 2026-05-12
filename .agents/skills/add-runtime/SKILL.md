@@ -487,6 +487,35 @@ Use this to:
 
 The `runtimesetup.ListFlags()` bridge discovers and deduplicates flags from all available `FlagProvider` runtimes.
 
+### HostResolver Interface (optional)
+
+Implement if the runtime uses a different hostname than `host.containers.internal` to reach the host machine:
+
+```go
+type HostResolver interface {
+    ContainerHostname() string
+}
+```
+
+Use this to:
+- Declare the hostname used inside the workspace to reach the host (e.g., `host.openshell.internal`)
+- Ensure `agent.SetModel()` rewrites localhost URLs to the correct hostname
+- The manager automatically detects this interface and passes the hostname to `SetModel()`
+
+### ConfigTransformer Interface (optional)
+
+Implement if the runtime needs to transform the merged workspace configuration before it is applied:
+
+```go
+type ConfigTransformer interface {
+    TransformConfig(cfg *workspace.WorkspaceConfiguration) error
+}
+```
+
+Use this to:
+- Rewrite localhost URLs in MCP command args to the runtime's container hostname
+- Apply runtime-specific transformations to the workspace config after merging
+
 ### Available Interface (optional)
 
 Implement to control runtime availability:

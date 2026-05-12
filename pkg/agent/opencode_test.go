@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 func TestOpenCode_Name(t *testing.T) {
@@ -97,7 +98,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "anthropic/claude-sonnet-4-5")
+		result, err := agent.SetModel(settings, "anthropic/claude-sonnet-4-5", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -126,7 +127,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 
 		agent := NewOpenCode()
 
-		result, err := agent.SetModel(nil, "some-model-id")
+		result, err := agent.SetModel(nil, "some-model-id", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -149,7 +150,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 			"some/other/file": SettingsFile{Content: []byte("existing content")},
 		}
 
-		result, err := agent.SetModel(existingSettings, "some-model-id")
+		result, err := agent.SetModel(existingSettings, "some-model-id", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -178,7 +179,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 			OpenCodeConfigPath: SettingsFile{Content: existingJSON},
 		}
 
-		result, err := agent.SetModel(settings, "new-model-id")
+		result, err := agent.SetModel(settings, "new-model-id", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -213,7 +214,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 			OpenCodeConfigPath: SettingsFile{Content: existingJSON},
 		}
 
-		result, err := agent.SetModel(settings, "new-model-id")
+		result, err := agent.SetModel(settings, "new-model-id", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -237,7 +238,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 			OpenCodeConfigPath: SettingsFile{Content: []byte("invalid json")},
 		}
 
-		_, err := agent.SetModel(settings, "some-model-id")
+		_, err := agent.SetModel(settings, "some-model-id", containerurl.ContainerHost)
 		if err == nil {
 			t.Fatal("Expected error for invalid JSON")
 		}
@@ -249,7 +250,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "ollama::gemma4:26b")
+		result, err := agent.SetModel(settings, "ollama::gemma4:26b", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -287,7 +288,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "ollama::gemma4:26b::http://192.168.1.50:11434/v1")
+		result, err := agent.SetModel(settings, "ollama::gemma4:26b::http://192.168.1.50:11434/v1", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -316,7 +317,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "ollama::gemma4:26b::http://localhost:11434/v1")
+		result, err := agent.SetModel(settings, "ollama::gemma4:26b::http://localhost:11434/v1", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -341,7 +342,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "ramalama::granite3.3:8b")
+		result, err := agent.SetModel(settings, "ramalama::granite3.3:8b", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -370,7 +371,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "anthropic::claude-opus-4-7")
+		result, err := agent.SetModel(settings, "anthropic::claude-opus-4-7", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -395,7 +396,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		_, err := agent.SetModel(settings, "ollama::")
+		_, err := agent.SetModel(settings, "ollama::", containerurl.ContainerHost)
 		if err == nil {
 			t.Fatal("Expected error for empty model name")
 		}
@@ -407,7 +408,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "openrouter::anthropic/claude-sonnet-4-6")
+		result, err := agent.SetModel(settings, "openrouter::anthropic/claude-sonnet-4-6", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -445,7 +446,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "custom::my-model::http://my-server:9090/v1")
+		result, err := agent.SetModel(settings, "custom::my-model::http://my-server:9090/v1", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -474,7 +475,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "gemini::gemini-2.0-flash")
+		result, err := agent.SetModel(settings, "gemini::gemini-2.0-flash", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -499,7 +500,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "vertexai::claude-sonnet-4-5")
+		result, err := agent.SetModel(settings, "vertexai::claude-sonnet-4-5", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -542,7 +543,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "openai::gpt-4o")
+		result, err := agent.SetModel(settings, "openai::gpt-4o", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -567,7 +568,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "openai::gpt-4o::https://api.openai.com/v1")
+		result, err := agent.SetModel(settings, "openai::gpt-4o::https://api.openai.com/v1", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -592,7 +593,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "openai::gpt-4o::https://my-proxy.example.com/v1")
+		result, err := agent.SetModel(settings, "openai::gpt-4o::https://my-proxy.example.com/v1", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}
@@ -628,7 +629,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string]SettingsFile)
 
-		result, err := agent.SetModel(settings, "anthropic/claude-sonnet-4-6")
+		result, err := agent.SetModel(settings, "anthropic/claude-sonnet-4-6", containerurl.ContainerHost)
 		if err != nil {
 			t.Fatalf("SetModel() error = %v", err)
 		}

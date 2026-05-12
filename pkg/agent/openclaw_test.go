@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 func TestOpenclaw_Name(t *testing.T) {
@@ -193,7 +194,7 @@ func TestOpenclaw_SetModel_NoExistingSettings(t *testing.T) {
 	agent := NewOpenclaw()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "gpt-4o")
+	result, err := agent.SetModel(settings, "gpt-4o", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -227,7 +228,7 @@ func TestOpenclaw_SetModel_NilSettings(t *testing.T) {
 
 	agent := NewOpenclaw()
 
-	result, err := agent.SetModel(nil, "gpt-4o")
+	result, err := agent.SetModel(nil, "gpt-4o", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -247,7 +248,7 @@ func TestOpenclaw_SetModel_ProviderModelFormat(t *testing.T) {
 	agent := NewOpenclaw()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "anthropic::claude-sonnet-4-6")
+	result, err := agent.SetModel(settings, "anthropic::claude-sonnet-4-6", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -270,7 +271,7 @@ func TestOpenclaw_SetModel_GeminiAlias(t *testing.T) {
 	agent := NewOpenclaw()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "gemini::gemini-2.5-pro")
+	result, err := agent.SetModel(settings, "gemini::gemini-2.5-pro", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -293,7 +294,7 @@ func TestOpenclaw_SetModel_VertexAIAlias(t *testing.T) {
 	agent := NewOpenclaw()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "vertexai::claude-sonnet-4-6")
+	result, err := agent.SetModel(settings, "vertexai::claude-sonnet-4-6", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -316,7 +317,7 @@ func TestOpenclaw_SetModel_ProviderModelURLFormat(t *testing.T) {
 	agent := NewOpenclaw()
 	settings := make(map[string]SettingsFile)
 
-	result, err := agent.SetModel(settings, "openai::gpt-4o::http://localhost:8080/v1")
+	result, err := agent.SetModel(settings, "openai::gpt-4o::http://localhost:8080/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -356,7 +357,7 @@ func TestOpenclaw_SetModel_NoProviderWithURL(t *testing.T) {
 
 	agent := NewOpenclaw()
 
-	result, err := agent.SetModel(nil, "::tester::http://localhost:8080/v1")
+	result, err := agent.SetModel(nil, "::tester::http://localhost:8080/v1", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -388,7 +389,7 @@ func TestOpenclaw_SetModel_CloudProviderNoProviderBlock(t *testing.T) {
 
 	agent := NewOpenclaw()
 
-	result, err := agent.SetModel(nil, "anthropic::claude-sonnet-4-6")
+	result, err := agent.SetModel(nil, "anthropic::claude-sonnet-4-6", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -430,7 +431,7 @@ func TestOpenclaw_SetModel_PreservesExistingFields(t *testing.T) {
 		OpenclawConfigPath: {Content: existingJSON},
 	}
 
-	result, err := agent.SetModel(settings, "new-model")
+	result, err := agent.SetModel(settings, "new-model", containerurl.ContainerHost)
 	if err != nil {
 		t.Fatalf("SetModel() error = %v", err)
 	}
@@ -466,7 +467,7 @@ func TestOpenclaw_SetModel_InvalidJSON(t *testing.T) {
 		OpenclawConfigPath: {Content: []byte("invalid json {{{")},
 	}
 
-	_, err := agent.SetModel(settings, "gpt-4o")
+	_, err := agent.SetModel(settings, "gpt-4o", containerurl.ContainerHost)
 	if err == nil {
 		t.Error("Expected error for invalid JSON, got nil")
 	}

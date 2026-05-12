@@ -190,7 +190,7 @@ func (c *openclawAgent) SetMCPServers(settings map[string]SettingsFile, mcp *wor
 // used, it is converted to provider/model. Plain model IDs without a provider
 // are passed through as-is.
 // All other fields in the settings file are preserved.
-func (c *openclawAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+func (c *openclawAgent) SetModel(settings map[string]SettingsFile, modelID string, containerHost string) (map[string]SettingsFile, error) {
 	settings = EnsureSettings(settings)
 
 	existingContent := GetContent(settings, OpenclawConfigPath, []byte("{}"))
@@ -222,7 +222,7 @@ func (c *openclawAgent) SetModel(settings map[string]SettingsFile, modelID strin
 		}
 		defaults["model"] = provider + "/" + modelName
 		if baseURL != "" {
-			configureOpenclawProvider(config, provider, modelName, containerurl.RewriteURL(baseURL))
+			configureOpenclawProvider(config, provider, modelName, containerurl.RewriteURLWithHost(baseURL, containerHost))
 		}
 	} else {
 		defaults["model"] = modelID

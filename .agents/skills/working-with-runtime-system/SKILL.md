@@ -224,6 +224,63 @@ return errors.New("runtime does not support terminal sessions")
 
 This pattern allows runtimes to provide additional capabilities without requiring all runtimes to implement every possible feature.
 
+### HostResolver Interface
+
+The `HostResolver` interface declares the container hostname used to reach the host machine from inside the workspace. By default, `containerurl.ContainerHost` (`host.containers.internal`) is used. Runtimes that use a different hostname (e.g., OpenShell uses `host.openshell.internal`) implement this interface.
+
+```go
+type HostResolver interface {
+    ContainerHostname() string
+}
+```
+
+**How it works:**
+
+The instances manager checks for this interface before calling `agent.SetModel()`. If implemented, the returned hostname is passed to `SetModel()` so that localhost URLs in `--model` flags are rewritten to the correct hostname for the runtime.
+
+**Example implementation:**
+
+```go
+const myContainerHost = "host.myruntime.internal"
+
+var _ runtime.HostResolver = (*myRuntime)(nil)
+
+func (r *myRuntime) ContainerHostname() string {
+    return myContainerHost
+}
+```
+
+Currently implemented by: `openshell` (`host.openshell.internal`).
+
+### ConfigTransformer Interface
+
+The `ConfigTransformer` interface allows a runtime to transform the merged `WorkspaceConfiguration` before it is applied. This is useful for rewriting URLs in MCP command args or other config fields to use the runtime's container hostname.
+
+```go
+type ConfigTransformer interface {
+    TransformConfig(cfg *workspace.WorkspaceConfiguration) error
+}
+```
+
+**How it works:**
+
+The instances manager checks for this interface after merging all configuration levels. If implemented, `TransformConfig()` is called with the final merged config, allowing the runtime to modify it in place (e.g., rewrite localhost URLs in MCP server args).
+
+**Example implementation:**
+
+```go
+var _ runtime.ConfigTransformer = (*myRuntime)(nil)
+
+func (r *myRuntime) TransformConfig(cfg *workspace.WorkspaceConfiguration) error {
+    if cfg != nil && cfg.Mcp != nil {
+        containerurl.RewriteMCPCommandArgsWithHost(cfg.Mcp, myContainerHost)
+    }
+    return nil
+}
+```
+
+Currently implemented by: `openshell`.
+
 ### Experimental Interface
 
 The `Experimental` interface marks a runtime's support as experimental. Its presence alone is the signal — the method carries no return value and callers never invoke it directly.
