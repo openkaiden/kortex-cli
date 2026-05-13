@@ -38,17 +38,18 @@ import (
 
 // fakeInstance is a test double for the Instance interface
 type fakeInstance struct {
-	id         string
-	name       string
-	sourceDir  string
-	configDir  string
-	accessible bool
-	runtime    RuntimeData
-	project    string
-	agent      string
-	model      string
-	createdAt  time.Time
-	startedAt  time.Time
+	id           string
+	name         string
+	sourceDir    string
+	configDir    string
+	accessible   bool
+	runtime      RuntimeData
+	project      string
+	agent        string
+	model        string
+	createdAt    time.Time
+	startedAt    time.Time
+	mergedConfig *workspace.WorkspaceConfiguration
 }
 
 // Compile-time check to ensure fakeInstance implements Instance interface
@@ -100,6 +101,10 @@ func (f *fakeInstance) GetCreatedAt() time.Time {
 
 func (f *fakeInstance) GetStartedAt() time.Time {
 	return f.startedAt
+}
+
+func (f *fakeInstance) GetMergedConfig() *workspace.WorkspaceConfiguration {
+	return f.mergedConfig
 }
 
 func (f *fakeInstance) Dump() InstanceData {
@@ -5055,6 +5060,199 @@ func TestManager_GetRuntime(t *testing.T) {
 		}
 		if _, ok := rt.(runtime.Experimental); !ok {
 			t.Error("GetRuntime() returned runtime does not implement runtime.Experimental")
+		}
+	})
+}
+
+func TestManager_Add_DumpConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns merged config without storing instance", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		instanceTmpDir := t.TempDir()
+		inst, _ := NewInstance(NewInstanceParams{
+			SourceDir: instanceTmpDir,
+			ConfigDir: filepath.Join(instanceTmpDir, ".kaiden"),
+		})
+
+		envValue := "hello"
+		cfg := &workspace.WorkspaceConfiguration{
+			Environment: &[]workspace.EnvironmentVariable{
+				{Name: "MY_VAR", Value: &envValue},
+			},
+		}
+
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:        inst,
+			RuntimeType:     "fake",
+			WorkspaceConfig: cfg,
+			DumpConfig:      true,
+		})
+		if err != nil {
+			t.Fatalf("Add() unexpected error = %v", err)
+		}
+
+		mergedConfig := added.GetMergedConfig()
+		if mergedConfig == nil {
+			t.Fatal("GetMergedConfig() returned nil")
+		}
+		if mergedConfig.Environment == nil || len(*mergedConfig.Environment) != 1 {
+			t.Fatalf("Expected 1 environment variable, got %v", mergedConfig.Environment)
+		}
+		if (*mergedConfig.Environment)[0].Name != "MY_VAR" {
+			t.Errorf("Expected MY_VAR, got %s", (*mergedConfig.Environment)[0].Name)
+		}
+
+		// Instance must NOT be stored
+		instances, _ := manager.List()
+		if len(instances) != 0 {
+			t.Errorf("Expected 0 stored instances, got %d", len(instances))
+		}
+	})
+
+	t.Run("merges project config into result", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		configDir := filepath.Join(tmpDir, "config")
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+
+		projectsJSON := `{
+  "my-project": {
+    "environment": [
+      {"name": "PROJECT_VAR", "value": "from-project"}
+    ]
+  }
+}`
+		if err := os.WriteFile(filepath.Join(configDir, "projects.json"), []byte(projectsJSON), 0644); err != nil {
+			t.Fatalf("Failed to write projects.json: %v", err)
+		}
+
+		detector := &fakeProjectDetector{result: "my-project"}
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), detector, time.Now)
+
+		instanceTmpDir := t.TempDir()
+		inst, _ := NewInstance(NewInstanceParams{
+			SourceDir: instanceTmpDir,
+			ConfigDir: filepath.Join(instanceTmpDir, ".kaiden"),
+		})
+
+		workspaceValue := "from-workspace"
+		cfg := &workspace.WorkspaceConfiguration{
+			Environment: &[]workspace.EnvironmentVariable{
+				{Name: "WORKSPACE_VAR", Value: &workspaceValue},
+			},
+		}
+
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:        inst,
+			RuntimeType:     "fake",
+			WorkspaceConfig: cfg,
+			DumpConfig:      true,
+		})
+		if err != nil {
+			t.Fatalf("Add() unexpected error = %v", err)
+		}
+
+		mergedConfig := added.GetMergedConfig()
+		if mergedConfig == nil {
+			t.Fatal("GetMergedConfig() returned nil")
+		}
+		if mergedConfig.Environment == nil || len(*mergedConfig.Environment) != 2 {
+			t.Fatalf("Expected 2 environment variables, got %v", mergedConfig.Environment)
+		}
+
+		envMap := make(map[string]string)
+		for _, e := range *mergedConfig.Environment {
+			if e.Value != nil {
+				envMap[e.Name] = *e.Value
+			}
+		}
+		if envMap["WORKSPACE_VAR"] != "from-workspace" {
+			t.Errorf("Expected WORKSPACE_VAR=from-workspace, got %q", envMap["WORKSPACE_VAR"])
+		}
+		if envMap["PROJECT_VAR"] != "from-project" {
+			t.Errorf("Expected PROJECT_VAR=from-project, got %q", envMap["PROJECT_VAR"])
+		}
+	})
+
+	t.Run("returns empty merged config when no config provided at any level", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		instanceTmpDir := t.TempDir()
+		inst, _ := NewInstance(NewInstanceParams{
+			SourceDir: instanceTmpDir,
+			ConfigDir: filepath.Join(instanceTmpDir, ".kaiden"),
+		})
+
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:    inst,
+			RuntimeType: "fake",
+			DumpConfig:  true,
+		})
+		if err != nil {
+			t.Fatalf("Add() unexpected error = %v", err)
+		}
+
+		// With no config at any level, mergedConfig is a non-nil empty struct
+		mergedConfig := added.GetMergedConfig()
+		if mergedConfig == nil {
+			t.Fatal("GetMergedConfig() returned nil; expected non-nil empty config")
+		}
+		if mergedConfig.Environment != nil && len(*mergedConfig.Environment) != 0 {
+			t.Errorf("Expected no environment variables, got %v", mergedConfig.Environment)
+		}
+	})
+
+	t.Run("normal mode also exposes merged config via GetMergedConfig", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		instanceTmpDir := t.TempDir()
+		inst, _ := NewInstance(NewInstanceParams{
+			SourceDir: instanceTmpDir,
+			ConfigDir: filepath.Join(instanceTmpDir, ".kaiden"),
+		})
+
+		envValue := "hello"
+		cfg := &workspace.WorkspaceConfiguration{
+			Environment: &[]workspace.EnvironmentVariable{
+				{Name: "MY_VAR", Value: &envValue},
+			},
+		}
+
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:        inst,
+			RuntimeType:     "fake",
+			WorkspaceConfig: cfg,
+		})
+		if err != nil {
+			t.Fatalf("Add() unexpected error = %v", err)
+		}
+
+		mergedConfig := added.GetMergedConfig()
+		if mergedConfig == nil {
+			t.Fatal("GetMergedConfig() returned nil in normal mode")
+		}
+		if mergedConfig.Environment == nil || len(*mergedConfig.Environment) != 1 {
+			t.Fatalf("Expected 1 environment variable in normal mode, got %v", mergedConfig.Environment)
+		}
+
+		// Instance must be stored in normal mode
+		instances, _ := manager.List()
+		if len(instances) != 1 {
+			t.Errorf("Expected 1 stored instance in normal mode, got %d", len(instances))
 		}
 	})
 }

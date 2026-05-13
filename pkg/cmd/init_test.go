@@ -2508,6 +2508,123 @@ func TestInitCmd_E2E_SpacesInPathSanitizesName(t *testing.T) {
 	}
 }
 
+func TestInitCmd_DumpConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("outputs merged config as JSON without storing instance", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", "--dump-config", sourcesDir})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Output must be valid JSON
+		var result map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("Output is not valid JSON: %v\nOutput was: %s", err, buf.String())
+		}
+
+		// No instance should be stored
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		runtimesetup.RegisterAll(manager) //nolint:errcheck
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 stored instances after --dump-config, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("reflects workspace config in output", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		// Write workspace.json with an env var
+		configDir := filepath.Join(sourcesDir, ".kaiden")
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+		workspaceJSON := `{"environment":[{"name":"MY_VAR","value":"my-value"}]}`
+		if err := os.WriteFile(filepath.Join(configDir, "workspace.json"), []byte(workspaceJSON), 0644); err != nil {
+			t.Fatalf("Failed to write workspace.json: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", "--dump-config", sourcesDir})
+
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		var result map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("Output is not valid JSON: %v\nOutput was: %s", err, buf.String())
+		}
+
+		envVars, ok := result["environment"].([]any)
+		if !ok || len(envVars) == 0 {
+			t.Fatalf("Expected environment field in output, got %v", result)
+		}
+		envVar, ok := envVars[0].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected environment entry to be an object, got %T", envVars[0])
+		}
+		if envVar["name"] != "MY_VAR" {
+			t.Errorf("Expected MY_VAR, got %v", envVar["name"])
+		}
+	})
+
+	t.Run("can be combined with --start (start is silently skipped)", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", "--dump-config", "--start", sourcesDir})
+
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Output must be valid JSON (dump-config wins, start is ignored)
+		var result map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+			t.Fatalf("Output is not valid JSON: %v\nOutput was: %s", err, buf.String())
+		}
+
+		// No instance should be stored
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		runtimesetup.RegisterAll(manager) //nolint:errcheck
+		instancesList, _ := manager.List()
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 stored instances, got %d", len(instancesList))
+		}
+	})
+}
+
 func TestInitCmd_Examples(t *testing.T) {
 	t.Parallel()
 
@@ -2526,7 +2643,7 @@ func TestInitCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 12
+	expectedCount := 13
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

@@ -69,6 +69,9 @@ type AddOptions struct {
 	Model string
 	// RuntimeOptions contains runtime-specific flag values from the CLI.
 	RuntimeOptions map[string]string
+	// DumpConfig when true causes Add to return early with only the merged configuration,
+	// without creating a runtime instance or persisting to storage.
+	DumpConfig bool
 }
 
 // Manager handles instance storage and operations
@@ -263,6 +266,18 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, fmt.Errorf("failed to merge configurations: %w", err)
 	}
 
+	// DumpConfig mode: return the merged config without creating or storing anything.
+	if opts.DumpConfig {
+		return &instance{
+			SourceDir:    inst.GetSourceDir(),
+			ConfigDir:    inst.GetConfigDir(),
+			Project:      project,
+			Agent:        opts.Agent,
+			Model:        opts.Model,
+			MergedConfig: mergedConfig,
+		}, nil
+	}
+
 	// Get the runtime
 	rt, err := m.runtimeRegistry.Get(opts.RuntimeType)
 	if err != nil {
@@ -415,10 +430,11 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 			State:      runtimeInfo.State,
 			Info:       runtimeInfo.Info,
 		},
-		Project:   project,
-		Agent:     opts.Agent,
-		Model:     opts.Model,
-		CreatedAt: m.now(),
+		Project:      project,
+		Agent:        opts.Agent,
+		Model:        opts.Model,
+		CreatedAt:    m.now(),
+		MergedConfig: mergedConfig,
 	}
 
 	// Re-read under the file lock and append, so a concurrent kdn process

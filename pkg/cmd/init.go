@@ -56,6 +56,7 @@ type initCmd struct {
 	output             string
 	showLogs           bool
 	start              bool
+	dumpConfig         bool
 	runtimeOptions     map[string]string
 }
 
@@ -254,9 +255,24 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		Agent:           i.agent,
 		Model:           i.model,
 		RuntimeOptions:  i.runtimeOptions,
+		DumpConfig:      i.dumpConfig,
 	})
 	if err != nil {
 		return outputErrorIfJSON(cmd, i.output, err)
+	}
+
+	// DumpConfig mode: output the merged config as JSON and return early.
+	if i.dumpConfig {
+		mergedConfig := addedInstance.GetMergedConfig()
+		if mergedConfig == nil {
+			mergedConfig = &workspace.WorkspaceConfiguration{}
+		}
+		jsonData, err := json.MarshalIndent(mergedConfig, "", "  ")
+		if err != nil {
+			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to marshal config to JSON: %w", err))
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), string(jsonData))
+		return nil
 	}
 
 	// Start the workspace if auto-start is enabled
@@ -338,6 +354,9 @@ The workspace configuration directory defaults to .kaiden/ inside the sources di
 		Example: `# Register current directory as workspace
 kdn init --runtime podman --agent claude
 
+# Dump the merged configuration without creating the workspace
+kdn init --runtime podman --agent claude --dump-config
+
 # Register specific directory as workspace
 kdn init --runtime podman --agent claude /path/to/project
 
@@ -396,6 +415,9 @@ kdn init --runtime podman --agent claude --show-logs`,
 
 	// Add start flag
 	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KDN_INIT_AUTO_START environment variable)")
+
+	// Add dump-config flag
+	cmd.Flags().BoolVar(&c.dumpConfig, "dump-config", false, "Print the merged workspace configuration as JSON and exit without creating the workspace; --start, --name, --verbose, --output, --show-logs, and runtime-specific flags are ignored")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")
