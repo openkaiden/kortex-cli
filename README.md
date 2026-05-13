@@ -2965,6 +2965,7 @@ kdn init [sources-directory] [flags]
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
+- `--dump-config` - Print the merged workspace configuration as JSON and exit without creating the workspace; only `--agent`, `--project`, and `--workspace-configuration` affect the output — all other flags (`--start`, `--name`, `--verbose`, `--output`, `--show-logs`, and runtime-specific flags) are ignored
 - `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
 
 #### Examples
@@ -3117,6 +3118,21 @@ kdn init -r fake -a claude -o json -v
 kdn init --runtime podman --agent claude --show-logs
 ```
 
+**Inspect the merged configuration without creating the workspace:**
+```bash
+kdn init --runtime podman --agent claude --dump-config
+```
+Output (example showing a global `.gitconfig` mount and a GitHub token secret merged from `~/.kdn/config/projects.json` with a port defined in the `workspace.json` file):
+```json
+{
+  "secrets": ["my-github-token"],
+  "mounts": [
+    { "host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig", "ro": true }
+  ],
+  "ports": [3000]
+}
+```
+
 #### Workspace Naming
 
 - If `--name` is not provided, the name is automatically generated from the last component of the sources directory path
@@ -3233,6 +3249,7 @@ kdn init /tmp/workspace --runtime podman --agent claude
 - Without `--verbose`, JSON output returns only the workspace ID
 - With `--verbose`, JSON output includes full workspace details (ID, name, agent, model, paths); the `model` field is only present when a model was explicitly set with `--model`
 - Use `--show-logs` to display the full stdout and stderr from runtime commands (e.g., `podman build` output during image creation)
+- **Dry-run / config inspection**: Use `--dump-config` to print the merged workspace configuration (from all config levels: workspace, project, global, agent) as JSON without creating the workspace. The flag can be combined with any other `init` flags; only `--agent`, `--project`, and `--workspace-configuration` affect the output — all other flags are ignored
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
 
 ### `workspace list` - List All Registered Workspaces

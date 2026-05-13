@@ -22,6 +22,7 @@ import (
 	"time"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
 var (
@@ -116,6 +117,9 @@ type Instance interface {
 	GetCreatedAt() time.Time
 	// GetStartedAt returns when the instance was last started; zero value means not started
 	GetStartedAt() time.Time
+	// GetMergedConfig returns the merged workspace configuration computed by Add.
+	// Returns nil for instances loaded from storage, as the merged config is not persisted.
+	GetMergedConfig() *workspace.WorkspaceConfiguration
 	// Dump returns the serializable data of the instance
 	Dump() InstanceData
 }
@@ -144,6 +148,10 @@ type instance struct {
 	CreatedAt time.Time
 	// StartedAt is when the instance was last started; zero value means not started
 	StartedAt time.Time
+	// MergedConfig holds the merged workspace configuration computed by Add().
+	// Set in both normal and DumpConfig mode; nil for instances loaded from storage
+	// because MergedConfig is not persisted by Dump().
+	MergedConfig *workspace.WorkspaceConfiguration
 }
 
 // Compile-time check to ensure instance implements Instance interface
@@ -220,6 +228,11 @@ func (i *instance) GetCreatedAt() time.Time {
 // GetStartedAt returns when the instance was last started; zero value means not started
 func (i *instance) GetStartedAt() time.Time {
 	return i.StartedAt
+}
+
+// GetMergedConfig returns the merged workspace configuration set during DumpConfig mode.
+func (i *instance) GetMergedConfig() *workspace.WorkspaceConfiguration {
+	return i.MergedConfig
 }
 
 // Dump returns the serializable data of the instance

@@ -70,6 +70,9 @@ type AddOptions struct {
 	Model string
 	// RuntimeOptions contains runtime-specific flag values from the CLI.
 	RuntimeOptions map[string]string
+	// DumpConfig when true causes Add to return early with only the merged configuration,
+	// without creating a runtime instance or persisting to storage.
+	DumpConfig bool
 }
 
 // Manager handles instance storage and operations
@@ -226,6 +229,31 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, err
 	}
 
+	// Use custom project identifier if provided, otherwise auto-detect
+	project := opts.Project
+	if project == "" {
+		project = m.projectDetector.DetectProject(ctx, inst.GetSourceDir())
+	}
+
+	// Merge configurations from all levels: workspace -> project (global + specific) -> agent
+	mergedConfig, err := m.mergeConfigurations(project, opts.WorkspaceConfig, opts.Agent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge configurations: %w", err)
+	}
+
+	// DumpConfig mode: return the merged config without creating or storing anything.
+	// Checked before ID/name generation to avoid unnecessary work.
+	if opts.DumpConfig {
+		return &instance{
+			SourceDir:    inst.GetSourceDir(),
+			ConfigDir:    inst.GetConfigDir(),
+			Project:      project,
+			Agent:        opts.Agent,
+			Model:        opts.Model,
+			MergedConfig: mergedConfig,
+		}, nil
+	}
+
 	// Generate a unique ID for the instance
 	var uniqueID string
 	for {
@@ -250,18 +278,6 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 	} else {
 		// Ensure the provided name is sanitized and unique
 		name = m.ensureUniqueName(sanitizeName(name), instances)
-	}
-
-	// Use custom project identifier if provided, otherwise auto-detect
-	project := opts.Project
-	if project == "" {
-		project = m.projectDetector.DetectProject(ctx, inst.GetSourceDir())
-	}
-
-	// Merge configurations from all levels: workspace -> project (global + specific) -> agent
-	mergedConfig, err := m.mergeConfigurations(project, opts.WorkspaceConfig, opts.Agent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge configurations: %w", err)
 	}
 
 	// Get the runtime
@@ -420,10 +436,11 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 			State:      runtimeInfo.State,
 			Info:       runtimeInfo.Info,
 		},
-		Project:   project,
-		Agent:     opts.Agent,
-		Model:     opts.Model,
-		CreatedAt: m.now(),
+		Project:      project,
+		Agent:        opts.Agent,
+		Model:        opts.Model,
+		CreatedAt:    m.now(),
+		MergedConfig: mergedConfig,
 	}
 
 	// Re-read under the file lock and append, so a concurrent kdn process
