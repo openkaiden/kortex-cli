@@ -417,7 +417,7 @@ kdn init --runtime podman --agent claude --show-logs`,
 	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KDN_INIT_AUTO_START environment variable)")
 
 	// Add dump-config flag
-	cmd.Flags().BoolVar(&c.dumpConfig, "dump-config", false, "Print the merged workspace configuration as JSON and exit without creating the workspace; --start, --name, --verbose, --output, --show-logs, and runtime-specific flags are ignored")
+	cmd.Flags().BoolVar(&c.dumpConfig, "dump-config", false, "Print the merged workspace configuration as JSON and exit without creating the workspace; only --agent, --project, and --workspace-configuration affect the output — all other flags (--start, --name, --verbose, --output, --show-logs, and runtime-specific flags) are ignored")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")

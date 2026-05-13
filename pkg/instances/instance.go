@@ -148,8 +148,9 @@ type instance struct {
 	CreatedAt time.Time
 	// StartedAt is when the instance was last started; zero value means not started
 	StartedAt time.Time
-	// MergedConfig holds the merged workspace configuration when the instance was created
-	// in DumpConfig mode. Nil for normally created instances.
+	// MergedConfig holds the merged workspace configuration computed by Add().
+	// Set in both normal and DumpConfig mode; nil for instances loaded from storage
+	// because MergedConfig is not persisted by Dump().
 	MergedConfig *workspace.WorkspaceConfiguration
 }
 

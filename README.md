@@ -2965,7 +2965,7 @@ kdn init [sources-directory] [flags]
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
-- `--dump-config` - Print the merged workspace configuration as JSON and exit without creating the workspace; `--start`, `--name`, `--verbose`, `--output`, `--show-logs`, and runtime-specific flags are ignored
+- `--dump-config` - Print the merged workspace configuration as JSON and exit without creating the workspace; only `--agent`, `--project`, and `--workspace-configuration` affect the output — all other flags (`--start`, `--name`, `--verbose`, `--output`, `--show-logs`, and runtime-specific flags) are ignored
 - `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
 
 #### Examples
