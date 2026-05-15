@@ -24,6 +24,10 @@ updates:
       # check at 3am UTC
       time: "03:00"
     open-pull-requests-limit: 10
+    groups:
+      charmbracelet:
+        patterns:
+          - "github.com/charmbracelet/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
