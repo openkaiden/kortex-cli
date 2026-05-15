@@ -37,6 +37,7 @@ type workspaceOpenCmd struct {
 	manager     instances.Manager
 	nameOrID    string
 	port        int // target port, 0 means not specified
+	urlOnly     bool
 	openBrowser func(ctx context.Context, url string) error
 }
 
@@ -110,7 +111,7 @@ func (w *workspaceOpenCmd) run(cmd *cobra.Command, args []string) error {
 
 	url := fmt.Sprintf("http://%s:%d", forward.Bind, forward.Port)
 	fmt.Fprintln(cmd.OutOrStdout(), url)
-	if w.openBrowser != nil {
+	if w.openBrowser != nil && !w.urlOnly {
 		_ = w.openBrowser(cmd.Context(), url)
 	}
 	return nil
@@ -143,12 +144,17 @@ func NewWorkspaceOpenCmd() *cobra.Command {
 kdn workspace open my-project
 
 # Open a specific forwarded port of a workspace
-kdn workspace open my-project 8080`,
+kdn workspace open my-project 8080
+
+# Print the URL without opening the browser
+kdn workspace open my-project --url`,
 		Args:              cobra.RangeArgs(1, 2),
 		ValidArgsFunction: completeOpenArgs,
 		PreRunE:           c.preRun,
 		RunE:              c.run,
 	}
+
+	cmd.Flags().BoolVar(&c.urlOnly, "url", false, "Print the URL without opening the browser")
 
 	return cmd
 }

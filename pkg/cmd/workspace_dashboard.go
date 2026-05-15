@@ -35,6 +35,7 @@ import (
 type workspaceDashboardCmd struct {
 	manager     instances.Manager
 	nameOrID    string
+	urlOnly     bool
 	openBrowser func(ctx context.Context, url string) error
 }
 
@@ -79,7 +80,7 @@ func (w *workspaceDashboardCmd) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintln(cmd.OutOrStdout(), url)
-	if w.openBrowser != nil {
+	if w.openBrowser != nil && !w.urlOnly {
 		_ = w.openBrowser(cmd.Context(), url)
 	}
 	return nil
@@ -113,12 +114,17 @@ func NewWorkspaceDashboardCmd() *cobra.Command {
 kdn workspace dashboard abc123
 
 # Open dashboard by workspace name
-kdn workspace dashboard my-project`,
+kdn workspace dashboard my-project
+
+# Print the URL without opening the browser
+kdn workspace dashboard my-project --url`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeDashboardWorkspaceID,
 		PreRunE:           c.preRun,
 		RunE:              c.run,
 	}
+
+	cmd.Flags().BoolVar(&c.urlOnly, "url", false, "Print the URL without opening the browser")
 
 	return cmd
 }

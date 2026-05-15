@@ -216,6 +216,65 @@ func TestWorkspaceDashboardCmd_E2E(t *testing.T) {
 		}
 	})
 
+	t.Run("prints URL without opening browser when urlOnly is set", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourceDir := t.TempDir()
+
+		const dashboardURL = "http://localhost:8888"
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.NewWithDashboard(dashboardURL)); err != nil {
+			t.Fatalf("Failed to register fake runtime with dashboard: %v", err)
+		}
+
+		inst, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: filepath.Join(sourceDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+		added, err := manager.Add(context.Background(), instances.AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+		if err := manager.Start(context.Background(), added.GetID()); err != nil {
+			t.Fatalf("Failed to start instance: %v", err)
+		}
+
+		browserCalled := false
+		c := &workspaceDashboardCmd{
+			manager:  manager,
+			nameOrID: added.GetID(),
+			urlOnly:  true,
+			openBrowser: func(_ context.Context, _ string) error {
+				browserCalled = true
+				return nil
+			},
+		}
+
+		var outBuf bytes.Buffer
+		cobraCmd := &cobra.Command{}
+		cobraCmd.SetOut(&outBuf)
+
+		if err := c.run(cobraCmd, nil); err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+
+		output := strings.TrimSpace(outBuf.String())
+		if output != dashboardURL {
+			t.Errorf("Expected output %q, got %q", dashboardURL, output)
+		}
+		if browserCalled {
+			t.Error("Expected openBrowser to NOT be called when urlOnly is true")
+		}
+	})
+
 	t.Run("requires exactly one argument", func(t *testing.T) {
 		t.Parallel()
 
@@ -245,7 +304,7 @@ func TestWorkspaceDashboardCmd_Examples(t *testing.T) {
 		t.Fatalf("Failed to parse examples: %v", err)
 	}
 
-	expectedCount := 2
+	expectedCount := 3
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

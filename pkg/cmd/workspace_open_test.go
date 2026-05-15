@@ -342,6 +342,46 @@ func TestWorkspaceOpenCmd_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("prints URL without opening browser when urlOnly is set", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		forwards := []map[string]any{
+			{"bind": "127.0.0.1", "port": 45678, "target": 8080},
+		}
+		id := setupWorkspaceWithForwards(t, storageDir, forwards)
+
+		manager, _ := instances.NewManager(storageDir)
+		_ = manager.RegisterRuntime(fake.New())
+
+		browserCalled := false
+		c := &workspaceOpenCmd{
+			manager:  manager,
+			nameOrID: id,
+			urlOnly:  true,
+			openBrowser: func(_ context.Context, _ string) error {
+				browserCalled = true
+				return nil
+			},
+		}
+
+		var outBuf bytes.Buffer
+		cobraCmd := &cobra.Command{}
+		cobraCmd.SetOut(&outBuf)
+
+		if err := c.run(cobraCmd, nil); err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+
+		expected := "http://127.0.0.1:45678"
+		if output := strings.TrimSpace(outBuf.String()); output != expected {
+			t.Errorf("stdout = %q, want %q", output, expected)
+		}
+		if browserCalled {
+			t.Error("Expected openBrowser to NOT be called when urlOnly is true")
+		}
+	})
+
 	t.Run("fails when specified port not found", func(t *testing.T) {
 		t.Parallel()
 
@@ -419,7 +459,7 @@ func TestWorkspaceOpenCmd_Examples(t *testing.T) {
 		t.Fatalf("Failed to parse examples: %v", err)
 	}
 
-	expectedCount := 2
+	expectedCount := 3
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

@@ -36,5 +36,7 @@ func NewOpenCmd() *cobra.Command {
 		RunE:              workspaceOpenCmd.RunE,
 	}
 
+	cmd.Flags().AddFlagSet(workspaceOpenCmd.Flags())
+
 	return cmd
 }
