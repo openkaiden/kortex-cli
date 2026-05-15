@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"strings"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
@@ -26,15 +25,40 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime"
 )
 
-// containerADCPath is the ADC file path inside the OpenShell sandbox.
-var containerADCPath = path.Join(containerHome, ".config/gcloud/application_default_credentials.json")
+// podmanContainerHome is the home directory used by credential implementations.
+const podmanContainerHome = "/home/agent"
 
-// interceptCredentials detects file-based credential mounts (e.g. gcloud ADC)
-// in the workspace config and returns a function that uploads the real
-// credential file into the sandbox after it is created. OpenShell sandboxes
-// are isolated so the real file can be uploaded directly.
+// hostExpanders holds functions that transform host patterns before they are
+// added to the network allow list. Credential-specific files (e.g.
+// credentials_gcloud.go) register their expanders via init().
+var hostExpanders []func([]string) []string
+
+// registerHostExpander adds a host-pattern expander. Called from init() in
+// credential-specific files.
+func registerHostExpander(fn func([]string) []string) {
+	hostExpanders = append(hostExpanders, fn)
+}
+
+// expandHostPatterns runs all registered host expanders on the given patterns.
+func expandHostPatterns(hosts []string) []string {
+	for _, fn := range hostExpanders {
+		hosts = fn(hosts)
+	}
+	return hosts
+}
+
+// credentialUpload captures a detected credential's upload parameters.
+type credentialUpload struct {
+	hostPath      string
+	containerPath string
+}
+
+// interceptCredentials detects file-based credential mounts in the workspace
+// config and returns a function that uploads the real credential files into the
+// sandbox after it is created. OpenShell sandboxes are isolated so real files
+// can be uploaded directly.
 //
-// The intercepted mount is removed from the workspace config and the
+// Intercepted mounts are removed from the workspace config and each
 // credential's host patterns are added to the network allow list.
 func (r *openshellRuntime) interceptCredentials(ctx context.Context, params runtime.CreateParams) (func(context.Context, string) error, error) {
 	wsCfg := params.WorkspaceConfig
@@ -49,7 +73,7 @@ func (r *openshellRuntime) interceptCredentials(ctx context.Context, params runt
 
 	l := logger.FromContext(ctx)
 
-	var uploadFn func(context.Context, string) error
+	var uploads []credentialUpload
 
 	for _, cred := range r.credentialRegistry.List() {
 		hostPath, intercepted := cred.Detect(*wsCfg.Mounts, homeDir)
@@ -57,28 +81,46 @@ func (r *openshellRuntime) interceptCredentials(ctx context.Context, params runt
 			continue
 		}
 
-		if cred.Name() != "gcloud" {
-			continue
-		}
-
 		if _, err := os.Stat(hostPath); os.IsNotExist(err) {
-			fmt.Fprintf(l.Stderr(), "Gcloud ADC file not found at %s, skipping credential interception\n", hostPath)
+			fmt.Fprintf(l.Stderr(), "%s credential file not found at %s, skipping\n", cred.Name(), hostPath)
 			continue
 		}
 
 		removeMountFromConfig(wsCfg, intercepted)
-		addHostsToNetworkConfig(wsCfg, expandWildcardHosts(cred.HostPatterns(hostPath)))
+		addHostsToNetworkConfig(wsCfg, expandHostPatterns(cred.HostPatterns(hostPath)))
 
-		realPath := hostPath
-		uploadFn = func(ctx context.Context, sandboxName string) error {
-			l := logger.FromContext(ctx)
-			return r.executor.Run(ctx, l.Stdout(), l.Stderr(),
-				"sandbox", "upload", sandboxName, realPath, containerADCPath,
-			)
+		uploads = append(uploads, credentialUpload{
+			hostPath:      hostPath,
+			containerPath: remapContainerPath(cred.ContainerFilePath()),
+		})
+	}
+
+	if len(uploads) == 0 {
+		return nil, nil
+	}
+
+	uploadFn := func(ctx context.Context, sandboxName string) error {
+		l := logger.FromContext(ctx)
+		for _, u := range uploads {
+			if err := r.executor.Run(ctx, l.Stdout(), l.Stderr(),
+				"sandbox", "upload", sandboxName, u.hostPath, u.containerPath,
+			); err != nil {
+				return err
+			}
 		}
+		return nil
 	}
 
 	return uploadFn, nil
+}
+
+// remapContainerPath translates a container file path from the Podman home
+// directory (/home/agent) to the OpenShell sandbox home (/sandbox).
+func remapContainerPath(containerFilePath string) string {
+	if strings.HasPrefix(containerFilePath, podmanContainerHome) {
+		return containerHome + containerFilePath[len(podmanContainerHome):]
+	}
+	return containerFilePath
 }
 
 // removeMountFromConfig removes the intercepted mount from the workspace config.
@@ -93,55 +135,6 @@ func removeMountFromConfig(wsCfg *workspace.WorkspaceConfiguration, intercepted 
 		}
 	}
 	*wsCfg.Mounts = filtered
-}
-
-// vertexAIRegions lists the Vertex AI regional endpoint prefixes.
-// OpenShell policy does not support "*-" wildcards (only "*." or "**."),
-// so we enumerate them explicitly.
-var vertexAIRegions = []string{
-	"us-central1",
-	"us-east4",
-	"us-east5",
-	"us-west1",
-	"us-west4",
-	"europe-west1",
-	"europe-west2",
-	"europe-west4",
-	"europe-west9",
-	"asia-southeast1",
-	"asia-northeast1",
-	"asia-northeast3",
-	"me-west1",
-	"northamerica-northeast1",
-}
-
-// extraVertexAIHosts lists additional Google Cloud hosts required by the
-// Vertex AI authentication and model serving flow beyond the regional
-// aiplatform endpoints.
-var extraVertexAIHosts = []string{
-	"storage.googleapis.com",
-}
-
-// expandWildcardHosts replaces unsupported wildcard patterns like
-// "*-aiplatform.googleapis.com" with explicit regional endpoints and
-// appends additional hosts required by the Vertex AI flow.
-func expandWildcardHosts(hosts []string) []string {
-	var result []string
-	expanded := false
-	for _, h := range hosts {
-		if h == "*-aiplatform.googleapis.com" {
-			for _, region := range vertexAIRegions {
-				result = append(result, region+"-aiplatform.googleapis.com")
-			}
-			expanded = true
-			continue
-		}
-		result = append(result, h)
-	}
-	if expanded {
-		result = append(result, extraVertexAIHosts...)
-	}
-	return result
 }
 
 // addHostsToNetworkConfig appends hosts to the workspace network allow list.

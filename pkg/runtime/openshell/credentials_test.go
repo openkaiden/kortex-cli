@@ -345,61 +345,6 @@ func TestInterceptCredentials_AddsHostsToNilNetwork(t *testing.T) {
 	}
 }
 
-func TestExpandWildcardHosts(t *testing.T) {
-	t.Parallel()
-
-	t.Run("expands wildcard pattern", func(t *testing.T) {
-		t.Parallel()
-
-		input := []string{"oauth2.googleapis.com", "*-aiplatform.googleapis.com", "aiplatform.googleapis.com"}
-		result := expandWildcardHosts(input)
-
-		if slices.Contains(result, "*-aiplatform.googleapis.com") {
-			t.Error("wildcard should have been expanded")
-		}
-		if !slices.Contains(result, "oauth2.googleapis.com") {
-			t.Error("non-wildcard host should be preserved")
-		}
-		if !slices.Contains(result, "aiplatform.googleapis.com") {
-			t.Error("non-wildcard host should be preserved")
-		}
-		if !slices.Contains(result, "us-central1-aiplatform.googleapis.com") {
-			t.Error("expected us-central1 regional endpoint")
-		}
-		if !slices.Contains(result, "europe-west4-aiplatform.googleapis.com") {
-			t.Error("expected europe-west4 regional endpoint")
-		}
-		if !slices.Contains(result, "storage.googleapis.com") {
-			t.Error("expected storage.googleapis.com")
-		}
-
-		expectedLen := 2 + len(vertexAIRegions) + len(extraVertexAIHosts)
-		if len(result) != expectedLen {
-			t.Errorf("expected %d hosts, got %d", expectedLen, len(result))
-		}
-	})
-
-	t.Run("passes through non-wildcard hosts", func(t *testing.T) {
-		t.Parallel()
-
-		input := []string{"example.com", "api.github.com"}
-		result := expandWildcardHosts(input)
-
-		if len(result) != 2 {
-			t.Errorf("expected 2 hosts, got %d", len(result))
-		}
-	})
-
-	t.Run("handles nil input", func(t *testing.T) {
-		t.Parallel()
-
-		result := expandWildcardHosts(nil)
-		if len(result) != 0 {
-			t.Errorf("expected empty result, got %v", result)
-		}
-	})
-}
-
 func TestRemoveMountFromConfig(t *testing.T) {
 	t.Parallel()
 
@@ -466,30 +411,80 @@ func TestAddHostsToNetworkConfig(t *testing.T) {
 	})
 }
 
-// fakeCredential implements credential.Credential for testing non-gcloud credentials.
+func TestRemapContainerPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("remaps /home/agent prefix", func(t *testing.T) {
+		t.Parallel()
+
+		got := remapContainerPath("/home/agent/.config/gcloud/application_default_credentials.json")
+		want := "/sandbox/.config/gcloud/application_default_credentials.json"
+		if got != want {
+			t.Errorf("remapContainerPath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("remaps /home/agent/.kube/config", func(t *testing.T) {
+		t.Parallel()
+
+		got := remapContainerPath("/home/agent/.kube/config")
+		want := "/sandbox/.kube/config"
+		if got != want {
+			t.Errorf("remapContainerPath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("preserves paths without /home/agent prefix", func(t *testing.T) {
+		t.Parallel()
+
+		got := remapContainerPath("/etc/ssl/certs/ca-certificates.crt")
+		want := "/etc/ssl/certs/ca-certificates.crt"
+		if got != want {
+			t.Errorf("remapContainerPath() = %q, want %q", got, want)
+		}
+	})
+}
+
+// fakeCredential implements credential.Credential for testing.
 type fakeCredential struct {
-	name         string
-	hostPatterns []string
+	name              string
+	containerFilePath string
+	hostPatterns      []string
+	detectHostPath    string
+	detectTarget      string
 }
 
 var _ credential.Credential = (*fakeCredential)(nil)
 
-func (f *fakeCredential) Name() string                      { return f.name }
-func (f *fakeCredential) ContainerFilePath() string         { return "/fake/path" }
-func (f *fakeCredential) HostPatterns(_ string) []string    { return f.hostPatterns }
-func (f *fakeCredential) FakeFile(_ string) ([]byte, error) { return nil, nil }
-func (f *fakeCredential) Detect(_ []workspace.Mount, _ string) (string, *workspace.Mount) {
+func (f *fakeCredential) Name() string                   { return f.name }
+func (f *fakeCredential) ContainerFilePath() string      { return f.containerFilePath }
+func (f *fakeCredential) HostPatterns(_ string) []string { return f.hostPatterns }
+func (f *fakeCredential) FakeFile(_ string) ([]byte, error) {
+	return nil, nil
+}
+func (f *fakeCredential) Detect(mounts []workspace.Mount, _ string) (string, *workspace.Mount) {
+	if f.detectTarget == "" {
+		return "", nil
+	}
+	for i := range mounts {
+		if mounts[i].Target == f.detectTarget {
+			return f.detectHostPath, &mounts[i]
+		}
+	}
 	return "", nil
 }
 func (f *fakeCredential) Configure(_ context.Context, _ onecli.Client, _ string) error { return nil }
 
-func TestInterceptCredentials_SkipsNonGcloudCredentials(t *testing.T) {
+func TestInterceptCredentials_UndetectedCredentialSkipped(t *testing.T) {
 	t.Parallel()
 
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
 	reg := credential.NewRegistry()
-	_ = reg.Register(&fakeCredential{name: "custom"})
+	_ = reg.Register(&fakeCredential{
+		name:              "custom",
+		containerFilePath: "/home/agent/.custom/creds",
+	})
 	rt.credentialRegistry = reg
 
 	mounts := []workspace.Mount{{Host: "/some/path", Target: "/some/target"}}
@@ -500,6 +495,137 @@ func TestInterceptCredentials_SkipsNonGcloudCredentials(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if uploadFn != nil {
-		t.Error("expected nil uploadFn")
+		t.Error("expected nil uploadFn when credential is not detected")
+	}
+}
+
+func TestInterceptCredentials_DetectedCredentialUploaded(t *testing.T) {
+	t.Parallel()
+
+	credFile := filepath.Join(t.TempDir(), "my-creds.json")
+	if err := os.WriteFile(credFile, []byte(`{"token":"test"}`), 0644); err != nil {
+		t.Fatalf("failed to write credential file: %v", err)
+	}
+
+	mounts := []workspace.Mount{{Host: credFile, Target: "$HOME/.custom/creds"}}
+
+	fakeExec := exec.NewFake()
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+	reg := credential.NewRegistry()
+	_ = reg.Register(&fakeCredential{
+		name:              "custom",
+		containerFilePath: "/home/agent/.custom/creds",
+		hostPatterns:      []string{"api.custom.com"},
+		detectHostPath:    credFile,
+		detectTarget:      "$HOME/.custom/creds",
+	})
+	rt.credentialRegistry = reg
+
+	cfg := &workspace.WorkspaceConfiguration{Mounts: &mounts}
+
+	uploadFn, err := rt.interceptCredentials(context.Background(), runtime.CreateParams{WorkspaceConfig: cfg})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if uploadFn == nil {
+		t.Fatal("expected non-nil uploadFn for detected credential")
+	}
+
+	if err := uploadFn(context.Background(), "kdn-test"); err != nil {
+		t.Fatalf("uploadFn failed: %v", err)
+	}
+
+	if len(fakeExec.RunCalls) != 1 {
+		t.Fatalf("expected 1 upload call, got %d", len(fakeExec.RunCalls))
+	}
+
+	call := fakeExec.RunCalls[0]
+	lastArg := call[len(call)-1]
+	if lastArg != "/sandbox/.custom/creds" {
+		t.Errorf("upload destination = %q, want %q", lastArg, "/sandbox/.custom/creds")
+	}
+}
+
+func TestInterceptCredentials_MultipleCredentials(t *testing.T) {
+	t.Parallel()
+
+	credFile1 := filepath.Join(t.TempDir(), "cred1.json")
+	credFile2 := filepath.Join(t.TempDir(), "cred2.json")
+	if err := os.WriteFile(credFile1, []byte(`{}`), 0644); err != nil {
+		t.Fatalf("failed to write cred1: %v", err)
+	}
+	if err := os.WriteFile(credFile2, []byte(`{}`), 0644); err != nil {
+		t.Fatalf("failed to write cred2: %v", err)
+	}
+
+	mounts := []workspace.Mount{
+		{Host: credFile1, Target: "$HOME/.cred1"},
+		{Host: credFile2, Target: "$HOME/.cred2"},
+	}
+
+	fakeExec := exec.NewFake()
+	rt := newWithDeps(fakeExec, "/fake/gw", t.TempDir())
+	reg := credential.NewRegistry()
+	_ = reg.Register(&fakeCredential{
+		name:              "cred-a",
+		containerFilePath: "/home/agent/.cred1",
+		hostPatterns:      []string{"api.a.com"},
+		detectHostPath:    credFile1,
+		detectTarget:      "$HOME/.cred1",
+	})
+	_ = reg.Register(&fakeCredential{
+		name:              "cred-b",
+		containerFilePath: "/home/agent/.cred2",
+		hostPatterns:      []string{"api.b.com"},
+		detectHostPath:    credFile2,
+		detectTarget:      "$HOME/.cred2",
+	})
+	rt.credentialRegistry = reg
+
+	cfg := &workspace.WorkspaceConfiguration{Mounts: &mounts}
+
+	uploadFn, err := rt.interceptCredentials(context.Background(), runtime.CreateParams{WorkspaceConfig: cfg})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if uploadFn == nil {
+		t.Fatal("expected non-nil uploadFn")
+	}
+
+	if err := uploadFn(context.Background(), "kdn-test"); err != nil {
+		t.Fatalf("uploadFn failed: %v", err)
+	}
+
+	if len(fakeExec.RunCalls) != 2 {
+		t.Fatalf("expected 2 upload calls, got %d", len(fakeExec.RunCalls))
+	}
+
+	if len(*cfg.Mounts) != 0 {
+		t.Errorf("expected all mounts removed, got %d", len(*cfg.Mounts))
+	}
+
+	if cfg.Network == nil || cfg.Network.Hosts == nil {
+		t.Fatal("expected network hosts to be set")
+	}
+	hosts := *cfg.Network.Hosts
+	if !slices.Contains(hosts, "api.a.com") {
+		t.Error("missing host api.a.com")
+	}
+	if !slices.Contains(hosts, "api.b.com") {
+		t.Error("missing host api.b.com")
+	}
+}
+
+func TestExpandHostPatterns(t *testing.T) {
+	t.Parallel()
+
+	input := []string{"oauth2.googleapis.com", "*-aiplatform.googleapis.com"}
+	result := expandHostPatterns(input)
+
+	if slices.Contains(result, "*-aiplatform.googleapis.com") {
+		t.Error("registered expander should have expanded the wildcard")
+	}
+	if !slices.Contains(result, "us-central1-aiplatform.googleapis.com") {
+		t.Error("expected expanded regional endpoint")
 	}
 }
