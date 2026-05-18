@@ -29,6 +29,7 @@ kdn is part of the [Kaiden](https://openkaiden.ai/) project — an open platform
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
 - Multi-level configuration with clear precedence (agent > project > global > workspace): inject environment variables, mount directories, configure MCP servers, manage secrets, and control network access at each scope
 - Automatic workspace setup with `kdn autoconf` — scans environment variables and files to create secrets, detects programming languages and exposed ports to add devcontainer features and port-forwarding configuration, all with no manual JSON editing
+- Transparent credential injection via [OneCLI](https://github.com/onecli/onecli) — secrets are injected at the network level, never touching the container filesystem
 - Control network access with allow/deny policies per workspace
 - Consistent configuration for MCP servers, skills, and dev container features across all supported agents — define once, works with Claude Code, Cursor, Goose, and OpenCode
 - Integrate with various LLM providers (Vertex AI, Ollama, OpenRouter, and any OpenAI-compatible API)
@@ -210,7 +211,7 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 
 - Run `gcloud auth application-default login` on your host machine before starting the workspace to ensure valid credentials are available
 - If `GOOGLE_APPLICATION_CREDENTIALS` is set in your shell, `kdn autoconf` uses the file it points to instead of the default ADC path — no extra steps needed
-- kdn automatically intercepts the credentials file mount: a placeholder file is written into the container and OneCLI injects the real credentials transparently at request time — the actual credential file never touches the container filesystem
+- kdn automatically intercepts the credentials file mount: a placeholder file is written into the container and [OneCLI](https://github.com/onecli/onecli) injects the real credentials transparently at request time — the actual credential file never touches the container filesystem
 - No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted credentials file
 - When `network.mode` is `"deny"`, the Google OAuth and Vertex AI endpoints (`oauth2.googleapis.com`, `aiplatform.googleapis.com`) are automatically added to the allow-list — no explicit `hosts` entry is needed
 - To pin a specific Claude model, use `--model` flag during `init` (e.g., `--model claude-sonnet-4-20250514`), which takes precedence over any model in default settings, or add an `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
