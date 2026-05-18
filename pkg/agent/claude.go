@@ -244,6 +244,8 @@ func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string,
 		}
 		env["ANTHROPIC_BASE_URL"] = resolvedURL
 		config["env"] = env
+	} else if env, ok := config["env"].(map[string]interface{}); ok {
+		delete(env, "ANTHROPIC_BASE_URL")
 	}
 
 	modifiedContent, err := json.MarshalIndent(config, "", "  ")

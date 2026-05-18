@@ -614,6 +614,49 @@ func TestClaude_SetModel_NoBaseURL_NoEnvBlock(t *testing.T) {
 	}
 }
 
+func TestClaude_SetModel_NoBaseURL_ClearsStaleBaseURL(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	existingSettings := map[string]interface{}{
+		"model": "old-model",
+		"env": map[string]interface{}{
+			"ANTHROPIC_BASE_URL": "http://stale-endpoint:8080",
+			"CUSTOM_VAR":         "keep-me",
+		},
+	}
+	existingJSON, err := json.Marshal(existingSettings)
+	if err != nil {
+		t.Fatalf("Failed to marshal existing settings: %v", err)
+	}
+
+	settings := map[string]SettingsFile{
+		ClaudeSettingsPath: {Content: existingJSON},
+	}
+
+	result, err := agent.SetModel(settings, "anthropic::claude-sonnet-4-20250514", containerurl.ContainerHost)
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeSettingsPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	env, ok := config["env"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("env block should still exist (has other vars): %v", config["env"])
+	}
+	if _, exists := env["ANTHROPIC_BASE_URL"]; exists {
+		t.Errorf("ANTHROPIC_BASE_URL should have been removed, got: %v", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["CUSTOM_VAR"] != "keep-me" {
+		t.Errorf("CUSTOM_VAR = %v, want %q (other env vars should be preserved)", env["CUSTOM_VAR"], "keep-me")
+	}
+}
+
 func TestClaude_SetModel_BaseURLPreservesExistingEnv(t *testing.T) {
 	t.Parallel()
 
