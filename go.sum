@@ -98,8 +98,8 @@ github.com/muesli/termenv v0.16.0 h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc
 github.com/muesli/termenv v0.16.0/go.mod h1:ZRfOIKPFDYQoDFF4Olj7/QJbW60Ol/kL1pU3VfY/Cnk=
 github.com/openkaiden/kdn-api/cli/go v0.13.0 h1:LEkPDveIaV0J6oYke+1kdCuyzefTe3pHb50AVsZ7mXU=
 github.com/openkaiden/kdn-api/cli/go v0.13.0/go.mod h1:shX38OALrjrGa6K54sBOGPqoOe45+YZDl8zpXbeQcdQ=
-github.com/openkaiden/kdn-api/workspace-configuration/go v0.12.0 h1:13WrD+fkIL4z4zKHj1mt7K9E12ALCiN+OZttu9HAR1o=
-github.com/openkaiden/kdn-api/workspace-configuration/go v0.12.0/go.mod h1:kSN89iJaJ4q5Go99LamjtDBMXMp7vbyqWuL142yC4/E=
+github.com/openkaiden/kdn-api/workspace-configuration/go v0.13.0 h1:mxJTIcl9hNQ8tS36S4pa2oYJy9tD6Et0G0fDltWK5B8=
+github.com/openkaiden/kdn-api/workspace-configuration/go v0.13.0/go.mod h1:kSN89iJaJ4q5Go99LamjtDBMXMp7vbyqWuL142yC4/E=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 h1:GFCKgmp0tecUJ0sJuv4pzYCqS9+RGSn52M3FUwPs+uo=
