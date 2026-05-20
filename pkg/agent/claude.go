@@ -25,6 +25,7 @@ import (
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	kdnconfig "github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 const (
@@ -217,9 +218,12 @@ func (c *claudeAgent) SetMCPServers(settings map[string]SettingsFile, mcp *works
 }
 
 // SetModel configures the model ID in Claude settings.
-// It sets the model field in .claude/settings.json.
-// All other fields in the settings file are preserved.
-func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string, _ string) (map[string]SettingsFile, error) {
+// It sets the model field in .claude/settings.json. When the model ID
+// includes a base URL (provider::model::baseURL), it also sets
+// ANTHROPIC_BASE_URL in the env block so Claude Code routes requests
+// to the custom endpoint. Localhost URLs are rewritten using
+// containerHost so they are reachable from inside the runtime.
+func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string, containerHost string) (map[string]SettingsFile, error) {
 	settings = EnsureSettings(settings)
 	existingContent := GetContent(settings, ClaudeSettingsPath, []byte("{}"))
 
@@ -228,8 +232,21 @@ func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string,
 		return nil, fmt.Errorf("failed to parse existing %s: %w", ClaudeSettingsPath, err)
 	}
 
-	_, modelName, _ := kdnconfig.ParseModelID(modelID)
+	_, modelName, baseURL := kdnconfig.ParseModelID(modelID)
 	config["model"] = modelName
+
+	if baseURL != "" {
+		resolvedURL := containerurl.RewriteURLWithHost(baseURL, containerHost)
+
+		env, _ := config["env"].(map[string]interface{})
+		if env == nil {
+			env = make(map[string]interface{})
+		}
+		env["ANTHROPIC_BASE_URL"] = resolvedURL
+		config["env"] = env
+	} else if env, ok := config["env"].(map[string]interface{}); ok {
+		delete(env, "ANTHROPIC_BASE_URL")
+	}
 
 	modifiedContent, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
