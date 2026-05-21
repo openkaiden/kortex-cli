@@ -32,6 +32,7 @@ kdn is part of the [Kaiden](https://openkaiden.ai/) project — an open platform
 - Transparent credential injection via [OneCLI](https://github.com/onecli/onecli) — secrets are injected at the network level, never touching the container filesystem
 - Control network access with allow/deny policies per workspace
 - Consistent configuration for MCP servers, skills, and dev container features across all supported agents — define once, works with Claude Code, Cursor, Goose, and OpenCode
+- Built-in skills automatically available in every workspace — including `config-kdn-workspace` to help agents configure the workspace interactively
 - Integrate with various LLM providers (Vertex AI, Ollama, OpenRouter, and any OpenAI-compatible API)
 - Consistent CLI interface across different agent types and runtimes
 
@@ -1943,9 +1944,13 @@ Paths can also be absolute (e.g., `/absolute/path`).
 
 ### Skills
 
-Configure skill directories to make available to the agent inside the workspace.
+kdn automatically injects a set of built-in skills into every workspace. These skills are embedded in the kdn binary and extracted to the storage directory at workspace creation time. For example, the `config-kdn-workspace` skill helps agents configure the workspace interactively.
+
+You can also configure additional skill directories to make available to the agent inside the workspace.
 
 Each entry is a path to a directory on the host that contains a single skill — a `SKILL.md` file and any related files. The directory is mounted read-only inside the agent's skills directory using the directory's basename as the skill name, allowing the agent to discover and use it.
+
+A user-configured skill whose basename matches a built-in skill overrides the built-in one.
 
 **Structure:**
 ```json

@@ -410,16 +410,22 @@ The gateway token and other defaults are configured via `SkipOnboarding()` in `p
 
 ### Skills System
 
-Skills are reusable capabilities that can be discovered and executed by AI agents:
+There are two distinct kinds of skills in this repository:
 
-- **Location**: `.agents/skills/<skill-name>/SKILL.md`
-- **Claude support**: `.claude/skills` is a symlink to `../.agents/skills`, so Claude Code discovers skills automatically
-- **Format**: Each SKILL.md contains:
-  - YAML frontmatter with `name`, `description`, `argument-hint`
-  - Detailed instructions for execution
-  - Usage examples
+**1. Contributor skills** (`.agents/skills/<name>/`) — for agents working on the kdn codebase itself. These are the skills listed in the system prompt (e.g. `/add-command-with-json`, `/working-with-config-system`). Claude Code discovers them via the `.claude/skills` symlink.
 
-Skills can be provided to workspaces via the `skills` field in `workspace.json` (or any other config level). Each entry is the path to a single skill directory on the host. kdn mounts it read-only into the agent's skills directory inside the container using the directory's basename as the skill name:
+**2. Built-in user-facing skills** (`skills/<name>/`) — for agents running inside kdn workspaces. These are embedded in the kdn binary at compile time and automatically mounted into every workspace whose agent supports skills.
+
+#### Built-in skills (`skills/`)
+
+- **Package**: `skills/skills.go` — embeds all listed subdirectories using `//go:embed` and provides `ExtractAll(storageDir string) ([]string, error)`
+- **Extraction**: `ExtractAll` writes each embedded skill to `<storageDir>/skills/<name>/` and returns the host paths. Files are extracted with `0644` permissions (embed.FS normalises all modes to `0444`, so original permissions cannot be preserved).
+- **Auto-injection**: `manager.Add()` calls `ExtractAll` whenever the agent's `SkillsDir()` is non-empty, then appends each returned path to `mergedConfig.Skills` — unless a skill with the same basename is already present (user override wins).
+- **Format**: same `SKILL.md` frontmatter as contributor skills.
+
+#### User-configured skills (`workspace.json` / config levels)
+
+Skills can also be provided to workspaces via the `skills` field in `workspace.json` (or any other config level). Each entry is the path to a single skill directory on the host. kdn mounts it read-only into the agent's skills directory inside the container using the directory's basename as the skill name:
 
 | Agent | Container skills directory |
 |-------|--------------------------|
@@ -431,10 +437,17 @@ Skills can be provided to workspaces via the `skills` field in `workspace.json` 
 
 The `Agent` interface (`pkg/agent/agent.go`) exposes `SkillsDir() string` which returns the container path (using the `$HOME` variable) where skill directories should be mounted. The manager calls this during `Add()` to convert `WorkspaceConfig.Skills` entries into `workspace.Mount` entries before passing the config to the runtime.
 
-### Adding a New Skill
+### Adding a New Contributor Skill (for kdn development)
 1. Create directory: `.agents/skills/<skill-name>/`
 2. Create SKILL.md with frontmatter and instructions
 3. No symlink step needed — `.claude/skills` already symlinks to `.agents/skills/`
+
+### Adding a New Built-in Skill (distributed to all workspaces)
+1. Create directory: `skills/<skill-name>/`
+2. Create SKILL.md with frontmatter and instructions
+3. Add the directory name to the `//go:embed` directive in `skills/skills.go`
+
+`ExtractAll` discovers skills by walking the root of the embedded FS — no other code changes are needed.
 
 ### Adding a New Command
 

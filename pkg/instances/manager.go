@@ -42,6 +42,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservice"
+	"github.com/openkaiden/kdn/skills"
 )
 
 const (
@@ -363,6 +364,37 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 				agentSettings, err = agentImpl.SetModel(agentSettings, opts.Model, containerHost)
 				if err != nil {
 					return nil, fmt.Errorf("failed to apply agent model settings: %w", err)
+				}
+			}
+
+			// Inject built-in skills when the agent supports skills
+			if agentImpl.SkillsDir() != "" {
+				builtInPaths, err := skills.ExtractAll(m.storageDir)
+				if err != nil {
+					return nil, fmt.Errorf("failed to extract built-in skills: %w", err)
+				}
+				for _, builtInPath := range builtInPaths {
+					builtInBase := filepath.Base(builtInPath)
+					alreadyPresent := false
+					if mergedConfig != nil && mergedConfig.Skills != nil {
+						for _, s := range *mergedConfig.Skills {
+							if filepath.Base(s) == builtInBase {
+								alreadyPresent = true
+								break
+							}
+						}
+					}
+					if !alreadyPresent {
+						if mergedConfig == nil {
+							mergedConfig = &workspace.WorkspaceConfiguration{}
+						}
+						if mergedConfig.Skills == nil {
+							s := []string{builtInPath}
+							mergedConfig.Skills = &s
+						} else {
+							*mergedConfig.Skills = append(*mergedConfig.Skills, builtInPath)
+						}
+					}
 				}
 			}
 
