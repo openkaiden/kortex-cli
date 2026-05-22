@@ -15,7 +15,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/yarlson/pin v0.9.1
 	github.com/zalando/go-keyring v0.2.8
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
